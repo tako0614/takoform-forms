@@ -1,0 +1,26 @@
+{
+  "name": "takoform-forms",
+  "private": true,
+  "version": "0.0.0-private",
+  "packageManager": "bun@1.3.14",
+  "scripts": {
+    "check": "bun run check:tools && bun run format:check && bun run check:boundary && bun run check:integrity && bun run check:generation && bun run check:publication && bun run lint && bun run typecheck && bun run test:portable && bun run build:portable",
+    "check:tools": "set -eu; for tool in bun go gofmt node; do command -v \"$tool\" >/dev/null || { printf 'Required portable check tool is missing: %s\\n' \"$tool\" >&2; exit 127; }; done; test -x node_modules/.bin/prettier || { printf 'Run bun install --frozen-lockfile before check; pinned Prettier is missing.\\n' >&2; exit 127; }",
+    "format:check": "set -eu; unformatted=\"$(gofmt -l .)\"; if [ -n \"$unformatted\" ]; then printf 'The following files need gofmt:\\n%s\\n' \"$unformatted\"; exit 1; fi; node_modules/.bin/prettier --check $(git ls-files -- '*.js' '*.mjs')",
+    "check:boundary": "node scripts/check-boundary.mjs",
+    "check:integrity": "node scripts/check-integrity.mjs",
+    "check:generation": "bun scripts/current-form-families.mjs --check",
+    "check:publication": "bun scripts/form-publication.mjs --check",
+    "generate": "bun scripts/current-form-families.mjs --write",
+    "write:publication": "bun scripts/form-publication.mjs --write",
+    "fmt": "set -eu; gofmt -w $(find . -name '*.go' -type f -not -path './.git/*'); node_modules/.bin/prettier --write $(git ls-files -- '*.js' '*.mjs')",
+    "lint": "go mod verify && go vet ./...",
+    "typecheck": "go test -run '^$' ./...",
+    "test:portable": "bun test scripts/*.test.mjs && go test ./...",
+    "build:portable": "set -eu; build_dir=\"$(mktemp -d)\"; trap 'rm -rf \"$build_dir\"' EXIT; go build -o \"$build_dir/\" ./...",
+    "deploy": "bun scripts/deploy.mjs"
+  },
+  "devDependencies": {
+    "prettier": "3.6.2"
+  }
+}

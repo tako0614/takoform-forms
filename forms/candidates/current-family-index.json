@@ -1,0 +1,19 @@
+{
+  "format": "takoform.current-family-index@v1",
+  "families": [
+    {
+      "group": "edge.forms.takoform.com",
+      "candidateSet": "forms/candidates/edge.forms.takoform.com/candidate-set.json",
+      "sha256": "8e8599ca3896946dc5ac4e609ce7652f21631bd5e38dddc026db7a3febadf2f8",
+      "formCount": 16
+    }
+  ],
+  "interfaceCandidateSet": {
+    "path": "interfaces/candidates/v1alpha1/candidate-set.json",
+    "sha256": "9d15d44047369cf7866c4570293e4f40f346873eb646d82f676a3b411156ba2b"
+  },
+  "bindingCandidateSet": {
+    "path": "bindings/candidates/v1alpha2/candidate-set.json",
+    "sha256": "e3b4aa31d5f9f7b7f31ff70f5f805a9354abf3ccd5555cc457e2e7c395224143"
+  }
+}

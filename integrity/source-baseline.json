@@ -1,0 +1,688 @@
+{
+  "format": "takoform-forms.source-baseline@v1",
+  "source": {
+    "repository": "terraform-provider-takoform",
+    "commit": "220d37b284d8288e6e12d31375ecfdca6a5f15c5",
+    "note": "Provider tombstone main snapshot; current data-only candidates only"
+  },
+  "counts": {
+    "families": 1,
+    "forms": 16,
+    "interfaces": 7,
+    "bindings": 6
+  },
+  "files": {
+    "bindings/candidates/v1alpha2/candidate-set.json": {
+      "bytes": 1204,
+      "sha256": "e3b4aa31d5f9f7b7f31ff70f5f805a9354abf3ccd5555cc457e2e7c395224143"
+    },
+    "bindings/candidates/v1alpha2/module-worker.actor/definition.json": {
+      "bytes": 2136,
+      "sha256": "45b3f76c259a47132f107fe74918d24c99a7f307273148121d6710242990197e"
+    },
+    "bindings/candidates/v1alpha2/module-worker.edge-kv/definition.json": {
+      "bytes": 1870,
+      "sha256": "b15d9369b0fd0bcbe9464d1098f9ddab92793cd651e7d465623d579f2f7ff230"
+    },
+    "bindings/candidates/v1alpha2/module-worker.queue-producer/definition.json": {
+      "bytes": 1728,
+      "sha256": "ff1732cfaa9be62a3ac60fdc5bb0791496a64f4d7df9bfe6d2701dadf2f704f5"
+    },
+    "bindings/candidates/v1alpha2/module-worker.service/definition.json": {
+      "bytes": 1827,
+      "sha256": "357f3997a771e7685f61c08a9587857e65b6f46a861c9d34fc95fa22771f6b0d"
+    },
+    "bindings/candidates/v1alpha2/module-worker.sqlite/definition.json": {
+      "bytes": 2245,
+      "sha256": "f552c971f5a0dc8ecf7213c76d4eff9d95ee8e70abb3b29e7d94bfa4817d4f43"
+    },
+    "bindings/candidates/v1alpha2/module-worker.workflow/definition.json": {
+      "bytes": 2176,
+      "sha256": "d11789a6b194d9ae69600eb43a0eff33ab180adc8824855463d12803d7d42c0a"
+    },
+    "conformance/takoform-v1/families/edge.forms.takoform.com.json": {
+      "bytes": 37374,
+      "sha256": "9c7288fe103584922fb481dc6af2f1d70e0fb7b48aa3389bf817bf5626f1c873"
+    },
+    "conformance/takoform-v1/families/fixtures/actor-namespace-desired-schema.json": {
+      "bytes": 2338,
+      "sha256": "7c6d8c0b11a1b8b447ad75db891cc254d37fc507fe842b41ad5d6ebd1f4e3e66"
+    },
+    "conformance/takoform-v1/families/fixtures/at-least-once-queue-desired-schema.json": {
+      "bytes": 1178,
+      "sha256": "cde8e7bc22646ca301162cafd9908983a1105c1ae4ac4f8308a847cfddf53a74"
+    },
+    "conformance/takoform-v1/families/fixtures/durable-workflow-desired-schema.json": {
+      "bytes": 2361,
+      "sha256": "ad461df3c85d920ded44ecbddb318bf1717c7fcf96729300c2612bf79a4586ef"
+    },
+    "conformance/takoform-v1/families/fixtures/edge-kvnamespace-desired-schema.json": {
+      "bytes": 701,
+      "sha256": "6ae4b4cc712dbd445a131e0d3a8c464ef48070375ec3432dea599944c4c1bb5e"
+    },
+    "conformance/takoform-v1/families/fixtures/module-worker-desired-schema.json": {
+      "bytes": 932,
+      "sha256": "18192dd39a68d01a3e8d673d6fb33692bea4a2a1b4bcd3db61c7a1cd78c6094f"
+    },
+    "conformance/takoform-v1/families/fixtures/queue-consumer-desired-schema.json": {
+      "bytes": 5609,
+      "sha256": "cc97142acf0c23186022a3be15cb3d801a8ec2900b81ad77039f3692eeddffa2"
+    },
+    "conformance/takoform-v1/families/fixtures/sqlite-database-desired-schema.json": {
+      "bytes": 801,
+      "sha256": "20e378ed44dc3b0bb2512400f30d1567a319b54bd01800883c992cef81d55dda"
+    },
+    "conformance/takoform-v1/families/fixtures/sqlite-migration-application-desired-schema.json": {
+      "bytes": 2982,
+      "sha256": "0fd08736e9ef1999b8e38639cde58d28fc90feef6c5bc3f3cd0ae6978183d121"
+    },
+    "conformance/takoform-v1/families/fixtures/sqlite-migration-set-desired-schema.json": {
+      "bytes": 1180,
+      "sha256": "bea51df95c4f031cba02c0f56c4f21d06f7b56b757f3fecfafc9467f622b29aa"
+    },
+    "conformance/takoform-v1/families/fixtures/static-asset-bundle-desired-schema.json": {
+      "bytes": 1245,
+      "sha256": "1a34bb52ccc21fdb7d1155b93b63be6284ac5947fdf8c3b2a6bac281830f4de0"
+    },
+    "conformance/takoform-v1/families/fixtures/worker-bundle-desired-schema.json": {
+      "bytes": 1127,
+      "sha256": "4e2c13cee7c98401de522e6caf5b1a3f8f8d4fefffaaaf593e32b73da892d2c5"
+    },
+    "conformance/takoform-v1/families/fixtures/worker-cron-trigger-desired-schema.json": {
+      "bytes": 3244,
+      "sha256": "52baf84e6fb548d19b3074ea4acd69bcf48aaa3444396d435801ed8c081bfc6c"
+    },
+    "conformance/takoform-v1/families/fixtures/worker-custom-domain-desired-schema.json": {
+      "bytes": 2440,
+      "sha256": "fadc0188cb9925206dbc778d3fc78d9272928237a76f06ca83346298e743a4a3"
+    },
+    "conformance/takoform-v1/families/fixtures/worker-deployment-desired-schema.json": {
+      "bytes": 3245,
+      "sha256": "7ed8e640cf7ba175ae217bec2b530b118ade59ba5ec9fcfd864dbe0be8dfe731"
+    },
+    "conformance/takoform-v1/families/fixtures/worker-endpoint-desired-schema.json": {
+      "bytes": 2812,
+      "sha256": "a17e0928faf37f6eb25fc86c43b535895985c32fc51ae7a887388d708dce7bc3"
+    },
+    "conformance/takoform-v1/families/fixtures/worker-version-desired-schema.json": {
+      "bytes": 22647,
+      "sha256": "c35c2398f45dc0b73c2e7de8cb44d065ace7de05a5100eccf22ebf3ae1e9e4a8"
+    },
+    "forms/candidates/current-family-index.json": {
+      "bytes": 673,
+      "sha256": "c3c59a01fb90ab967c3765ff1dd15ca4af4062cba9b38c0a3b97a168822ffb32"
+    },
+    "forms/candidates/edge.forms.takoform.com/actor-namespace/definition.json": {
+      "bytes": 5052,
+      "sha256": "c118159be684f3dcc32f1e3ad40e52baa2b80fde55f564d3defb6e8d27f400e7"
+    },
+    "forms/candidates/edge.forms.takoform.com/actor-namespace/fixtures/desired.json": {
+      "bytes": 150,
+      "sha256": "e92719cf0b519c70578b6cfff2dd47b8a76757d06c958e1135a251b9c49dd87a"
+    },
+    "forms/candidates/edge.forms.takoform.com/actor-namespace/fixtures/negative-class-name.json": {
+      "bytes": 161,
+      "sha256": "e1d994ce41cd7efced20318402a940c7d30f8e5b88cef3f252bd35db9734214b"
+    },
+    "forms/candidates/edge.forms.takoform.com/actor-namespace/fixtures/negative-missing-class-name.json": {
+      "bytes": 123,
+      "sha256": "97115c297d510fb3506c47dd145f0ea93305795f932f9ef80a63533865934c9d"
+    },
+    "forms/candidates/edge.forms.takoform.com/actor-namespace/fixtures/negative-missing-worker.json": {
+      "bytes": 30,
+      "sha256": "a25fa3b5c51a27d4344d8e28b0a262c6242764444da4c4ece3d601eab4aa6213"
+    },
+    "forms/candidates/edge.forms.takoform.com/actor-namespace/fixtures/negative-unexpected-property.json": {
+      "bytes": 180,
+      "sha256": "f5153b965d54fa88be2f9a041b46fe896f438b9b2aa2a530da79b634d55c2b4c"
+    },
+    "forms/candidates/edge.forms.takoform.com/actor-namespace/fixtures/negative-worker.json": {
+      "bytes": 156,
+      "sha256": "7bae0c6ed007eb844a46ae774009c0a2fb6b3c7d59ff2b6790d0fd5e4378306e"
+    },
+    "forms/candidates/edge.forms.takoform.com/actor-namespace/package-index.json": {
+      "bytes": 1866,
+      "sha256": "b8424be9db30168f7e8fc7ddcc9da05100bc8f6035b5b12b4f4900001e99ce03"
+    },
+    "forms/candidates/edge.forms.takoform.com/at-least-once-queue/definition.json": {
+      "bytes": 3297,
+      "sha256": "aed15fcfb8a2c430070c68b5fbd64aee9102afa3e91d475e0bc5ab160a3bc7ba"
+    },
+    "forms/candidates/edge.forms.takoform.com/at-least-once-queue/fixtures/desired.json": {
+      "bytes": 69,
+      "sha256": "5a848ddd80365a1f088f60f3393a4b119b54e8f31bec76f8093974fb588144ca"
+    },
+    "forms/candidates/edge.forms.takoform.com/at-least-once-queue/fixtures/negative-delivery-delay-seconds.json": {
+      "bytes": 70,
+      "sha256": "63e537b477b6672ed0d0a29582c3c18b8abce6affe8c2bb346f7c177d2331120"
+    },
+    "forms/candidates/edge.forms.takoform.com/at-least-once-queue/fixtures/negative-message-retention-seconds.json": {
+      "bytes": 65,
+      "sha256": "1dee6d1574d4c8a06aaac8ed51b1192ad30f2fd643cd203ea532ec08b4f7bbb1"
+    },
+    "forms/candidates/edge.forms.takoform.com/at-least-once-queue/fixtures/negative-missing-message-retention-seconds.json": {
+      "bytes": 32,
+      "sha256": "c6921431de83f0570d9cd21988ae61094177644f3252f1947c80d2951e3cfbb6"
+    },
+    "forms/candidates/edge.forms.takoform.com/at-least-once-queue/fixtures/negative-unexpected-property.json": {
+      "bytes": 99,
+      "sha256": "06b80d0ddcdfeaf78acbcb5cc2878d27003f90da4dc1a0b52fd9e76479fdaf43"
+    },
+    "forms/candidates/edge.forms.takoform.com/at-least-once-queue/package-index.json": {
+      "bytes": 1694,
+      "sha256": "71a77c312fce74fb80ae5326324336036bef0aac01d0069cda6c41b1bbff1b01"
+    },
+    "forms/candidates/edge.forms.takoform.com/candidate-set.json": {
+      "bytes": 8273,
+      "sha256": "8e8599ca3896946dc5ac4e609ce7652f21631bd5e38dddc026db7a3febadf2f8"
+    },
+    "forms/candidates/edge.forms.takoform.com/durable-workflow/definition.json": {
+      "bytes": 5091,
+      "sha256": "c1e74d9cf461520a79f26f9c9a8b7124cc549257bae50f56efa6b18c6556e1fc"
+    },
+    "forms/candidates/edge.forms.takoform.com/durable-workflow/fixtures/desired.json": {
+      "bytes": 157,
+      "sha256": "e70f0d1f512a864317b45ec188096ba60d7bf225d9a277db602a3f32e588da89"
+    },
+    "forms/candidates/edge.forms.takoform.com/durable-workflow/fixtures/negative-class-name.json": {
+      "bytes": 161,
+      "sha256": "e1d994ce41cd7efced20318402a940c7d30f8e5b88cef3f252bd35db9734214b"
+    },
+    "forms/candidates/edge.forms.takoform.com/durable-workflow/fixtures/negative-missing-class-name.json": {
+      "bytes": 123,
+      "sha256": "97115c297d510fb3506c47dd145f0ea93305795f932f9ef80a63533865934c9d"
+    },
+    "forms/candidates/edge.forms.takoform.com/durable-workflow/fixtures/negative-missing-worker.json": {
+      "bytes": 37,
+      "sha256": "c69e35b0b47c39e3c42420f116c7fc0af9e5a3650408fbf92961998ab99c1f1f"
+    },
+    "forms/candidates/edge.forms.takoform.com/durable-workflow/fixtures/negative-unexpected-property.json": {
+      "bytes": 187,
+      "sha256": "325041f2576878658dd367adfefb251cc702bf0eace464bd1dfafa50184667e7"
+    },
+    "forms/candidates/edge.forms.takoform.com/durable-workflow/fixtures/negative-worker.json": {
+      "bytes": 163,
+      "sha256": "d5fdbffdf3e6ed8a61edba34ece279bd1d28ceb3096da9157cabd1028f9a0d66"
+    },
+    "forms/candidates/edge.forms.takoform.com/durable-workflow/package-index.json": {
+      "bytes": 1867,
+      "sha256": "37ba97ba5b122d5cf1ac251bc6a1dbf07adec71d11f327158e9a6ddfc7f6f14b"
+    },
+    "forms/candidates/edge.forms.takoform.com/edge-kv-namespace/definition.json": {
+      "bytes": 2163,
+      "sha256": "6a6d19f9290d6bdb4a040cb482d914e170d527ad904a37abbd1df938e313c94e"
+    },
+    "forms/candidates/edge.forms.takoform.com/edge-kv-namespace/fixtures/desired.json": {
+      "bytes": 3,
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    },
+    "forms/candidates/edge.forms.takoform.com/edge-kv-namespace/fixtures/negative-unexpected-property.json": {
+      "bytes": 33,
+      "sha256": "d10f45f42473405c10b441faafa3d23e863d4160f2ca3a7d0c32874b386f1ae9"
+    },
+    "forms/candidates/edge.forms.takoform.com/edge-kv-namespace/package-index.json": {
+      "bytes": 1009,
+      "sha256": "c22841eddd589731bc4c6ebb840cddb17581ebbda52e9aed31b35cc4ec93fc72"
+    },
+    "forms/candidates/edge.forms.takoform.com/module-worker/definition.json": {
+      "bytes": 2852,
+      "sha256": "1a80dcd1d40e83fff9a6e4bbf4542f8c092d741a073c2301313b9414de011714"
+    },
+    "forms/candidates/edge.forms.takoform.com/module-worker/fixtures/desired.json": {
+      "bytes": 3,
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    },
+    "forms/candidates/edge.forms.takoform.com/module-worker/fixtures/negative-unexpected-property.json": {
+      "bytes": 33,
+      "sha256": "d10f45f42473405c10b441faafa3d23e863d4160f2ca3a7d0c32874b386f1ae9"
+    },
+    "forms/candidates/edge.forms.takoform.com/module-worker/package-index.json": {
+      "bytes": 1006,
+      "sha256": "cd8cc93dbbc1b7864675059054804f299a717ca1aaff7e11b0512ff87d0fa550"
+    },
+    "forms/candidates/edge.forms.takoform.com/queue-consumer/definition.json": {
+      "bytes": 10957,
+      "sha256": "fd48697d46ee94af8acc2ae1b8adee74cf3d41ec368c413e5c8dca707c739382"
+    },
+    "forms/candidates/edge.forms.takoform.com/queue-consumer/fixtures/desired.json": {
+      "bytes": 506,
+      "sha256": "e4ef48d8305ecc0ea65f3e3f576409ceda6dadfed4f19916cfc3077cfe53a2c2"
+    },
+    "forms/candidates/edge.forms.takoform.com/queue-consumer/fixtures/negative-dead-letter-queue.json": {
+      "bytes": 513,
+      "sha256": "17045db0cf367e2e1d2e84d6861f44ee99345298389ad910e81bcbff06998f8c"
+    },
+    "forms/candidates/edge.forms.takoform.com/queue-consumer/fixtures/negative-max-batch-size.json": {
+      "bytes": 505,
+      "sha256": "1275bbed3f0d4a74b5eda923eba94f8f5ec437969fb30a177578fc83f8761530"
+    },
+    "forms/candidates/edge.forms.takoform.com/queue-consumer/fixtures/negative-max-batch-timeout-seconds.json": {
+      "bytes": 507,
+      "sha256": "4e711de8e37457c3495b321188cd0f2b63ed538f7df13a4da07b015aca5f6515"
+    },
+    "forms/candidates/edge.forms.takoform.com/queue-consumer/fixtures/negative-max-concurrency.json": {
+      "bytes": 506,
+      "sha256": "61652c6faff5ff182ce221069f2341a722c0e5bb1aec4f15dcb2d8641de922f5"
+    },
+    "forms/candidates/edge.forms.takoform.com/queue-consumer/fixtures/negative-max-retries.json": {
+      "bytes": 507,
+      "sha256": "875c0bdb7f019a02448e7ceb11112498f07e9660aa752a3516bdda7e1775dd09"
+    },
+    "forms/candidates/edge.forms.takoform.com/queue-consumer/fixtures/negative-missing-max-batch-size.json": {
+      "bytes": 484,
+      "sha256": "7f7235754014290974ffcb959dd19dced1795ff90fdc6a46ef85d75673be64f8"
+    },
+    "forms/candidates/edge.forms.takoform.com/queue-consumer/fixtures/negative-missing-max-batch-timeout-seconds.json": {
+      "bytes": 475,
+      "sha256": "8405c78789bb0786fdf65d25ac1d719b19f360deaddb63962244a0d24eceee54"
+    },
+    "forms/candidates/edge.forms.takoform.com/queue-consumer/fixtures/negative-missing-max-concurrency.json": {
+      "bytes": 483,
+      "sha256": "c92aa1c6a9b660c9e57e9320ce473323d1c72445c1e54e255a995766cc81aa69"
+    },
+    "forms/candidates/edge.forms.takoform.com/queue-consumer/fixtures/negative-missing-max-retries.json": {
+      "bytes": 487,
+      "sha256": "52bb268132d4f5178ad4c5a5bbcbfc60ba56ff34ca99af4f6ca8177e235c29f1"
+    },
+    "forms/candidates/edge.forms.takoform.com/queue-consumer/fixtures/negative-missing-queue.json": {
+      "bytes": 377,
+      "sha256": "0ca8ac20464cc35aa7728d3a9896b09248f2a39e580b9283e158ee94ad9be505"
+    },
+    "forms/candidates/edge.forms.takoform.com/queue-consumer/fixtures/negative-missing-retry-delay-seconds.json": {
+      "bytes": 479,
+      "sha256": "48872cae4fb80ae70963a542702ee8753d7b0976e5f6b22a7d7e3a0ab99178c4"
+    },
+    "forms/candidates/edge.forms.takoform.com/queue-consumer/fixtures/negative-missing-worker.json": {
+      "bytes": 386,
+      "sha256": "c7a0ef388f7f05a0dac652265cdadc08da00a74bc7322adbef7c0e82d2aec31d"
+    },
+    "forms/candidates/edge.forms.takoform.com/queue-consumer/fixtures/negative-queue.json": {
+      "bytes": 506,
+      "sha256": "5224b48c4196f314aed3ec0aaf13e23899c44139bafbbffc4715557c64379d5a"
+    },
+    "forms/candidates/edge.forms.takoform.com/queue-consumer/fixtures/negative-retry-delay-seconds.json": {
+      "bytes": 506,
+      "sha256": "30df3e07b0703b4c87021fb71f6f5695b650ac0463d5a0c9ed85b3aa6087edf7"
+    },
+    "forms/candidates/edge.forms.takoform.com/queue-consumer/fixtures/negative-unexpected-property.json": {
+      "bytes": 536,
+      "sha256": "68e2e9292b770cfa35bfacb57660f8f9505cfe8d0f91619d2fd30c1449a89cf5"
+    },
+    "forms/candidates/edge.forms.takoform.com/queue-consumer/fixtures/negative-worker.json": {
+      "bytes": 512,
+      "sha256": "8355c665bd52ecb71e48151739cf9d4b7bdf3839a43e2d05bc963fe1e93eabfb"
+    },
+    "forms/candidates/edge.forms.takoform.com/queue-consumer/package-index.json": {
+      "bytes": 4304,
+      "sha256": "8d34c054c60e191438f7733094b54d50c4fa257c1fcbf214668679bee35d33be"
+    },
+    "forms/candidates/edge.forms.takoform.com/sqlite-database/definition.json": {
+      "bytes": 2363,
+      "sha256": "7c17223e77a7be073d0fe2e741ddecaa9e8f8740006b9797eefedf1793be128b"
+    },
+    "forms/candidates/edge.forms.takoform.com/sqlite-database/fixtures/desired.json": {
+      "bytes": 3,
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    },
+    "forms/candidates/edge.forms.takoform.com/sqlite-database/fixtures/negative-unexpected-property.json": {
+      "bytes": 33,
+      "sha256": "d10f45f42473405c10b441faafa3d23e863d4160f2ca3a7d0c32874b386f1ae9"
+    },
+    "forms/candidates/edge.forms.takoform.com/sqlite-database/package-index.json": {
+      "bytes": 1008,
+      "sha256": "6873eddcf8855de7cedc428219db01340edeaeef774b1f0ab8562ac8dbc47a4d"
+    },
+    "forms/candidates/edge.forms.takoform.com/sqlite-migration-application/definition.json": {
+      "bytes": 5541,
+      "sha256": "4d19f4dc2058530f1babac68d0a2c70dfdb910a7c643312869c50cfa858604b4"
+    },
+    "forms/candidates/edge.forms.takoform.com/sqlite-migration-application/fixtures/desired.json": {
+      "bytes": 268,
+      "sha256": "9313a5cfb1f91dc76dc52e011378896c5e28426eeaab9d3cc6288cb06d561be0"
+    },
+    "forms/candidates/edge.forms.takoform.com/sqlite-migration-application/fixtures/negative-database.json": {
+      "bytes": 272,
+      "sha256": "8e72106173c7d340202039a10b7eb4064e54ce8b04e22eeacf5de5c63da0c537"
+    },
+    "forms/candidates/edge.forms.takoform.com/sqlite-migration-application/fixtures/negative-migration-set.json": {
+      "bytes": 267,
+      "sha256": "dddbc3657fe976d433794a0abf1de3ec0c58021f442d17b92dbb02bf8a1e42b9"
+    },
+    "forms/candidates/edge.forms.takoform.com/sqlite-migration-application/fixtures/negative-missing-database.json": {
+      "bytes": 142,
+      "sha256": "3386e8b98387a6fdc1858bdf8a37a1b50343795edca4bc77419bc160f167e249"
+    },
+    "forms/candidates/edge.forms.takoform.com/sqlite-migration-application/fixtures/negative-missing-migration-set.json": {
+      "bytes": 129,
+      "sha256": "80b95dd6b0cf11c10ad9cf5b482c2be7c2a0da9ae76dd6d42ce2ad50dc72e513"
+    },
+    "forms/candidates/edge.forms.takoform.com/sqlite-migration-application/fixtures/negative-unexpected-property.json": {
+      "bytes": 298,
+      "sha256": "a83c3ea09fd029ca4317b8a8301f8866f041ac073722ae72ed254314385191cc"
+    },
+    "forms/candidates/edge.forms.takoform.com/sqlite-migration-application/package-index.json": {
+      "bytes": 1889,
+      "sha256": "802c99adc7342388f074e50752097aa1a2f93e422f0e50549a3b7959d1925ff0"
+    },
+    "forms/candidates/edge.forms.takoform.com/sqlite-migration-set/definition.json": {
+      "bytes": 2890,
+      "sha256": "06ecb4a4f8d32f00a301d54f1548c6945d2e147d0e7dfef675842aa1664be7d8"
+    },
+    "forms/candidates/edge.forms.takoform.com/sqlite-migration-set/fixtures/desired.json": {
+      "bytes": 98,
+      "sha256": "4d0f4899c2d5b88f5c960ab6221ee3ed480d37f6efa8b006f9f689d05f543d3c"
+    },
+    "forms/candidates/edge.forms.takoform.com/sqlite-migration-set/fixtures/negative-manifest-digest.json": {
+      "bytes": 65,
+      "sha256": "23c2d176ab56f4e71df1b57e8ff53e95615a2293073872453477b40e0ca3ee44"
+    },
+    "forms/candidates/edge.forms.takoform.com/sqlite-migration-set/fixtures/negative-missing-manifest-digest.json": {
+      "bytes": 3,
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    },
+    "forms/candidates/edge.forms.takoform.com/sqlite-migration-set/fixtures/negative-unexpected-property.json": {
+      "bytes": 128,
+      "sha256": "5a2ffed397a0ca780cb7b0eb7f575241789c3eba1d47fabb8582cbd959f3f12c"
+    },
+    "forms/candidates/edge.forms.takoform.com/sqlite-migration-set/package-index.json": {
+      "bytes": 1453,
+      "sha256": "9ed7591a2999eeaa73bb5a3af32abccd9d0317976a282036f629ac3cf8731f79"
+    },
+    "forms/candidates/edge.forms.takoform.com/static-asset-bundle/definition.json": {
+      "bytes": 3025,
+      "sha256": "b5b2d2cac9fd2c6699a78a80645f47a6359904191dcbb0e37ea426def0b07afe"
+    },
+    "forms/candidates/edge.forms.takoform.com/static-asset-bundle/fixtures/desired.json": {
+      "bytes": 98,
+      "sha256": "d9f3910c173cdcab3de1e7e4c5d125c4419a3b996e4d99305b9d625be95de1ef"
+    },
+    "forms/candidates/edge.forms.takoform.com/static-asset-bundle/fixtures/negative-manifest-digest.json": {
+      "bytes": 65,
+      "sha256": "23c2d176ab56f4e71df1b57e8ff53e95615a2293073872453477b40e0ca3ee44"
+    },
+    "forms/candidates/edge.forms.takoform.com/static-asset-bundle/fixtures/negative-missing-manifest-digest.json": {
+      "bytes": 3,
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    },
+    "forms/candidates/edge.forms.takoform.com/static-asset-bundle/fixtures/negative-unexpected-property.json": {
+      "bytes": 128,
+      "sha256": "951f8ae28e185a0c775550f36e9d667bfa0f78bfa64ba3f43b8415e98f3336b5"
+    },
+    "forms/candidates/edge.forms.takoform.com/static-asset-bundle/package-index.json": {
+      "bytes": 1452,
+      "sha256": "8ded3bc2a989cf1abd459e2dc47f5f3fcb04149055bebbce25fd47d08bf31aae"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-bundle/definition.json": {
+      "bytes": 2761,
+      "sha256": "1153d0f274e48eb38d293ba521b652e3cf2d0a6e1bec52431adf739fcceb5cd6"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-bundle/fixtures/desired.json": {
+      "bytes": 98,
+      "sha256": "3ea06a3004abc68a19bc0f99aaa9579264a0110909e16b7dbd82389369d29af4"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-bundle/fixtures/negative-manifest-digest.json": {
+      "bytes": 65,
+      "sha256": "23c2d176ab56f4e71df1b57e8ff53e95615a2293073872453477b40e0ca3ee44"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-bundle/fixtures/negative-missing-manifest-digest.json": {
+      "bytes": 3,
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-bundle/fixtures/negative-unexpected-property.json": {
+      "bytes": 128,
+      "sha256": "4aa7cc025a071ee222020ac0198d840e7e603484c10428cf7b57ca8972b941c8"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-bundle/package-index.json": {
+      "bytes": 1447,
+      "sha256": "bf5b96becef03745f0abd7903fcd88c81e8d490f9be4174854f941d2b36bb901"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-cron-trigger/definition.json": {
+      "bytes": 6255,
+      "sha256": "914359f5beb7d34d94c9358f6dd55cbbb31a9ecc15d67fb5e702c7ea998013f5"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-cron-trigger/fixtures/desired.json": {
+      "bytes": 148,
+      "sha256": "d6bb97f08349625ce12381965bdb15a1925ecb51603a35745e83c32416090fc8"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-cron-trigger/fixtures/negative-cron.json": {
+      "bytes": 144,
+      "sha256": "ea9df32e66acab4d703b46a7ec55db64f8d0eb9f4db1ec8f839ab769328f8a05"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-cron-trigger/fixtures/negative-missing-cron.json": {
+      "bytes": 123,
+      "sha256": "97115c297d510fb3506c47dd145f0ea93305795f932f9ef80a63533865934c9d"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-cron-trigger/fixtures/negative-missing-worker.json": {
+      "bytes": 28,
+      "sha256": "334a0c7aa6368706f771b7889bcdf6197a3a3d7917865df639238407137099ca"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-cron-trigger/fixtures/negative-unexpected-property.json": {
+      "bytes": 178,
+      "sha256": "ddf401b2b388eae8703dfb45396f4c6e0e3e6c6fbc0a0dcce19cff5ae9b507d2"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-cron-trigger/fixtures/negative-worker.json": {
+      "bytes": 154,
+      "sha256": "bab75c9214cb51d9ec154ba251203c3529187c4e1996d7211361f08facdb182d"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-cron-trigger/package-index.json": {
+      "bytes": 1857,
+      "sha256": "8923d0dc83768e74e06fbcf947c468e4f02cd1b8dc7c896392f79cd84c664b33"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-custom-domain/definition.json": {
+      "bytes": 4834,
+      "sha256": "0bab43e2cc79d83a4ac404c240e5f5fa9051def0a0a39ff6ce6f516a2e64ec1f"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-custom-domain/fixtures/desired.json": {
+      "bytes": 173,
+      "sha256": "3609c85219d575e87c33bf4643a869ee56fe8fca425e2f275cecfc88cb7a73fb"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-custom-domain/fixtures/negative-hostname.json": {
+      "bytes": 155,
+      "sha256": "ec842c8f700aab994abd32dd516145044723007d7fa07f9e7b220055e8e10a9c"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-custom-domain/fixtures/negative-missing-hostname.json": {
+      "bytes": 123,
+      "sha256": "97115c297d510fb3506c47dd145f0ea93305795f932f9ef80a63533865934c9d"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-custom-domain/fixtures/negative-missing-worker.json": {
+      "bytes": 53,
+      "sha256": "2544aeacd5b1d3e142fadfe437f2a2668589ccf3ac9b73077a5bbaad7960161f"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-custom-domain/fixtures/negative-unexpected-property.json": {
+      "bytes": 203,
+      "sha256": "072dcac6bf1cc0568e60b128accf62e367a4538986997d8e62ef67cdb60fdf43"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-custom-domain/fixtures/negative-worker.json": {
+      "bytes": 179,
+      "sha256": "1bd897752241e9417b2666526a07ba500e3d8b5b3320c5595dd7ffd0e1d6a499"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-custom-domain/package-index.json": {
+      "bytes": 1866,
+      "sha256": "7fd58c06016771eb5b9271e1dc672aba62b295f37347a1fad56bffa5e9fb7b36"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-deployment/definition.json": {
+      "bytes": 5836,
+      "sha256": "d1fb89cbf8615961193002f83d4447b9e4b943e95fcbd29a85a9ab2d65d670d9"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-deployment/fixtures/desired.json": {
+      "bytes": 327,
+      "sha256": "5fafead4a801af402e36d11ccf6b96fa3848f591119431ae0a43f43ee3c28fc5"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-deployment/fixtures/negative-missing-versions.json": {
+      "bytes": 123,
+      "sha256": "97115c297d510fb3506c47dd145f0ea93305795f932f9ef80a63533865934c9d"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-deployment/fixtures/negative-missing-worker.json": {
+      "bytes": 207,
+      "sha256": "39fc4e74ad96bbd19db743d49a27f405d557be261b504f02e08121e46fc541c3"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-deployment/fixtures/negative-unexpected-property.json": {
+      "bytes": 357,
+      "sha256": "45e5ec7e39e90a4685af13959cef34827ee4fddea3b06514dac944a68eb51f3f"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-deployment/fixtures/negative-versions-weight.json": {
+      "bytes": 323,
+      "sha256": "93aa7f770cee08a5c8790c3402c0f19256d92087efd36a9751bcfb037bf314ea"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-deployment/fixtures/negative-versions-worker-version.json": {
+      "bytes": 332,
+      "sha256": "382cf1de726659740976c73335db0f1b58ef63a5d1df4a3d3190d9419eb57243"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-deployment/fixtures/negative-versions.json": {
+      "bytes": 323,
+      "sha256": "93aa7f770cee08a5c8790c3402c0f19256d92087efd36a9751bcfb037bf314ea"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-deployment/fixtures/negative-worker.json": {
+      "bytes": 333,
+      "sha256": "944153fdaf1f11b29ea8868a52d29c29374d83ea0b09fafcc0c9ff419afe3f10"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-deployment/package-index.json": {
+      "bytes": 2307,
+      "sha256": "5081e05636d9cb678b9a9198e3c510da460566c119d530fa48576febad827f35"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-endpoint/definition.json": {
+      "bytes": 7867,
+      "sha256": "e88fbe59674a8047ca19e4c013f7b2eb20bb9f475e825bbda7c6d14cdeb771f6"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-endpoint/fixtures/desired.json": {
+      "bytes": 123,
+      "sha256": "97115c297d510fb3506c47dd145f0ea93305795f932f9ef80a63533865934c9d"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-endpoint/fixtures/negative-missing-worker.json": {
+      "bytes": 3,
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-endpoint/fixtures/negative-unexpected-property.json": {
+      "bytes": 153,
+      "sha256": "90c7d67ec6bc8d7aaca42c7d82567d84cc6d4e403c25bff7ce73366fe0c3457e"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-endpoint/fixtures/negative-worker.json": {
+      "bytes": 129,
+      "sha256": "d451cce3a6e5d6cacfcdcf49370e191907ca4e3a8a33813896efa5328f3e00ed"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-endpoint/package-index.json": {
+      "bytes": 1433,
+      "sha256": "ccfd79730527e7c744164190067e4ece70f1fc0a6aed4a33e514728d3ef12bc8"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/definition.json": {
+      "bytes": 30573,
+      "sha256": "d0aa523cd44942f8ff55b30f7e001fcac7bb1257744fbacd2b0315d67c8dae21"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/desired.json": {
+      "bytes": 2210,
+      "sha256": "0e9e6b3e0779a1650e532828b81af56014d5489d505b1759889675f8a78920f9"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/negative-actor-bindings-binding-name.json": {
+      "bytes": 2212,
+      "sha256": "d49ef76f764aa2e6bd740b9da45bf5b26928636faafb89bef8c15125ed7092d1"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/negative-assets-bundle.json": {
+      "bytes": 2210,
+      "sha256": "73982f3d510a6099df25b727397bc3c607cb027b1e2e896dc2a670309865e30b"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/negative-assets-not-found-handling.json": {
+      "bytes": 2208,
+      "sha256": "ef625e59564d3c0bee2dcb1d68571a4f69240feecf813775f889d8a33259e132"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/negative-assets.json": {
+      "bytes": 2202,
+      "sha256": "15104825fdb087b0c8f3e47b820f986020c09948c44eda3043c5a48097f8f0c6"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/negative-bundle.json": {
+      "bytes": 2216,
+      "sha256": "7b9066be76263e4b5c4921f8059536f376584e72de5006b50a62fbaede9b9be8"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/negative-external-services-invalid-protocol.json": {
+      "bytes": 2049,
+      "sha256": "34d1feb44ee9fac2ab76aa95a193b1854d3eca5dcbec833516e99389700df562"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/negative-handlers.json": {
+      "bytes": 2226,
+      "sha256": "49f9cc93f26f8597991e90fc5ba9160dc24ee88c69677e0fbb0e84c2f49dfa2f"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/negative-kv-bindings-binding-name.json": {
+      "bytes": 2210,
+      "sha256": "d16b6bb9d8f2542448bb80f2868569734d7223598716077e841349f8d0b721d2"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/negative-missing-bundle.json": {
+      "bytes": 2090,
+      "sha256": "b9d9790e5177017979b0fe1f080b11e3738677541a1c888427ec1ea893e9a817"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/negative-missing-handlers.json": {
+      "bytes": 2177,
+      "sha256": "9485998d5d729389fc954d0127cf0d498b47cd576840aaaada32c63de225f915"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/negative-missing-worker.json": {
+      "bytes": 2090,
+      "sha256": "dc4b9c88ce6ada782439a1d434946bf80ba4117e608ffbbf625148f5347e99f6"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/negative-queue-producer-bindings-binding-name.json": {
+      "bytes": 2207,
+      "sha256": "f1e1724a47c8b4f67f5631d13f2ac76c5ac015e48f3364fca699ec3f9412a689"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/negative-required-sensitive-vars.json": {
+      "bytes": 2202,
+      "sha256": "be24b1d99ec0f9b274af4d8efb382805585c636f0c620a6ac9423f4a2ec3e9ec"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/negative-service-bindings-binding-name.json": {
+      "bytes": 2217,
+      "sha256": "3dc4ea33f65c9dfb5f2aea360e21879c2918f6b81f0f48d0fa236177f70e64d8"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/negative-sqlite-bindings-binding-name.json": {
+      "bytes": 2215,
+      "sha256": "60d997200864d4068c8bceefb9ed06bad2f1992ec35a144a9863e1e54af4e2f3"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/negative-unexpected-property.json": {
+      "bytes": 2240,
+      "sha256": "b25a357fce5b1b5b2a1a98d337c426e55b4bf51d9f8e67b3bb35c3053c473f2c"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/negative-vars.json": {
+      "bytes": 2215,
+      "sha256": "83c738e3aa9f25f1cca89fc692b83572af73b74ad5b11688b8c1d018116b564e"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/negative-worker.json": {
+      "bytes": 2216,
+      "sha256": "9f271937bd84b79c45e947111de9eceb4625d6b3aa9d24666278c4894222e8b5"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/negative-workflow-bindings-binding-name.json": {
+      "bytes": 2210,
+      "sha256": "b4759f1f2d9797efaae45c0431793373a9c5afbf19173aa408935ce00ed60d57"
+    },
+    "forms/candidates/edge.forms.takoform.com/worker-version/package-index.json": {
+      "bytes": 5010,
+      "sha256": "c65f7f1df907055d022de0cb3d88ee014dfea1a1abc463745388c6795aa9b8ca"
+    },
+    "interfaces/candidates/v1alpha1/candidate-set.json": {
+      "bytes": 1310,
+      "sha256": "9d15d44047369cf7866c4570293e4f40f346873eb646d82f676a3b411156ba2b"
+    },
+    "interfaces/candidates/v1alpha1/edge.kv/definition.json": {
+      "bytes": 12330,
+      "sha256": "8977362aef4ed2111b89e10e0bebfceb231b1bd183dc7ea678764bf62417b03e"
+    },
+    "interfaces/candidates/v1alpha1/edge.queue/definition.json": {
+      "bytes": 13268,
+      "sha256": "ec08fe3f0771d1ee9937cba69e35ee91a57a7471fdfdca09d862a3adfa05591e"
+    },
+    "interfaces/candidates/v1alpha1/edge.sql/definition.json": {
+      "bytes": 19477,
+      "sha256": "02bf6895e972e17e87df6a748f769986c3d299cd80fca3b8456b050bd1a7c964"
+    },
+    "interfaces/candidates/v1alpha1/worker.actor/definition.json": {
+      "bytes": 25084,
+      "sha256": "f687c4cefdcecab4e72ad4f44ef4a71fda338ced66f5d5491cf715d4fcbeb454"
+    },
+    "interfaces/candidates/v1alpha1/worker.runtime/definition.json": {
+      "bytes": 26485,
+      "sha256": "a7597e5bd7a005244b159ad6b26d95f6a8705831517aa8f0eb6d449a4471fb12"
+    },
+    "interfaces/candidates/v1alpha1/worker.service/definition.json": {
+      "bytes": 9291,
+      "sha256": "07965f309b1d87bcc263766132176cb26143d42231befd882121eb5e11aac20d"
+    },
+    "interfaces/candidates/v1alpha1/worker.workflow/definition.json": {
+      "bytes": 18875,
+      "sha256": "8c412e3b3f3693c805bd7dfb9905dfe10ae854c7330730445573fb10a235809c"
+    }
+  }
+}

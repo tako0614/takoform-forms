@@ -1,0 +1,16 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+
+/dist/
+# No trailing slash: the directory AND a symlink standing in for it. A
+# worktree that borrowed one by symlink got it committed, and CI could not
+# install over it.
+node_modules
+/.release-tmp/
+/coverage.out
+/website/.wrangler/
+.claude/
