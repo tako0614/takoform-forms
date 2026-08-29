@@ -88,8 +88,8 @@ if (/terraform-plugin|terraform-provider/iu.test(goMod)) {
 if (!goMod.startsWith("module github.com/tako0614/takoform-forms\n")) {
   failures.push("go.mod: unexpected module path");
 }
-if (!/^\s*github\.com\/tako0614\/takoform\s+v1\.0\.1(?:\s|$)/mu.test(goMod)) {
-  failures.push("go.mod: public Takoform Core v1.0.1 dependency is required");
+if (!/^\s*github\.com\/tako0614\/takoform\s+v1\.1\.0(?:\s|$)/mu.test(goMod)) {
+  failures.push("go.mod: public Takoform Core v1.1.0 dependency is required");
 }
 if (/^\s*replace(?:\s|\(|$)/mu.test(goMod)) {
   failures.push("go.mod: replace directives are forbidden");

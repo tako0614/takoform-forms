@@ -227,7 +227,7 @@ export function verifyWithCore(packageRoot, root = repositoryRoot) {
       .filter(Boolean)
       .join("\n");
     throw new Error(
-      `Core v1.0.1 package verification failed for ${path.relative(root, packageRoot)}${detail ? `:\n${detail}` : ""}`,
+      `Core v1.1.0 package verification failed for ${path.relative(root, packageRoot)}${detail ? `:\n${detail}` : ""}`,
     );
   }
   let locator;
@@ -235,7 +235,7 @@ export function verifyWithCore(packageRoot, root = repositoryRoot) {
     locator = JSON.parse(result.stdout);
   } catch {
     throw new Error(
-      `Core v1.0.1 package verifier returned non-JSON for ${path.relative(root, packageRoot)}`,
+      `Core v1.1.0 package verifier returned non-JSON for ${path.relative(root, packageRoot)}`,
     );
   }
   return locator;

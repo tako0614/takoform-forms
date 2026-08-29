@@ -16,8 +16,8 @@ Takoform has exactly two version axes:
 
 Other identifiers are pinned metadata, not release clocks.
 
-See the [Core Form Package spec](https://github.com/tako0614/takoform/blob/v1.0.1/spec/form-package/README.md)
-and [Core versioning spec](https://github.com/tako0614/takoform/blob/v1.0.1/spec/versioning.md)
+See the [Core Form Package spec](https://github.com/tako0614/takoform/blob/v1.1.0/spec/form-package/README.md)
+and [Core versioning spec](https://github.com/tako0614/takoform/blob/v1.1.0/spec/versioning.md)
 for the shared rules.
 
 ## Edge Forms
@@ -43,7 +43,7 @@ for the shared rules.
 
 ## Package identity
 
-For a verified `package-index.json`, Core v1.0.1's `PublicationLocatorFor`
+For a verified `package-index.json`, Core v1.1.0's `PublicationLocatorFor`
 derives `releaseId` from the FormRef group and kind and `artifactId` from
 `packageDigest` (`sha256:` becomes `sha256-`), then combines them into the
 content-addressed path and tag:
@@ -54,6 +54,7 @@ forms/<releaseId>/sha256-<digest>
 ```
 
 See the [root README](../README.md#preparing-and-publishing-packages) for
-generation, verification, and publication commands. Tags provide unsigned
-Git provenance; official and external packages use the same bytes and
-verification semantics.
+generation, signing, verification, and publication commands. Package tags are
+immutable content identities; the create-only signed publisher set carries
+the exact Sigstore and revocation evidence. Official and external packages use
+the same Core API v1 bytes and verification semantics.

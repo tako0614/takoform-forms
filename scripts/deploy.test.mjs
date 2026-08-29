@@ -20,6 +20,8 @@ import {
 } from "./deploy.mjs";
 
 const COMMIT = "0123456789abcdef0123456789abcdef01234567";
+const SOURCE_COMMIT = "89abcdef0123456789abcdef0123456789abcdef";
+const EXISTING_TAG_COMMIT = "fedcba9876543210fedcba9876543210fedcba98";
 
 describe("Edge Form Package deploy surface", () => {
   test("exposes the exact contract and accepts only the documented CLI", () => {
@@ -28,94 +30,176 @@ describe("Edge Form Package deploy surface", () => {
     expect(DEPLOY_CONTRACT.surfaces[0].surface).toBe(RELEASE_SURFACE);
     expect(DEPLOY_CONTRACT.surfaces[0].target).toContain(REPOSITORY_URL);
     expect(DEPLOY_CONTRACT.surfaces[0].triggers).toEqual([
+      "authority",
       "published-identity",
     ]);
+    expect(
+      JSON.stringify(DEPLOY_CONTRACT.surfaces[0].obligations),
+    ).not.toContain("unsigned");
     expect(Object.keys(DEPLOY_CONTRACT.surfaces[0].obligations).sort()).toEqual(
       [
         "failure-handling",
+        "independent-review",
         "no-overwrite",
         "post-conditions",
         "provenance",
         "reversal",
       ],
     );
+    expect(
+      DEPLOY_CONTRACT.surfaces[0].obligations["independent-review"],
+    ).toContain("TASK-0042 independent architecture review");
+    expect(
+      DEPLOY_CONTRACT.surfaces[0].obligations["independent-review"],
+    ).toContain("exact signed source commit");
     expect(parseDeployInvocation(["--contract"])).toEqual({ mode: "contract" });
-    expect(parseDeployInvocation([RELEASE_SURFACE])).toEqual({
+    expect(
+      parseDeployInvocation([RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT]),
+    ).toEqual({
       mode: "publish",
+      trustSet: SOURCE_COMMIT,
     });
-    expect(parseDeployInvocation([RELEASE_SURFACE, "--dry-run"])).toEqual({
+    expect(
+      parseDeployInvocation([
+        RELEASE_SURFACE,
+        "--trust-set",
+        SOURCE_COMMIT,
+        "--dry-run",
+      ]),
+    ).toEqual({
       mode: "dry-run",
+      trustSet: SOURCE_COMMIT,
     });
-    expect(parseDeployInvocation([RELEASE_SURFACE, "--verify"])).toEqual({
+    expect(
+      parseDeployInvocation([
+        RELEASE_SURFACE,
+        "--trust-set",
+        SOURCE_COMMIT,
+        "--verify",
+      ]),
+    ).toEqual({
       mode: "verify",
+      trustSet: SOURCE_COMMIT,
     });
-    for (const args of [[], ["other"], [RELEASE_SURFACE, "--force"]]) {
+    for (const args of [
+      [],
+      ["other"],
+      [RELEASE_SURFACE],
+      [RELEASE_SURFACE, "--verify"],
+      [RELEASE_SURFACE, "--trust-set", "not-a-commit"],
+      [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT, "--force"],
+    ]) {
       expect(() => parseDeployInvocation(args)).toThrow(/usage:/);
     }
   });
 
-  test("dry-run proves preconditions but never pushes and refuses an existing tag", () => {
+  test("refuses unsigned publication and byte-only anonymous verification before Git access", () => {
     const plan = makePlan();
-    const clean = makeCommandDependencies(plan, { emptyOrigin: true });
-    expect(runDeploy([RELEASE_SURFACE, "--dry-run"], clean.dependencies)).toBe(
-      0,
-    );
+    for (const mode of ["--dry-run", "--verify"]) {
+      const fixture = makeCommandDependencies(plan, {
+        trustError: "signed trust set is missing",
+      });
+      expect(
+        runDeploy(
+          [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT, mode],
+          fixture.dependencies,
+        ),
+      ).toBe(1);
+      expect(fixture.stderr).toContain("signed trust set is missing");
+      expect(fixture.calls).toHaveLength(0);
+    }
+  });
+
+  test("dry-run proves preconditions and reuses only byte-identical package tags", () => {
+    const plan = makePlan();
+    const clean = makeCommandDependencies(plan);
+    expect(
+      runDeploy(
+        [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT, "--dry-run"],
+        clean.dependencies,
+      ),
+    ).toBe(0);
     expect(JSON.parse(clean.stdout).status).toBe("DRY_RUN_VERIFIED");
     expect(
       clean.calls.some(
         (call) => call.command === "git" && call.args[0] === "push",
       ),
     ).toBe(false);
-    expect(
-      clean.calls.some(
-        (call) =>
-          call.command === "git" &&
-          call.args.join(" ") === "ls-remote --heads --tags origin",
-      ),
-    ).toBe(true);
-
-    const nonemptyWithoutMain = makeCommandDependencies(plan, {
-      emptyOrigin: true,
-      unrelatedRemoteRef: "refs/heads/other",
+    const wrongMain = makeCommandDependencies(plan, {
+      remoteMainCommit: COMMIT,
     });
     expect(
       runDeploy(
-        [RELEASE_SURFACE, "--dry-run"],
-        nonemptyWithoutMain.dependencies,
+        [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT, "--dry-run"],
+        wrongMain.dependencies,
       ),
     ).toBe(1);
-    expect(nonemptyWithoutMain.stderr).toContain(
-      "origin has refs but no main; first publication requires an empty repository",
+    expect(wrongMain.stderr).toContain(
+      `origin main is ${COMMIT}, expected ${SOURCE_COMMIT}`,
     );
     expect(
-      nonemptyWithoutMain.calls.some(
+      wrongMain.calls.some(
         (call) => call.command === "git" && call.args[0] === "push",
       ),
     ).toBe(false);
 
-    const occupied = makeCommandDependencies(plan, {
+    const reusable = makeCommandDependencies(plan, {
       existingRemoteTag: plan.forms[0].locator.tag,
     });
     expect(
-      runDeploy([RELEASE_SURFACE, "--dry-run"], occupied.dependencies),
+      runDeploy(
+        [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT, "--dry-run"],
+        reusable.dependencies,
+      ),
+    ).toBe(0);
+    expect(JSON.parse(reusable.stdout).packageTagsToCreate).not.toContain(
+      plan.forms[0].locator.tag,
+    );
+
+    const divergent = makeCommandDependencies(plan, {
+      existingRemoteTag: plan.forms[0].locator.tag,
+      existingRemoteTagDiverges: true,
+    });
+    expect(
+      runDeploy(
+        [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT, "--dry-run"],
+        divergent.dependencies,
+      ),
     ).toBe(1);
-    expect(occupied.stderr).toContain(
-      `remote tag ${plan.forms[0].locator.tag} already exists`,
+    expect(divergent.stderr).toContain(
+      `existing remote package tag ${plan.forms[0].locator.tag} does not contain the Core-verified package bytes`,
     );
     expect(
-      occupied.calls.some(
+      divergent.calls.some(
         (call) => call.command === "git" && call.args[0] === "push",
       ),
     ).toBe(false);
+
+    const verifierDrift = makeCommandDependencies(plan, {
+      signedVerifierDiverges: true,
+    });
+    expect(
+      runDeploy(
+        [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT, "--dry-run"],
+        verifierDrift.dependencies,
+      ),
+    ).toBe(1);
+    expect(verifierDrift.stderr).toContain(
+      "publisher trust verifier or authority inputs changed after the signed source",
+    );
   });
 
   test("uses one atomic first push with direct tag refspecs and no local tag creation", () => {
     const plan = makePlan();
     const fixture = makeCommandDependencies(plan, {
-      emptyOrigin: true,
       pushExitCode: 1,
     });
-    expect(runDeploy([RELEASE_SURFACE], fixture.dependencies)).toBe(1);
+    expect(
+      runDeploy(
+        [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT],
+        fixture.dependencies,
+      ),
+    ).toBe(1);
     const pushes = fixture.calls.filter(
       (call) => call.command === "git" && call.args[0] === "push",
     );
@@ -124,9 +208,12 @@ describe("Edge Form Package deploy surface", () => {
     expect(pushes[0].args).toContain("refs/heads/main:refs/heads/main");
     for (const form of plan.forms) {
       expect(pushes[0].args).toContain(
-        `${COMMIT}:refs/tags/${form.locator.tag}`,
+        `${SOURCE_COMMIT}:refs/tags/${form.locator.tag}`,
       );
     }
+    expect(pushes[0].args).toContain(
+      `${COMMIT}:refs/tags/forms/sets/${SOURCE_COMMIT}`,
+    );
     expect(
       fixture.calls.some(
         (call) => call.command === "git" && call.args[0] === "tag",
@@ -140,6 +227,7 @@ describe("Edge Form Package deploy surface", () => {
       path.join(tmpdir(), "takoform-public-verify-test-"),
     );
     const plan = makePlan(root);
+    const trust = makeTrustReport(plan);
     writePublicFixture(plan);
     const calls = [];
     const dependencies = {
@@ -162,7 +250,10 @@ describe("Edge Form Package deploy surface", () => {
           args[1] === "--tags"
         ) {
           const refs = args.slice(3);
-          return ok(refs.map((ref) => `${COMMIT}\t${ref}\n`).join(""));
+          const commit = refs.includes(`refs/tags/${trust.setTag}`)
+            ? COMMIT
+            : EXISTING_TAG_COMMIT;
+          return ok(refs.map((ref) => `${commit}\t${ref}\n`).join(""));
         }
         if (command === "git" && args[0] === "clone") {
           const destination = args.at(-1);
@@ -170,12 +261,24 @@ describe("Edge Form Package deploy surface", () => {
           return ok();
         }
         if (command === "git" && args[0] === "-C" && args[2] === "rev-parse") {
-          return ok(`${COMMIT}\n`);
+          return ok(
+            `${args.at(-1).startsWith("refs/tags/") ? EXISTING_TAG_COMMIT : COMMIT}\n`,
+          );
         }
         if (command === "git" && args[0] === "-C" && args[2] === "checkout") {
           return ok();
         }
+        if (
+          command === "git" &&
+          args[0] === "-C" &&
+          ["fetch", "diff"].includes(args[2])
+        ) {
+          return ok();
+        }
         if (command === "go") {
+          if (args.includes("./cmd/publisher-trust")) {
+            return ok(`${JSON.stringify(trust)}\n`);
+          }
           const packageRoot = args.at(-1);
           const form = plan.forms.find((candidate) =>
             packageRoot.endsWith(candidate.locator.sourcePath),
@@ -190,7 +293,7 @@ describe("Edge Form Package deploy surface", () => {
       },
     };
 
-    const evidence = verifyPublicPublication(plan, dependencies, {
+    const evidence = verifyPublicPublication(plan, trust, dependencies, {
       expectedCommit: COMMIT,
     });
     expect(evidence.status).toBe("VERIFIED");
@@ -198,6 +301,9 @@ describe("Edge Form Package deploy surface", () => {
     expect(evidence.tags.map((tag) => tag.tag)).toEqual(
       plan.forms.map((form) => form.locator.tag),
     );
+    expect(
+      evidence.tags.every((tag) => tag.commit === EXISTING_TAG_COMMIT),
+    ).toBe(true);
     expect(
       calls.every((call) => call.command !== "git" || call.args[0] !== "push"),
     ).toBe(true);
@@ -308,10 +414,12 @@ function makePlan(
 function makeCommandDependencies(
   plan,
   {
-    emptyOrigin = false,
     existingRemoteTag = "",
+    existingRemoteTagDiverges = false,
     pushExitCode = 0,
-    unrelatedRemoteRef = "",
+    remoteMainCommit = SOURCE_COMMIT,
+    signedVerifierDiverges = false,
+    trustError = "",
   } = {},
 ) {
   const calls = [];
@@ -331,24 +439,30 @@ function makeCommandDependencies(
       args[1] === "origin" &&
       args[2] === "refs/heads/main"
     ) {
-      return emptyOrigin ? ok() : ok(`${COMMIT}\trefs/heads/main\n`);
-    }
-    if (
-      args[0] === "ls-remote" &&
-      args[1] === "--heads" &&
-      args[2] === "--tags" &&
-      args[3] === "origin"
-    ) {
-      return unrelatedRemoteRef
-        ? ok(`${COMMIT}\t${unrelatedRemoteRef}\n`)
-        : ok();
+      return ok(`${remoteMainCommit}\trefs/heads/main\n`);
     }
     if (args[0] === "show-ref") return fail();
     if (args[0] === "ls-remote" && args[1] === "--tags") {
       return existingRemoteTag &&
         args.includes(`refs/tags/${existingRemoteTag}`)
-        ? ok(`${COMMIT}\trefs/tags/${existingRemoteTag}\n`)
+        ? ok(`${EXISTING_TAG_COMMIT}\trefs/tags/${existingRemoteTag}\n`)
         : ok();
+    }
+    if (
+      args[0] === "diff" &&
+      args[2] === EXISTING_TAG_COMMIT &&
+      args[3] === SOURCE_COMMIT &&
+      existingRemoteTagDiverges
+    ) {
+      return fail("package bytes differ");
+    }
+    if (
+      args[0] === "diff" &&
+      args[1] === "--quiet" &&
+      args.includes("cmd/publisher-trust") &&
+      signedVerifierDiverges
+    ) {
+      return fail("publisher verifier differs");
     }
     if (args[0] === "push")
       return { exitCode: pushExitCode, stdout: "", stderr: "push fixture" };
@@ -364,6 +478,10 @@ function makeCommandDependencies(
     },
     dependencies: {
       readPlan: () => plan,
+      readTrustSet: () => {
+        if (trustError) throw new Error(trustError);
+        return makeTrustReport(plan);
+      },
       run(command, args) {
         return run(command, args);
       },
@@ -377,6 +495,65 @@ function makeCommandDependencies(
         stderr += value;
       },
     },
+  };
+}
+
+function makeTrustReport(plan) {
+  const trustedRootDigest =
+    "sha256:6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66";
+  const publisherIdentity =
+    "https://github.com/tako0614/takoform-forms/.github/workflows/form-package-signing.yml@refs/heads/main";
+  const publisherBundle = (subjectDigest, bundleByte) => ({
+    status: "verified",
+    subjectDigest,
+    bundleDigest: `sha256:${bundleByte.repeat(64)}`,
+    trustedRootDigest,
+    oidcIssuer: "https://token.actions.githubusercontent.com",
+    sourceRepository: "https://github.com/tako0614/takoform-forms",
+    workflow:
+      "https://github.com/tako0614/takoform-forms/.github/workflows/form-package-signing.yml",
+    ref: "refs/heads/main",
+    publisherIdentity,
+    sourceCommit: SOURCE_COMMIT,
+    workflowCommit: SOURCE_COMMIT,
+    buildConfigCommit: SOURCE_COMMIT,
+    transparencyLogVerified: true,
+    transparencyLogThreshold: 1,
+  });
+  return {
+    status: "verified",
+    coreVersion: "v1.1.0",
+    family: plan.family,
+    setId: SOURCE_COMMIT,
+    setTag: `forms/sets/${SOURCE_COMMIT}`,
+    packageCount: plan.formCount,
+    publisherIdentity,
+    sourceCommit: SOURCE_COMMIT,
+    workflowCommit: SOURCE_COMMIT,
+    buildConfigCommit: SOURCE_COMMIT,
+    checkpoint: {
+      status: "verified",
+      checkpointVersion: "0.0.0",
+      entryCount: 0,
+      pin: {
+        checkpointApiVersion: "trust.forms.takoform.com/v1",
+        sequence: 0,
+        digest:
+          "sha256:35c5c4cdc6cd6c4beaec8ba273091be10ae02c0d6f49861f97062fd59f9e8f66",
+        entriesDigest:
+          "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      },
+      bundle: publisherBundle(
+        "sha256:35c5c4cdc6cd6c4beaec8ba273091be10ae02c0d6f49861f97062fd59f9e8f66",
+        "a",
+      ),
+    },
+    packages: plan.forms.map((form) => ({
+      kind: form.kind,
+      packageDigest: form.packageDigest,
+      locator: form.locator,
+      bundle: publisherBundle(form.packageDigest, "b"),
+    })),
   };
 }
 

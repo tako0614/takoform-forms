@@ -17,14 +17,16 @@ Go catalogs under `internal/` are the authoring source. The JSON trees under
 generated candidate output. `forms/releases/` contains content-addressed
 copies checked against those candidates before publication.
 
-Form Packages are verified with the pinned public Core v1.0.1. The root and
-inventory pages describe the Core-derived locator and publication condition;
-official and external publishers use the same package format.
+Form Packages and publisher trust evidence are verified with the pinned public
+Core v1.1.0. The root and inventory pages describe the Core-derived locator,
+external OIDC signing handoff, create-only trust set, and publication
+condition; official and external publishers use the same API v1 contracts.
 
 ## Useful checks
 
 ```console
 bun run check:generation
 bun run check:publication
+bun run check:trust
 bun run check
 ```

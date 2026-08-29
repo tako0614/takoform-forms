@@ -1,9 +1,10 @@
 #!/usr/bin/env bun
 
 // The Forms publisher has one mutation surface: the canonical public Git
-// repository. Package identities are content-addressed and create-only. This
-// entrypoint intentionally has no GitHub Release, registry, signing, delete,
-// retag, force, or retry path.
+// repository. Package and signed publisher-evidence identities are
+// create-only. Signing happens in the separate manual OIDC preparation
+// workflow; this entrypoint has no signer, private key, delete, retag, force,
+// or retry path.
 
 import { spawnSync } from "node:child_process";
 import {
@@ -27,6 +28,22 @@ export const RELEASE_SURFACE = "form-packages-edge";
 export const REPOSITORY_URL = "https://github.com/tako0614/takoform-forms.git";
 export const REPOSITORY = "tako0614/takoform-forms";
 export const OWNER_GATE = "bun run check";
+export const TRUST_SET_TAG_PREFIX = "forms/sets/";
+export const PUBLISHER_REPOSITORY = `https://github.com/${REPOSITORY}`;
+export const PUBLISHER_WORKFLOW = `${PUBLISHER_REPOSITORY}/.github/workflows/form-package-signing.yml`;
+export const PUBLISHER_REF = "refs/heads/main";
+export const PUBLISHER_IDENTITY = `${PUBLISHER_WORKFLOW}@${PUBLISHER_REF}`;
+export const PUBLISHER_OIDC_ISSUER =
+  "https://token.actions.githubusercontent.com";
+export const TRUSTED_ROOT_DIGEST =
+  "sha256:6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66";
+export const GENESIS_DIGEST =
+  "sha256:35c5c4cdc6cd6c4beaec8ba273091be10ae02c0d6f49861f97062fd59f9e8f66";
+export const GENESIS_ENTRIES_DIGEST =
+  "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945";
+
+const commitPattern = /^[0-9a-f]{40}$/u;
+const digestPattern = /^sha256:[0-9a-f]{64}$/u;
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -35,30 +52,35 @@ export const DEPLOY_CONTRACT = Object.freeze({
   surfaces: [
     {
       surface: RELEASE_SURFACE,
-      target: `${REPOSITORY_URL}:main + forms/<release-id>/sha256-<digest>`,
+      target: `${REPOSITORY_URL}:main + forms/<release-id>/sha256-<digest> + forms/sets/<signed-source-commit>`,
       covers: [
         "forms/candidates/current-family-index.json",
         "forms/candidates/edge.forms.takoform.com",
         "forms/releases",
+        "forms/trust",
         "cmd/form-package",
+        "cmd/publisher-trust",
         "scripts/form-publication.mjs",
         "scripts/deploy.mjs",
+        ".github/workflows/form-package-signing.yml",
       ],
       requiresScripts: ["check", "deploy"],
       requiresTools: ["git", "bun", "go"],
       requiresEnv: [],
-      triggers: ["published-identity"],
+      triggers: ["authority", "published-identity"],
       obligations: {
         provenance:
-          "The one clean canonical main commit is gated once, all 16 candidate closures are verified by released Core v1.0.1, and each unsigned Git tag and forms/releases path is derived by Core PublicationLocatorFor from the exact FormRef and package digest. Candidate source is not publication evidence.",
+          "The one clean canonical main commit is gated once. Released Core v1.1.0 verifies all 16 exact canonical package-index subjects, the exact publisher policy and trusted root, every Sigstore v0.3 bundle, one signed API v1 revocation genesis, and every not-revoked decision. All evidence must report one protected-main publisher/source/workflow/build commit; package subjects and publisher verification code remain byte-exact from that signed commit through publication.",
         "post-conditions":
-          "After one ordinary non-force push of main and the 16 exact tags, credential-free verification reads origin main and every tag, fetches the public commit into fresh temporary storage, compares every release path byte-for-byte, and reruns Core v1.0.1 package verification for all 16 packages.",
+          "After one ordinary atomic non-force push, credential-free verification reads origin main, every Core-derived package tag, and the create-only forms/sets/<source-commit> tag; fetches the public set commit into fresh storage; compares every package byte; and reruns Core v1.1.0 package, publisher, signature, checkpoint, and revocation verification.",
         reversal:
-          "Tags and release paths are immutable and are never deleted, retagged, or overwritten. A bad publication cannot be rolled back in place; forward-repair uses a changed package digest and therefore a new Core-derived tag/path while the prior identity remains readable.",
+          "Package tags, release paths, signed trust-set paths, and set tags are immutable and are never deleted, retagged, or overwritten. A bad publication cannot be rolled back in place; forward repair signs a new source commit and creates a new set, while changed package bytes also create a new Core-derived package identity.",
         "failure-handling":
-          "The entrypoint prints bounded command diagnostics and stops before mutation whenever source identity, exact candidate closure, or remote tag absence is uncertain. A failure during or after the single atomic push is reported as indeterminate; no local tags are created and there is no blind retry, cleanup, deletion, or force path.",
+          "The entrypoint prints bounded command diagnostics and stops before mutation whenever the signed trust closure, source identity, exact package closure, or tag state is uncertain. A failure during or after the single atomic push is reported as indeterminate; no local tags are created and there is no blind retry, cleanup, deletion, or force path.",
+        "independent-review":
+          "The non-authoring TASK-0042 independent architecture review examined this publisher authority boundary and identified this contract omission. Before any publication, a person or agent that did not author the release must review the exact signed source commit, trust-set verification report, immutable tag plan, and atomic refspecs; the operator retains the named reviewer and exact commit outside the repository, and neither the signing workflow nor a green gate substitutes for that review.",
         "no-overwrite":
-          "Immediately before mutation, every expected local and remote tag is checked and any existing tag is refused even when it already points at the expected commit. The push carries main and all 16 tags once without force; no overwrite or retag operation exists.",
+          "Immediately before mutation, the set tag must be absent locally and remotely. Existing Core-derived package tags are reused only when their tagged package path is byte-identical to the Core-verified signed source; absent package tags are created once. The atomic push has no force, delete, or retag path.",
       },
     },
   ],
@@ -131,13 +153,19 @@ export function parseDeployInvocation(args) {
   if (args.length === 1 && args[0] === "--contract") {
     return { mode: "contract" };
   }
-  if (args[0] !== RELEASE_SURFACE) throw new Error(usage());
-  if (args.length === 1) return { mode: "publish" };
-  if (args.length === 2 && args[1] === "--dry-run") {
-    return { mode: "dry-run" };
+  if (
+    args[0] !== RELEASE_SURFACE ||
+    args[1] !== "--trust-set" ||
+    !commitPattern.test(args[2] ?? "")
+  )
+    throw new Error(usage());
+  const trustSet = args[2];
+  if (args.length === 3) return { mode: "publish", trustSet };
+  if (args.length === 4 && args[3] === "--dry-run") {
+    return { mode: "dry-run", trustSet };
   }
-  if (args.length === 2 && args[1] === "--verify") {
-    return { mode: "verify" };
+  if (args.length === 4 && args[3] === "--verify") {
+    return { mode: "verify", trustSet };
   }
   throw new Error(usage());
 }
@@ -158,17 +186,27 @@ export function runDeploy(args, dependencies = defaultDependencies()) {
   try {
     if (invocation.mode === "verify") {
       const plan = readPlan(dependencies);
-      const evidence = verifyPublicPublication(plan, dependencies);
+      const trust = readTrustSet(dependencies, plan, invocation.trustSet, {
+        credentialFree: true,
+      });
+      const evidence = verifyPublicPublication(plan, trust, dependencies);
       outputJSON(dependencies, evidence);
       return 0;
     }
     const before = readPlan(dependencies);
+    const beforeTrust = readTrustSet(
+      dependencies,
+      before,
+      invocation.trustSet,
+      { credentialFree: true },
+    );
     const firstCommit = requireSourceIdentity(dependencies, {
-      allowEmptyOrigin: true,
+      expectedRemoteCommit: beforeTrust.sourceCommit,
     });
+    requireSignedSourceClosure(dependencies, beforeTrust, firstCommit);
     runOwnerGate(dependencies);
     const commit = requireSourceIdentity(dependencies, {
-      allowEmptyOrigin: true,
+      expectedRemoteCommit: beforeTrust.sourceCommit,
     });
     if (commit !== firstCommit) {
       throw new DeployBlocked(
@@ -184,16 +222,28 @@ export function runDeploy(args, dependencies = defaultDependencies()) {
       "post-gate Form Package publication check",
     );
     const after = readPlan(dependencies);
+    const afterTrust = readTrustSet(dependencies, after, invocation.trustSet, {
+      credentialFree: true,
+    });
     assertPlansEqual(before, after);
-    requireNoExistingIdentities(dependencies, after);
+    assertTrustReportsEqual(beforeTrust, afterTrust);
+    requireSignedSourceClosure(dependencies, afterTrust, commit);
+    const missingPackageTags = requireCreateOnlyIdentities(
+      dependencies,
+      after,
+      afterTrust,
+    );
 
     if (invocation.mode === "dry-run") {
-      outputJSON(dependencies, dryRunEvidence(after, commit));
+      outputJSON(
+        dependencies,
+        dryRunEvidence(after, afterTrust, commit, missingPackageTags),
+      );
       return 0;
     }
 
-    pushAll(dependencies, after, commit);
-    const evidence = verifyPublicPublication(after, dependencies, {
+    pushAll(dependencies, after, afterTrust, commit, missingPackageTags);
+    const evidence = verifyPublicPublication(after, afterTrust, dependencies, {
       expectedCommit: commit,
       mutationStarted: true,
     });
@@ -228,9 +278,141 @@ function readPlan(dependencies) {
     : derivePublicationPlan();
 }
 
+function readTrustSet(
+  dependencies,
+  plan,
+  trustSet,
+  { credentialFree = false, repositoryRoot = root } = {},
+) {
+  let report;
+  if (typeof dependencies.readTrustSet === "function") {
+    report = dependencies.readTrustSet({
+      plan,
+      trustSet,
+      credentialFree,
+      repositoryRoot,
+    });
+  } else {
+    const setPath = path.join(
+      repositoryRoot,
+      "forms",
+      "trust",
+      "sets",
+      trustSet,
+    );
+    const result = runDependency(
+      dependencies,
+      "go",
+      [
+        "run",
+        "./cmd/publisher-trust",
+        "verify-set",
+        "--repository",
+        repositoryRoot,
+        "--set",
+        setPath,
+      ],
+      credentialFree,
+    );
+    if (result.exitCode !== 0) {
+      throw new DeployBlocked(
+        `Core v1.1.0 signed publisher-set verification failed${commandDetail(result) ? `:\n${commandDetail(result)}` : ""}`,
+      );
+    }
+    try {
+      report = JSON.parse(result.stdout);
+    } catch {
+      throw new DeployBlocked(
+        "Core v1.1.0 signed publisher-set verifier returned non-JSON",
+      );
+    }
+  }
+  validateTrustReport(report, plan, trustSet);
+  return report;
+}
+
+function validateTrustReport(report, plan, trustSet) {
+  if (
+    report === null ||
+    typeof report !== "object" ||
+    report.status !== "verified" ||
+    report.coreVersion !== "v1.1.0" ||
+    report.family !== plan.family ||
+    report.setId !== trustSet ||
+    report.setTag !== `${TRUST_SET_TAG_PREFIX}${trustSet}` ||
+    report.sourceCommit !== trustSet ||
+    report.workflowCommit !== trustSet ||
+    report.buildConfigCommit !== trustSet ||
+    report.publisherIdentity !== PUBLISHER_IDENTITY ||
+    report.packageCount !== plan.formCount ||
+    !Array.isArray(report.packages) ||
+    report.packages.length !== plan.formCount ||
+    report.checkpoint?.status !== "verified"
+  ) {
+    throw new DeployBlocked(
+      `trust set ${trustSet} did not return the exact Core v1.1.0 publisher/package/checkpoint report`,
+    );
+  }
+  const expectedTags = plan.forms.map((form) => form.locator.tag);
+  const verifiedTags = report.packages.map((entry) => entry?.locator?.tag);
+  if (expectedTags.join("\n") !== verifiedTags.join("\n")) {
+    throw new DeployBlocked(
+      `trust set ${trustSet} package identities differ from the publication plan`,
+    );
+  }
+  const checkpointBundle = report.checkpoint.bundle;
+  if (
+    report.checkpoint.checkpointVersion !== "0.0.0" ||
+    report.checkpoint.entryCount !== 0 ||
+    report.checkpoint.pin?.checkpointApiVersion !==
+      "trust.forms.takoform.com/v1" ||
+    report.checkpoint.pin?.sequence !== 0 ||
+    report.checkpoint.pin?.digest !== GENESIS_DIGEST ||
+    report.checkpoint.pin?.entriesDigest !== GENESIS_ENTRIES_DIGEST ||
+    !exactPublisherBundle(checkpointBundle, GENESIS_DIGEST, trustSet)
+  ) {
+    throw new DeployBlocked(
+      `trust set ${trustSet} does not contain the exact signed Core API v1 genesis`,
+    );
+  }
+  for (let index = 0; index < plan.forms.length; index += 1) {
+    const form = plan.forms[index];
+    const verified = report.packages[index];
+    if (
+      verified.packageDigest !== form.packageDigest ||
+      !exactPublisherBundle(verified.bundle, form.packageDigest, trustSet)
+    ) {
+      throw new DeployBlocked(
+        `trust set ${trustSet} has incomplete exact evidence for ${form.kind}`,
+      );
+    }
+  }
+}
+
+function exactPublisherBundle(bundle, subjectDigest, sourceCommit) {
+  return (
+    bundle !== null &&
+    typeof bundle === "object" &&
+    bundle.status === "verified" &&
+    bundle.subjectDigest === subjectDigest &&
+    digestPattern.test(bundle.bundleDigest ?? "") &&
+    bundle.trustedRootDigest === TRUSTED_ROOT_DIGEST &&
+    bundle.oidcIssuer === PUBLISHER_OIDC_ISSUER &&
+    bundle.sourceRepository === PUBLISHER_REPOSITORY &&
+    bundle.workflow === PUBLISHER_WORKFLOW &&
+    bundle.ref === PUBLISHER_REF &&
+    bundle.publisherIdentity === PUBLISHER_IDENTITY &&
+    bundle.sourceCommit === sourceCommit &&
+    bundle.workflowCommit === sourceCommit &&
+    bundle.buildConfigCommit === sourceCommit &&
+    bundle.transparencyLogVerified === true &&
+    bundle.transparencyLogThreshold === 1
+  );
+}
+
 function requireSourceIdentity(
   dependencies,
-  { credentialFree = false, allowEmptyOrigin = false } = {},
+  { credentialFree = false, expectedRemoteCommit } = {},
 ) {
   const status = requireSuccess(
     dependencies,
@@ -304,28 +486,88 @@ function requireSourceIdentity(
     credentialFree,
   );
   const remoteCommit = parseRemoteRef(remoteMain, "refs/heads/main");
-  if (remoteCommit === "" && allowEmptyOrigin) {
-    const remoteRefs = requireSuccess(
-      dependencies,
-      "git",
-      ["ls-remote", "--heads", "--tags", "origin"],
-      "cannot prove that origin is empty before first publication",
-      false,
-      credentialFree,
-    );
-    if (remoteRefs !== "") {
-      throw new DeployBlocked(
-        "origin has refs but no main; first publication requires an empty repository",
-      );
-    }
-    return commit;
-  }
-  if (remoteCommit !== commit) {
+  const requiredRemote = expectedRemoteCommit ?? commit;
+  if (remoteCommit !== requiredRemote) {
     throw new DeployBlocked(
-      `local main ${commit} does not equal origin main ${remoteCommit || "<missing>"}`,
+      `origin main is ${remoteCommit || "<missing>"}, expected ${requiredRemote}`,
     );
   }
   return commit;
+}
+
+function requireSignedSourceClosure(dependencies, trust, currentCommit) {
+  requireSuccess(
+    dependencies,
+    "git",
+    ["cat-file", "-e", `${trust.sourceCommit}^{commit}`],
+    `cannot resolve signed source commit ${trust.sourceCommit}`,
+  );
+  requireSuccess(
+    dependencies,
+    "git",
+    ["merge-base", "--is-ancestor", trust.sourceCommit, currentCommit],
+    `signed source commit ${trust.sourceCommit} is not an ancestor of ${currentCommit}`,
+  );
+  requireSuccess(
+    dependencies,
+    "git",
+    [
+      "diff",
+      "--quiet",
+      trust.sourceCommit,
+      currentCommit,
+      "--",
+      "forms/releases",
+      "forms/candidates/current-family-index.json",
+      "forms/candidates/edge.forms.takoform.com",
+    ],
+    "package subjects changed after the Core-verified signing source",
+  );
+  requireSuccess(
+    dependencies,
+    "git",
+    [
+      "diff",
+      "--quiet",
+      trust.sourceCommit,
+      currentCommit,
+      "--",
+      ".github/workflows/form-package-signing.yml",
+      "cmd/form-package",
+      "cmd/publisher-trust",
+      "internal/publishertrust",
+      "go.mod",
+      "go.sum",
+      "package.json",
+      "scripts/check-boundary.mjs",
+      "scripts/deploy.mjs",
+      "scripts/form-publication.mjs",
+      "forms/trust/publisher-policy.json",
+      "forms/trust/trusted-root.json",
+    ],
+    "publisher trust verifier or authority inputs changed after the signed source",
+  );
+  const trustChanges = requireSuccess(
+    dependencies,
+    "git",
+    [
+      "diff",
+      "--name-only",
+      trust.sourceCommit,
+      currentCommit,
+      "--",
+      "forms/trust",
+    ],
+    "cannot inspect publisher trust changes after the signed source",
+  );
+  const allowedSetRoot = `forms/trust/sets/${trust.setId}/`;
+  for (const changed of trustChanges.split("\n").filter(Boolean)) {
+    if (!changed.startsWith(allowedSetRoot)) {
+      throw new DeployBlocked(
+        `publisher trust path ${changed} changed outside signed set ${trust.setId}`,
+      );
+    }
+  }
 }
 
 function runOwnerGate(dependencies) {
@@ -338,7 +580,39 @@ function runOwnerGate(dependencies) {
   if (gate.exitCode !== 0) throw new DeployBlocked(`${OWNER_GATE} failed`);
 }
 
-function requireNoExistingIdentities(dependencies, plan) {
+function requireCreateOnlyIdentities(dependencies, plan, trust) {
+  const setTag = trust.setTag;
+  const localSet = runDependency(dependencies, "git", [
+    "show-ref",
+    "--verify",
+    "--quiet",
+    `refs/tags/${setTag}`,
+  ]);
+  if (localSet.exitCode === 0) {
+    throw new DeployBlocked(`local set tag ${setTag} already exists`);
+  }
+  if (localSet.exitCode !== 1) {
+    throw new DeployBlocked(
+      `cannot prove local set tag ${setTag} is absent${commandDetail(localSet) ? `:\n${commandDetail(localSet)}` : ""}`,
+    );
+  }
+  const remoteSet = requireSuccess(
+    dependencies,
+    "git",
+    [
+      "ls-remote",
+      "--tags",
+      "origin",
+      `refs/tags/${setTag}`,
+      `refs/tags/${setTag}^{}`,
+    ],
+    `cannot inspect origin set tag ${setTag}`,
+  );
+  if (remoteSet !== "") {
+    throw new DeployBlocked(`remote set tag ${setTag} already exists`);
+  }
+
+  const missingPackageTags = [];
   for (const form of plan.forms) {
     const tag = form.locator.tag;
     const local = runDependency(dependencies, "git", [
@@ -347,10 +621,7 @@ function requireNoExistingIdentities(dependencies, plan) {
       "--quiet",
       `refs/tags/${tag}`,
     ]);
-    if (local.exitCode === 0) {
-      throw new DeployBlocked(`local tag ${tag} already exists`);
-    }
-    if (local.exitCode !== 1) {
+    if (local.exitCode !== 0 && local.exitCode !== 1) {
       throw new DeployBlocked(
         `cannot prove local tag ${tag} is absent${commandDetail(local) ? `:\n${commandDetail(local)}` : ""}`,
       );
@@ -367,24 +638,55 @@ function requireNoExistingIdentities(dependencies, plan) {
       ],
       `cannot inspect origin tag ${tag}`,
     );
-    if (remote !== "") {
-      throw new DeployBlocked(`remote tag ${tag} already exists`);
+    if (remote === "") {
+      missingPackageTags.push(tag);
+      continue;
     }
+    const direct = parseRemoteRef(remote, `refs/tags/${tag}`);
+    const peeled = parseRemoteRef(remote, `refs/tags/${tag}^{}`);
+    const tagCommit = peeled || direct;
+    if (!commitPattern.test(tagCommit ?? "")) {
+      throw new DeployBlocked(
+        `remote package tag ${tag} did not resolve to a commit`,
+      );
+    }
+    requireSuccess(
+      dependencies,
+      "git",
+      ["cat-file", "-e", `${tagCommit}^{commit}`],
+      `cannot resolve existing remote package tag ${tag} commit ${tagCommit} locally`,
+    );
+    requireSuccess(
+      dependencies,
+      "git",
+      [
+        "diff",
+        "--quiet",
+        tagCommit,
+        trust.sourceCommit,
+        "--",
+        form.locator.sourcePath,
+      ],
+      `existing remote package tag ${tag} does not contain the Core-verified package bytes`,
+    );
   }
+  return missingPackageTags;
 }
 
-function pushAll(dependencies, plan, commit) {
+function pushAll(dependencies, plan, trust, commit, missingPackageTags) {
   const refs = ["refs/heads/main:refs/heads/main"];
+  const missing = new Set(missingPackageTags);
   for (const form of plan.forms) {
-    // A <commit>:<tag-ref> refspec creates a lightweight unsigned tag on the
-    // remote without first creating a partially complete local tag set.
-    refs.push(`${commit}:refs/tags/${form.locator.tag}`);
+    if (missing.has(form.locator.tag)) {
+      refs.push(`${trust.sourceCommit}:refs/tags/${form.locator.tag}`);
+    }
   }
+  refs.push(`${commit}:refs/tags/${trust.setTag}`);
   requireSuccess(
     dependencies,
     "git",
     ["push", "--atomic", "origin", ...refs],
-    `push of main and ${plan.formCount} Form Package tags did not complete cleanly`,
+    `push of main, ${missingPackageTags.length} new package tags, and signed set ${trust.setTag} did not complete cleanly`,
     true,
   );
 }
@@ -395,6 +697,7 @@ function pushAll(dependencies, plan, commit) {
  */
 export function verifyPublicPublication(
   plan,
+  trust,
   dependencies,
   { expectedCommit, mutationStarted = false } = {},
 ) {
@@ -417,6 +720,33 @@ export function verifyPublicPublication(
     );
   }
 
+  const setTagOutput = requireSuccess(
+    dependencies,
+    "git",
+    [
+      "ls-remote",
+      "--tags",
+      "origin",
+      `refs/tags/${trust.setTag}`,
+      `refs/tags/${trust.setTag}^{}`,
+    ],
+    `cannot read public signed set tag ${trust.setTag}`,
+    mutationStarted,
+    true,
+  );
+  const setDirect = parseRemoteRef(setTagOutput, `refs/tags/${trust.setTag}`);
+  const setPeeled = parseRemoteRef(
+    setTagOutput,
+    `refs/tags/${trust.setTag}^{}`,
+  );
+  if (setDirect !== localCommit && setPeeled !== localCommit) {
+    throw new DeployBlocked(
+      `public signed set tag ${trust.setTag} points to ${setPeeled || setDirect || "<missing>"}, expected ${localCommit}`,
+      mutationStarted,
+    );
+  }
+
+  const packageTagCommits = new Map();
   for (const form of plan.forms) {
     const tagOutput = requireSuccess(
       dependencies,
@@ -437,12 +767,14 @@ export function verifyPublicPublication(
       tagOutput,
       `refs/tags/${form.locator.tag}^{}`,
     );
-    if (direct !== localCommit && peeled !== localCommit) {
+    const tagCommit = peeled || direct;
+    if (!commitPattern.test(tagCommit ?? "")) {
       throw new DeployBlocked(
-        `public tag ${form.locator.tag} points to ${direct || "<missing>"}, expected ${localCommit}`,
+        `public package tag ${form.locator.tag} did not resolve to a commit`,
         mutationStarted,
       );
     }
+    packageTagCommits.set(form.locator.tag, tagCommit);
   }
 
   let temporary;
@@ -487,8 +819,70 @@ export function verifyPublicPublication(
       mutationStarted,
       true,
     );
+    requireSuccess(
+      dependencies,
+      "git",
+      [
+        "-C",
+        temporary,
+        "fetch",
+        "--quiet",
+        "--no-tags",
+        "origin",
+        ...plan.forms.map(
+          (form) =>
+            `refs/tags/${form.locator.tag}:refs/tags/${form.locator.tag}`,
+        ),
+      ],
+      "cannot fetch the public package tags",
+      mutationStarted,
+      true,
+    );
     try {
+      for (const form of plan.forms) {
+        const fetchedTagCommit = requireSuccess(
+          dependencies,
+          "git",
+          [
+            "-C",
+            temporary,
+            "rev-parse",
+            `refs/tags/${form.locator.tag}^{commit}`,
+          ],
+          `cannot resolve fetched public package tag ${form.locator.tag}`,
+          mutationStarted,
+          true,
+        );
+        if (fetchedTagCommit !== packageTagCommits.get(form.locator.tag)) {
+          throw new DeployBlocked(
+            `public package tag ${form.locator.tag} changed during readback`,
+            mutationStarted,
+          );
+        }
+        requireSuccess(
+          dependencies,
+          "git",
+          [
+            "-C",
+            temporary,
+            "diff",
+            "--quiet",
+            `refs/tags/${form.locator.tag}^{commit}`,
+            localCommit,
+            "--",
+            form.locator.sourcePath,
+          ],
+          `public package tag ${form.locator.tag} does not contain the Core-verified package bytes`,
+          mutationStarted,
+          true,
+        );
+      }
       verifyFetchedReleaseTree(plan, temporary, dependencies, mutationStarted);
+      const publicTrust = readTrustSet(dependencies, plan, trust.setId, {
+        credentialFree: true,
+        repositoryRoot: temporary,
+      });
+      assertTrustReportsEqual(trust, publicTrust);
     } catch (error) {
       if (error instanceof DeployBlocked) throw error;
       throw new DeployBlocked(
@@ -510,9 +904,19 @@ export function verifyPublicPublication(
     surface: RELEASE_SURFACE,
     repository: REPOSITORY_URL,
     commit: localCommit,
+    signedSet: {
+      setId: trust.setId,
+      tag: trust.setTag,
+      publisherIdentity: trust.publisherIdentity,
+      sourceCommit: trust.sourceCommit,
+      workflowCommit: trust.workflowCommit,
+      buildConfigCommit: trust.buildConfigCommit,
+      checkpointPin: trust.checkpoint.pin,
+    },
     tagCount: plan.formCount,
     tags: plan.forms.map((form) => ({
       tag: form.locator.tag,
+      commit: packageTagCommits.get(form.locator.tag),
       releaseId: form.locator.releaseId,
       artifactId: form.locator.artifactId,
       sourcePath: form.locator.sourcePath,
@@ -520,9 +924,10 @@ export function verifyPublicPublication(
     })),
     postConditions: [
       "PUBLIC_MAIN_READBACK",
-      "ALL_16_TAGS_READBACK",
+      "SIGNED_SET_TAG_READBACK",
+      "ALL_16_TAGGED_PACKAGE_BYTES_READBACK",
       "FRESH_TREE_BYTE_COMPARISON",
-      "CORE_V1_0_1_PACKAGE_VERIFICATION",
+      "CORE_V1_1_0_PACKAGE_TRUST_REVOCATION_VERIFICATION",
     ],
     status: "VERIFIED",
   };
@@ -614,7 +1019,7 @@ function runCoreLocatorForFetched(dependencies, packageRoot, mutationStarted) {
   );
   if (result.exitCode !== 0) {
     throw new DeployBlocked(
-      `Core v1.0.1 verification failed for public package${commandDetail(result) ? `:\n${commandDetail(result)}` : ""}`,
+      `Core v1.1.0 verification failed for public package${commandDetail(result) ? `:\n${commandDetail(result)}` : ""}`,
       mutationStarted,
     );
   }
@@ -622,7 +1027,7 @@ function runCoreLocatorForFetched(dependencies, packageRoot, mutationStarted) {
     return JSON.parse(result.stdout);
   } catch {
     throw new DeployBlocked(
-      "Core v1.0.1 verifier returned non-JSON for a public package",
+      "Core v1.1.0 verifier returned non-JSON for a public package",
       mutationStarted,
     );
   }
@@ -675,14 +1080,44 @@ function assertPlansEqual(before, after) {
     );
 }
 
-function dryRunEvidence(plan, commit) {
+function assertTrustReportsEqual(before, after) {
+  const stable = (report) =>
+    JSON.stringify({
+      status: report.status,
+      coreVersion: report.coreVersion,
+      family: report.family,
+      setId: report.setId,
+      setTag: report.setTag,
+      packageCount: report.packageCount,
+      publisherIdentity: report.publisherIdentity,
+      sourceCommit: report.sourceCommit,
+      workflowCommit: report.workflowCommit,
+      buildConfigCommit: report.buildConfigCommit,
+      checkpoint: report.checkpoint,
+      packages: report.packages,
+    });
+  if (stable(before) !== stable(after)) {
+    throw new DeployBlocked(
+      "signed publisher evidence changed during verification",
+    );
+  }
+}
+
+function dryRunEvidence(plan, trust, commit, missingPackageTags) {
   return {
     kind: "takoform.form-package-publication-dry-run@v1",
     surface: RELEASE_SURFACE,
     repository: REPOSITORY_URL,
     commit,
+    signedSet: {
+      setId: trust.setId,
+      tag: trust.setTag,
+      sourceCommit: trust.sourceCommit,
+      publisherIdentity: trust.publisherIdentity,
+    },
     tagCount: plan.formCount,
     tags: plan.forms.map((form) => form.locator.tag),
+    packageTagsToCreate: missingPackageTags,
     status: "DRY_RUN_VERIFIED",
   };
 }
@@ -732,7 +1167,7 @@ function outputJSON(dependencies, value) {
 }
 
 function usage() {
-  return `usage: bun run deploy -- [--contract] | ${RELEASE_SURFACE} [--dry-run|--verify]`;
+  return `usage: bun run deploy -- [--contract] | ${RELEASE_SURFACE} --trust-set <40-hex-source-commit> [--dry-run|--verify]`;
 }
 
 export function credentialFreeInvocation(

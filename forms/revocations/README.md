@@ -17,4 +17,16 @@ entries digest)` pin before accepting the next checkpoint. Revocation blocks new
 referenced bytes for observe/delete and operator evacuation. Ordinary
 deprecation belongs in the Form Definition status instead.
 
-No revocation statement has been published yet.
+The first publisher set uses the exact Core API v1 genesis checkpoint:
+
+```json
+{"apiVersion":"trust.forms.takoform.com/v1","checkpointVersion":"0.0.0","entries":[],"kind":"FormPackageRevocationCheckpoint","previousCheckpointDigest":null,"sequence":0}
+```
+
+`bun run prepare:trust` derives these canonical bytes from Core v1.1.0. The
+publisher workflow signs them as `revocations/checkpoint.sigstore.json`; the
+candidate verifier requires that bundle, the repository-pinned publisher
+policy and trusted root, and `CheckNotRevoked` for every package before a set
+can be installed. A serialized verification report is not evidence.
+
+No revocation statement or signed publisher set has been published yet.

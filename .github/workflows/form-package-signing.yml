@@ -1,0 +1,145 @@
+name: Prepare signed Edge Form Package set
+run-name: Sign ${{ inputs.expected_commit }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_commit:
+        description: Exact protected-main source commit to sign
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: edge-form-package-signing-${{ inputs.expected_commit }}
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  EXPECTED_COSIGN_VERSION: "v3.0.6"
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: form-package-signing
+    steps:
+      - name: Check out the exact protected-main source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # pinned: v6.0.2
+        with:
+          ref: ${{ inputs.expected_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify the workflow and source identities
+        shell: bash
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "expected_commit must be an exact lowercase 40-character Git commit" >&2
+            exit 1
+          fi
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "signing requires refs/heads/main" >&2
+            exit 1
+          fi
+          if [[ "$GITHUB_WORKFLOW_REF" != "$GITHUB_REPOSITORY/.github/workflows/form-package-signing.yml@refs/heads/main" ]]; then
+            echo "signing requires the protected main workflow identity" >&2
+            exit 1
+          fi
+          if [[ "$(git rev-parse HEAD)" != "$EXPECTED_COMMIT" || "$GITHUB_SHA" != "$EXPECTED_COMMIT" ]]; then
+            echo "checked-out source does not equal expected_commit" >&2
+            exit 1
+          fi
+          if [[ "$(git rev-parse refs/remotes/origin/main)" != "$EXPECTED_COMMIT" ]]; then
+            echo "expected_commit must be current origin/main" >&2
+            exit 1
+          fi
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # pinned: v2.0.2
+        with:
+          bun-version: 1.3.14
+
+      - name: Setup Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # pinned: v6.0.0
+        with:
+          go-version: "1.25.8"
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Install pinned workspace tools
+        run: bun install --frozen-lockfile
+
+      - name: Verify the exact source before signing
+        run: bun run check
+
+      - name: Install pinned Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # pinned: v4.1.2, Cosign v3.0.6
+        with:
+          cosign-release: "v3.0.6"
+
+      - name: Prepare and keyless-sign every exact Core subject
+        id: sign
+        shell: bash
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          set -euo pipefail
+          cosign_version="$(cosign version 2>&1)"
+          grep -F "$EXPECTED_COSIGN_VERSION" <<<"$cosign_version"
+
+          candidate="$RUNNER_TEMP/edge-form-package-signing/$EXPECTED_COMMIT"
+          preparation="$RUNNER_TEMP/edge-form-package-signing-preparation.json"
+          go run ./cmd/publisher-trust prepare \
+            --repository . \
+            --output "$candidate" > "$preparation"
+          jq -e \
+            --arg output "$candidate" \
+            '.status == "signing-required" and .coreVersion == "v1.1.0" and .packageCount == 16 and .output == $output and (.subjects | length == 17)' \
+            "$preparation" >/dev/null
+
+          while IFS= read -r subject; do
+            case "$subject" in
+              revocations/checkpoint.json)
+                bundle="revocations/checkpoint.sigstore.json"
+                ;;
+              packages/*/package-index.json)
+                bundle="${subject%package-index.json}package-index.sigstore.json"
+                ;;
+              *)
+                echo "unexpected signing subject $subject" >&2
+                exit 1
+                ;;
+            esac
+            test ! -e "$candidate/$bundle"
+            cosign sign-blob "$candidate/$subject" \
+              --bundle "$candidate/$bundle" \
+              --yes
+          done < <(jq -r '.subjects[].path' "$preparation")
+
+          verification="$RUNNER_TEMP/edge-form-package-signing-verification.json"
+          go run ./cmd/publisher-trust verify-evidence \
+            --repository . \
+            --evidence "$candidate" \
+            --expected-source-commit "$EXPECTED_COMMIT" > "$verification"
+          jq -e \
+            --arg commit "$EXPECTED_COMMIT" \
+            '.status == "verified" and .coreVersion == "v1.1.0" and .setId == $commit and .sourceCommit == $commit and .packageCount == 16 and (.packages | length == 16) and .checkpoint.status == "verified"' \
+            "$verification" >/dev/null
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          echo "candidate=$candidate" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the closed candidate for create-only operator import
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned: v7.0.1
+        with:
+          name: edge-form-package-signing-${{ inputs.expected_commit }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.sign.outputs.candidate }}
+          if-no-files-found: error
+          retention-days: 1

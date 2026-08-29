@@ -54,11 +54,12 @@ To inspect one package directly with the released Core verifier:
 go run ./cmd/form-package verify forms/candidates/edge.forms.takoform.com/module-worker
 ```
 
-Focused checks: `bun run check:generation` and `bun run check:publication`.
+Focused checks: `bun run check:generation`, `bun run check:publication`, and
+`bun run check:trust`.
 
 ## Preparing and publishing packages
 
-For a verified `package-index.json`, Core v1.0.1 `PublicationLocatorFor` derives
+For a verified `package-index.json`, Core v1.1.0 `PublicationLocatorFor` derives
 `releaseId` from the FormRef group and kind, `artifactId` from `packageDigest`
 (`sha256:` becomes `sha256-`), then combines them into the release path and tag:
 
@@ -67,22 +68,47 @@ forms/releases/<releaseId>/sha256-<digest>/
 forms/<releaseId>/sha256-<digest>
 ```
 
-`bun run write:publication` materializes missing release directories. The
-deploy surface is:
+`bun run write:publication` materializes missing release directories. It does
+not sign or publish them. An exact protected-main commit is prepared for
+external keyless signing with:
 
 ```console
-bun run deploy -- form-packages-edge --dry-run
-bun run deploy -- form-packages-edge
-bun run deploy -- form-packages-edge --verify
+bun run prepare:trust -- --output <empty-external-directory>
+```
+
+The manual `form-package-signing.yml` workflow is the publisher authority. It
+uses GitHub Actions OIDC to produce 16 exact package-index Sigstore bundles and
+one signed Core API v1 revocation genesis checkpoint, reruns Core verification,
+and uploads a one-day candidate. It has no repository write, tag, or publish
+permission. An operator then verifies and imports that candidate create-only:
+
+```console
+bun run verify:trust -- --evidence <candidate> --expected-source-commit <commit>
+bun run install:trust -- --evidence <candidate> --expected-source-commit <commit>
+```
+
+The deploy surface requires the imported set's exact signed source commit:
+
+```console
+bun run deploy -- form-packages-edge --trust-set <source-commit> --dry-run
+bun run deploy -- form-packages-edge --trust-set <source-commit>
+bun run deploy -- form-packages-edge --trust-set <source-commit> --verify
 ```
 
 `--dry-run` checks preconditions without mutation. The publish command pushes
 `main` and the matching tags; run `--verify` afterwards for anonymous public
-readback. A package is public only as part of a set whose public `main` and all
-16 Core-derived tags point to one commit; anonymous readback must verify every
-release path byte-for-byte with Core v1.0.1. Git tags provide unsigned
-provenance; changing package bytes creates a new digest, path, and tag.
+readback. Existing immutable package tags may point to an older commit only
+when their package paths are byte-identical to the signed source. Anonymous
+readback fetches every tag, compares those bytes, and reruns Core v1.1.0 over
+all packages, bundles, the pinned publisher policy and trusted root, the signed
+checkpoint, and every not-revoked decision. Changing package bytes creates a
+new digest, path, and package tag; changing publisher evidence creates a new
+`forms/sets/<source-commit>` identity.
+
+No signed set is checked in yet. Until an authorized OIDC signing run is
+verified and imported, `bun run check` verifies the empty pre-signing state and
+the deploy surface refuses every publication request.
 
 Core defines verification; this repo defines Edge contracts; providers map them;
 hosts implement them. Publication proves package bytes and identity, not Host
-support.
+support or Host admission policy.

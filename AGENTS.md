@@ -14,7 +14,7 @@
 
 - Owns: Edge Form, Interface, and Binding source catalogs and semantic fixtures / The 16 content-addressed Edge Form Package byte closures and canonical Git tags / Publisher provenance, create-only publication, public readback, and forward repair
 - Does not own: Takoform API/Core, public schemas, verifier, or trust semantics / Terraform or OpenTofu Provider mappings, state, import, codecs, or release history / Host implementation, support, activation, runtime deployment, cloud resources, credentials, or operator state / Deferred non-Edge Form families or an aggregate Edge version
-- Hazards: Official and external publishers use the same package and verification rules; this repository has no privileged Core path. / Published package paths and tags are consumer-pinned identities: never overwrite, retag, or delete them; repair forward with a new digest. / Keep the Core dependency pinned to the released github.com/tako0614/takoform v1.0.1 and never copy Core source into this repository. / Do not claim signatures, trust admission, Host support, installation, activation, or availability from package publication.
+- Hazards: Official and external publishers use the same package and verification rules; this repository has no privileged Core path. / Published package paths and tags are consumer-pinned identities: never overwrite, retag, or delete them; repair forward with a new digest. / Keep the Core dependency pinned to the released github.com/tako0614/takoform v1.1.0 and never copy Core source into this repository. / Do not claim signatures, trust admission, Host support, installation, activation, or availability from package publication.
 
 ## Required workflow
 
