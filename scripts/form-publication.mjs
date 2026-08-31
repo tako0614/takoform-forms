@@ -541,11 +541,24 @@ export function credentialFreeEnvironment(sourceEnvironment = process.env) {
   }
   for (const key of [
     "GIT_CONFIG",
+    "GIT_CONFIG_GLOBAL",
+    "GIT_CONFIG_NOSYSTEM",
     "GIT_CONFIG_PARAMETERS",
     "GIT_CONFIG_SYSTEM",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
     "GIT_ASKPASS",
+    "GIT_COMMON_DIR",
+    "GIT_DIR",
+    "GIT_INDEX_FILE",
+    "GIT_NAMESPACE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_OPTIONAL_LOCKS",
     "SSH_ASKPASS",
     "SSH_AUTH_SOCK",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_SHALLOW_FILE",
+    "GIT_TERMINAL_PROMPT",
+    "GIT_WORK_TREE",
     "GIT_PROXY_COMMAND",
     "GIT_SSH",
     "GIT_SSH_COMMAND",
@@ -566,6 +579,7 @@ export function credentialFreeEnvironment(sourceEnvironment = process.env) {
   env.GIT_TERMINAL_PROMPT = "0";
   env.GIT_CONFIG_NOSYSTEM = "1";
   env.GIT_CONFIG_GLOBAL = "/dev/null";
+  env.GIT_OPTIONAL_LOCKS = "0";
   env.GOAUTH = "off";
   env.GOENV = "off";
   env.GOFLAGS = "-mod=readonly";

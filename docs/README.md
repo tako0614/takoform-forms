@@ -9,6 +9,9 @@ Edge Form family.
   version axes, and package publication flow.
 - [Conformance corpus](../conformance/README.md): desired-state and negative
   fixtures used by the validators.
+- [Revocation advancement runbook](revocation-advancement.md): append-only
+  source, signing, installation, immutable publication, settlement, and safe
+  partial-install recovery.
 
 ## Source and generated files
 

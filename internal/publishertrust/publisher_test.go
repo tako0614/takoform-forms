@@ -2,11 +2,13 @@ package publishertrust
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tako0614/takoform/formpackage"
 )
@@ -188,4 +190,117 @@ func TestPublishedSetPackageMembershipDoesNotFollowCurrentCandidates(t *testing.
 			t.Fatalf("historical package %d differs: got %+v, want %+v", index, historical[index], current[index])
 		}
 	}
+}
+
+func TestRevocationAdvancementExtendsTheExactCorePinAndRefusesRollbackForkAndPrefixRewrite(t *testing.T) {
+	t.Parallel()
+	genesis, err := canonicalGenesisBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	genesisPin, err := formpackage.AdvanceRevocationCheckpoint(nil, genesis)
+	if err != nil {
+		t.Fatal(err)
+	}
+	packages, err := discoverPackages(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	firstStatement := canonicalStatement(t, packages[0], 1, "1.0.0")
+	firstCheckpoint := checkpointForStatement(t, genesisPin, nil, firstStatement)
+	first, err := validateRevocationAdvancement(genesisPin, firstStatement, firstCheckpoint)
+	if err != nil {
+		t.Fatalf("validate first advancement: %v", err)
+	}
+	if first.Pin.Sequence != 1 || first.Statement.StatementVersion != "1.0.0" ||
+		first.Tag != "forms/revocations/v1.0.0" {
+		t.Fatalf("unexpected first advancement: %+v", first)
+	}
+	prettyCheckpoint := append([]byte("\n"), firstCheckpoint...)
+	if _, err := validateRevocationAdvancement(genesisPin, firstStatement, prettyCheckpoint); err == nil || !strings.Contains(err.Error(), "checkpoint bytes must be RFC 8785 canonical JSON") {
+		t.Fatalf("noncanonical checkpoint error = %v, want canonical-byte refusal", err)
+	}
+
+	if _, err := validateRevocationAdvancement(first.Pin, firstStatement, genesis); err == nil || !strings.Contains(err.Error(), "sequence") {
+		t.Fatalf("rollback error = %v, want sequence refusal", err)
+	}
+	forked := append([]byte(nil), firstCheckpoint...)
+	forked = bytes.Replace(forked, []byte(genesisPin.Digest), []byte("sha256:"+strings.Repeat("f", 64)), 1)
+	if _, err := validateRevocationAdvancement(genesisPin, firstStatement, forked); err == nil || !strings.Contains(err.Error(), "pinned digest") {
+		t.Fatalf("fork error = %v, want predecessor refusal", err)
+	}
+
+	secondStatement := canonicalStatement(t, packages[1], 2, "1.1.0")
+	secondCheckpoint := checkpointForStatement(t, first.Pin, []formpackage.RevocationCheckpointEntry{first.Entry}, secondStatement)
+	second, err := validateRevocationAdvancement(first.Pin, secondStatement, secondCheckpoint)
+	if err != nil {
+		t.Fatalf("validate second advancement: %v", err)
+	}
+	if second.Pin.Sequence != 2 || second.Tag != "forms/revocations/v1.1.0" {
+		t.Fatalf("unexpected second advancement: %+v", second)
+	}
+	rewritten := append([]byte(nil), secondCheckpoint...)
+	rewritten = bytes.Replace(rewritten, []byte(first.Entry.PackageDigest), []byte("sha256:"+strings.Repeat("e", 64)), 1)
+	if _, err := validateRevocationAdvancement(first.Pin, secondStatement, rewritten); err == nil || !strings.Contains(err.Error(), "pinned cumulative entries") {
+		t.Fatalf("prefix rewrite error = %v, want cumulative-prefix refusal", err)
+	}
+}
+
+func canonicalStatement(t *testing.T, packageValue verifiedCandidate, sequence uint64, version string) []byte {
+	t.Helper()
+	raw, err := json.Marshal(formpackage.RevocationStatement{
+		APIVersion:       formpackage.CurrentTrustAPIVersion,
+		Kind:             formpackage.RevocationKind,
+		Sequence:         sequence,
+		StatementVersion: version,
+		PackageDigest:    packageValue.candidate.PackageDigest,
+		FormRef:          packageValue.candidate.FormRef,
+		ReasonCode:       "signature-invalid",
+		Summary:          "The retained signature cannot be validated.",
+		IssuedAt:         time.Date(2026, time.August, 30, 0, 0, 0, 0, time.UTC).Format(time.RFC3339),
+		Effects: formpackage.RevocationEffects{
+			BlockNewCreateOrUpdate:         true,
+			BlockActivation:                true,
+			RetainBytesForObserveAndDelete: true,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonical, err := formpackage.Canonicalize(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return canonical
+}
+
+func checkpointForStatement(
+	t *testing.T,
+	previous formpackage.RevocationCheckpointPin,
+	prefix []formpackage.RevocationCheckpointEntry,
+	statement []byte,
+) []byte {
+	t.Helper()
+	entry, err := formpackage.RevocationCheckpointEntryForStatement(statement)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries := append(append([]formpackage.RevocationCheckpointEntry(nil), prefix...), entry)
+	raw, err := json.Marshal(formpackage.RevocationCheckpoint{
+		APIVersion:               formpackage.CurrentTrustAPIVersion,
+		Kind:                     formpackage.RevocationCheckpointKind,
+		CheckpointVersion:        entry.StatementVersion,
+		Sequence:                 previous.Sequence + 1,
+		PreviousCheckpointDigest: &previous.Digest,
+		Entries:                  entries,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonical, err := formpackage.Canonicalize(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return canonical
 }

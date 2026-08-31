@@ -55,7 +55,13 @@ describe("portable quality gates and Form version documentation", () => {
     expect(packageJson.scripts["check:trust"]).toBe(
       "go run ./cmd/publisher-trust check --repository .",
     );
-    for (const command of ["prepare:trust", "verify:trust", "install:trust"]) {
+    for (const command of [
+      "prepare:trust",
+      "prepare:revocation",
+      "verify:trust",
+      "install:trust",
+      "recover:trust",
+    ]) {
       expect(packageJson.scripts[command]).toContain("./cmd/publisher-trust");
     }
     expect(`${rootReadme}\n${readme}`).not.toContain("Core v1.0.1");
@@ -81,6 +87,12 @@ describe("portable quality gates and Form version documentation", () => {
     expect(signingWorkflow).toContain("cosign sign-blob");
     expect(signingWorkflow).toContain('cosign-release: "v3.0.6"');
     expect(signingWorkflow).toContain("verify-evidence");
+    expect(signingWorkflow).toContain("previous_set:");
+    expect(signingWorkflow).toContain("statement_version:");
+    expect(signingWorkflow).toContain("prepare-advancement");
+    expect(signingWorkflow).toContain("genesis signing is first-set-only");
+    expect(signingWorkflow).toContain("(.subjects | length == 17)");
+    expect(signingWorkflow).not.toContain("statement.sigstore.json");
     expect(signingWorkflow).toContain("retention-days: 1");
     expect(signingWorkflow).not.toContain("contents: write");
     expect(signingWorkflow).not.toContain("COSIGN_PRIVATE_KEY");

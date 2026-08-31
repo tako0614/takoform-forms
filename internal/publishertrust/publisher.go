@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"slices"
 	"sort"
 	"strings"
 
@@ -27,6 +28,8 @@ const (
 	CoreVersion               = "v1.1.0"
 	SigningRequiredStatus     = "signing-required"
 	VerifiedPublicationStatus = "verified"
+	GenesisMode               = "genesis"
+	AdvancementMode           = "advancement"
 	PublisherRepository       = "https://github.com/tako0614/takoform-forms"
 	PublisherWorkflow         = PublisherRepository + "/.github/workflows/form-package-signing.yml"
 	PublisherRef              = "refs/heads/main"
@@ -34,16 +37,22 @@ const (
 	TrustedRootPath           = "trusted-root.json"
 	RevocationCheckpointPath  = "revocations/checkpoint.json"
 	RevocationBundlePath      = "revocations/checkpoint.sigstore.json"
+	RevocationStatementsPath  = "revocations/statements"
+	RevocationHistoryPath     = "revocations/history/checkpoints"
 	PackageIndexName          = "package-index.json"
 	PackageBundleName         = "package-index.sigstore.json"
 	TrustSetsRelativePath     = "forms/trust/sets"
+	MaxRevocationSequence     = 1024
 	setTagPrefix              = "forms/sets/"
+	revocationTagPrefix       = "forms/revocations/v"
 )
 
 const (
-	publisherPolicySource = "forms/trust/publisher-policy.json"
-	trustedRootSource     = "forms/trust/trusted-root.json"
-	candidateSetSource    = "forms/candidates/edge.forms.takoform.com/candidate-set.json"
+	publisherPolicySource       = "forms/trust/publisher-policy.json"
+	trustedRootSource           = "forms/trust/trusted-root.json"
+	candidateSetSource          = "forms/candidates/edge.forms.takoform.com/candidate-set.json"
+	revocationSourceRoot        = "forms/revocations"
+	revocationSourceCheckpoints = "forms/revocations/checkpoints"
 )
 
 type SigningSubject struct {
@@ -53,12 +62,17 @@ type SigningSubject struct {
 }
 
 type PreparationReport struct {
-	Status       string           `json:"status"`
-	CoreVersion  string           `json:"coreVersion"`
-	Family       string           `json:"family"`
-	PackageCount int              `json:"packageCount"`
-	Output       string           `json:"output"`
-	Subjects     []SigningSubject `json:"subjects"`
+	Status            string           `json:"status"`
+	CoreVersion       string           `json:"coreVersion"`
+	Family            string           `json:"family"`
+	Mode              string           `json:"mode"`
+	Sequence          uint64           `json:"sequence"`
+	CheckpointVersion string           `json:"checkpointVersion"`
+	PreviousSetID     string           `json:"previousSetId,omitempty"`
+	RevocationTag     string           `json:"revocationTag,omitempty"`
+	PackageCount      int              `json:"packageCount"`
+	Output            string           `json:"output"`
+	Subjects          []SigningSubject `json:"subjects"`
 }
 
 type PackageVerification struct {
@@ -70,18 +84,40 @@ type PackageVerification struct {
 }
 
 type VerificationReport struct {
-	Status            string                                 `json:"status"`
-	CoreVersion       string                                 `json:"coreVersion"`
-	Family            string                                 `json:"family"`
-	SetID             string                                 `json:"setId"`
-	SetTag            string                                 `json:"setTag"`
-	PackageCount      int                                    `json:"packageCount"`
-	PublisherIdentity string                                 `json:"publisherIdentity"`
-	SourceCommit      string                                 `json:"sourceCommit"`
-	WorkflowCommit    string                                 `json:"workflowCommit"`
-	BuildConfigCommit string                                 `json:"buildConfigCommit"`
-	Checkpoint        trust.RevocationCheckpointVerification `json:"checkpoint"`
-	Packages          []PackageVerification                  `json:"packages"`
+	Status             string                                 `json:"status"`
+	CoreVersion        string                                 `json:"coreVersion"`
+	Family             string                                 `json:"family"`
+	SetID              string                                 `json:"setId"`
+	SetTag             string                                 `json:"setTag"`
+	PackageCount       int                                    `json:"packageCount"`
+	PublisherIdentity  string                                 `json:"publisherIdentity"`
+	SourceCommit       string                                 `json:"sourceCommit"`
+	WorkflowCommit     string                                 `json:"workflowCommit"`
+	BuildConfigCommit  string                                 `json:"buildConfigCommit"`
+	Checkpoint         trust.RevocationCheckpointVerification `json:"checkpoint"`
+	CheckpointHistory  []PreviousCheckpointVerification       `json:"checkpointHistory"`
+	PreviousCheckpoint *PreviousCheckpointVerification        `json:"previousCheckpoint,omitempty"`
+	RevocationTag      string                                 `json:"revocationTag,omitempty"`
+	RevocationTags     []string                               `json:"revocationTags"`
+	Statements         []RevocationStatementVerification      `json:"statements"`
+	Packages           []PackageVerification                  `json:"packages"`
+}
+
+type PreviousCheckpointVerification struct {
+	SetID             string                              `json:"setId"`
+	SetTag            string                              `json:"setTag"`
+	CheckpointVersion string                              `json:"checkpointVersion"`
+	Pin               formpackage.RevocationCheckpointPin `json:"pin"`
+}
+
+type RevocationStatementVerification struct {
+	Sequence         uint64              `json:"sequence"`
+	StatementVersion string              `json:"statementVersion"`
+	StatementDigest  string              `json:"statementDigest"`
+	PackageDigest    string              `json:"packageDigest"`
+	FormRef          formpackage.FormRef `json:"formRef"`
+	SourcePath       string              `json:"sourcePath"`
+	Tag              string              `json:"tag"`
 }
 
 type packageCandidate struct {
@@ -108,6 +144,85 @@ type verifiedCandidate struct {
 	locator        formpackage.PublicationLocator
 	releaseRoot    string
 	canonicalIndex []byte
+}
+
+type revocationAdvancement struct {
+	Statement formpackage.RevocationStatement
+	Entry     formpackage.RevocationCheckpointEntry
+	Pin       formpackage.RevocationCheckpointPin
+	Tag       string
+}
+
+type verifiedRevocationStatement struct {
+	raw          []byte
+	verification RevocationStatementVerification
+}
+
+type verifiedRevocationCheckpoint struct {
+	raw          []byte
+	bundle       []byte
+	verification trust.RevocationCheckpointVerification
+}
+
+type verifiedRevocationChain struct {
+	statements  []verifiedRevocationStatement
+	checkpoints []verifiedRevocationCheckpoint
+}
+
+type verifiedEvidence struct {
+	report      VerificationReport
+	revocations verifiedRevocationChain
+}
+
+// validateRevocationAdvancement binds one exact canonical statement to the
+// final entry of one exact canonical checkpoint, then delegates all sequence,
+// predecessor-digest, and retained-prefix continuity to released Core v1.1.0.
+func validateRevocationAdvancement(previous formpackage.RevocationCheckpointPin, statementRaw, checkpointRaw []byte) (revocationAdvancement, error) {
+	canonicalStatement, err := formpackage.Canonicalize(statementRaw)
+	if err != nil {
+		return revocationAdvancement{}, fmt.Errorf("canonicalize revocation statement: %w", err)
+	}
+	if !bytes.Equal(statementRaw, canonicalStatement) {
+		return revocationAdvancement{}, fmt.Errorf("revocation statement bytes must be RFC 8785 canonical JSON")
+	}
+	canonicalCheckpoint, err := formpackage.Canonicalize(checkpointRaw)
+	if err != nil {
+		return revocationAdvancement{}, fmt.Errorf("canonicalize revocation checkpoint: %w", err)
+	}
+	if !bytes.Equal(checkpointRaw, canonicalCheckpoint) {
+		return revocationAdvancement{}, fmt.Errorf("revocation checkpoint bytes must be RFC 8785 canonical JSON")
+	}
+	statement, err := formpackage.ValidateRevocationStatement(statementRaw)
+	if err != nil {
+		return revocationAdvancement{}, fmt.Errorf("Core %s revocation statement verification: %w", CoreVersion, err)
+	}
+	entry, err := formpackage.RevocationCheckpointEntryForStatement(statementRaw)
+	if err != nil {
+		return revocationAdvancement{}, fmt.Errorf("Core %s revocation statement entry: %w", CoreVersion, err)
+	}
+	checkpoint, err := formpackage.ValidateRevocationCheckpoint(checkpointRaw)
+	if err != nil {
+		return revocationAdvancement{}, fmt.Errorf("Core %s revocation checkpoint verification: %w", CoreVersion, err)
+	}
+	if checkpoint.Sequence > MaxRevocationSequence {
+		return revocationAdvancement{}, fmt.Errorf("revocation checkpoint sequence %d exceeds publisher replay bound %d", checkpoint.Sequence, MaxRevocationSequence)
+	}
+	extension, err := trust.VerifyRevocationCheckpointExtension(&previous, checkpointRaw)
+	if err != nil {
+		return revocationAdvancement{}, fmt.Errorf("Core %s revocation checkpoint continuity: %w", CoreVersion, err)
+	}
+	if checkpoint.Sequence == 0 || len(checkpoint.Entries) == 0 || checkpoint.Entries[len(checkpoint.Entries)-1] != entry {
+		return revocationAdvancement{}, fmt.Errorf("revocation checkpoint final entry does not identify the exact new statement bytes")
+	}
+	if statement.Sequence != extension.Pin.Sequence || statement.StatementVersion != checkpoint.CheckpointVersion {
+		return revocationAdvancement{}, fmt.Errorf("revocation statement sequence/version does not equal the advanced checkpoint")
+	}
+	return revocationAdvancement{
+		Statement: statement,
+		Entry:     entry,
+		Pin:       extension.Pin,
+		Tag:       revocationTagPrefix + statement.StatementVersion,
+	}, nil
 }
 
 // PrepareSigningRequest creates a closed, external signing request. It emits
@@ -153,6 +268,11 @@ func PrepareSigningRequest(repositoryRoot, output string) (PreparationReport, er
 	if err != nil {
 		return PreparationReport{}, err
 	}
+	if err := verifySourceRevocationHistory(repositoryRoot, verifiedRevocationChain{
+		checkpoints: []verifiedRevocationCheckpoint{{raw: genesis}},
+	}, true); err != nil {
+		return PreparationReport{}, fmt.Errorf("genesis source closure: %w", err)
+	}
 
 	parent := filepath.Dir(output)
 	if err := os.MkdirAll(parent, 0o755); err != nil {
@@ -190,6 +310,141 @@ func PrepareSigningRequest(repositoryRoot, output string) (PreparationReport, er
 	sort.Slice(subjects, func(left, right int) bool { return subjects[left].Path < subjects[right].Path })
 	return PreparationReport{
 		Status: SigningRequiredStatus, CoreVersion: CoreVersion, Family: Family,
+		Mode: GenesisMode, Sequence: 0, CheckpointVersion: "0.0.0",
+		PackageCount: len(packages), Output: output, Subjects: subjects,
+	}, nil
+}
+
+// PrepareRevocationSigningRequest creates the next signing request from one
+// already verified predecessor set and one exact source-controlled statement /
+// cumulative checkpoint pair. The request carries the complete bounded signed
+// checkpoint history so a fresh anonymous verifier never trusts a caller-
+// supplied pin or serialized verification report.
+func PrepareRevocationSigningRequest(repositoryRoot, previousSetRoot, statementVersion, output string) (PreparationReport, error) {
+	if err := requireReleasedCore(); err != nil {
+		return PreparationReport{}, err
+	}
+	if !safeRelative(statementVersion) || strings.Contains(statementVersion, "/") || statementVersion == "0.0.0" {
+		return PreparationReport{}, fmt.Errorf("revocation statement version %q is not a safe non-genesis SemVer path", statementVersion)
+	}
+	repositoryRoot, err := filepath.Abs(repositoryRoot)
+	if err != nil {
+		return PreparationReport{}, fmt.Errorf("resolve repository root: %w", err)
+	}
+	output, err = filepath.Abs(output)
+	if err != nil {
+		return PreparationReport{}, fmt.Errorf("resolve signing output: %w", err)
+	}
+	if _, err := os.Lstat(output); err == nil {
+		return PreparationReport{}, fmt.Errorf("refusing to replace existing signing request %s", output)
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return PreparationReport{}, fmt.Errorf("inspect signing output: %w", err)
+	}
+	previous, err := verifyPublishedSetEvidence(repositoryRoot, previousSetRoot)
+	if err != nil {
+		return PreparationReport{}, fmt.Errorf("verify predecessor publisher set: %w", err)
+	}
+	if len(previous.revocations.checkpoints) == 0 {
+		return PreparationReport{}, fmt.Errorf("verified predecessor publisher set has no checkpoint capability")
+	}
+	packages, err := discoverPackages(repositoryRoot)
+	if err != nil {
+		return PreparationReport{}, err
+	}
+	policyRaw, policy, err := readPublisherPolicy(repositoryRoot)
+	if err != nil {
+		return PreparationReport{}, err
+	}
+	if err := validatePublisherPolicy(policy); err != nil {
+		return PreparationReport{}, err
+	}
+	rootRaw, err := readRegular(filepath.Join(repositoryRoot, filepath.FromSlash(trustedRootSource)), "publisher trusted root")
+	if err != nil {
+		return PreparationReport{}, err
+	}
+	if _, err := formpackage.Canonicalize(rootRaw); err != nil {
+		return PreparationReport{}, fmt.Errorf("publisher trusted root is not I-JSON: %w", err)
+	}
+	statementRaw, err := readRegular(filepath.Join(repositoryRoot, filepath.FromSlash(revocationStatementSourcePath(statementVersion))), "new revocation statement")
+	if err != nil {
+		return PreparationReport{}, err
+	}
+	checkpointRaw, err := readRegular(filepath.Join(repositoryRoot, filepath.FromSlash(revocationCheckpointSourcePath(statementVersion))), "new cumulative revocation checkpoint")
+	if err != nil {
+		return PreparationReport{}, err
+	}
+	previousCheckpoint := previous.revocations.checkpoints[len(previous.revocations.checkpoints)-1].verification
+	advancement, err := validateRevocationAdvancement(previousCheckpoint.Pin, statementRaw, checkpointRaw)
+	if err != nil {
+		return PreparationReport{}, err
+	}
+	if advancement.Statement.StatementVersion != statementVersion {
+		return PreparationReport{}, fmt.Errorf("revocation source path version %s differs from statementVersion %s", statementVersion, advancement.Statement.StatementVersion)
+	}
+	proposed := verifiedRevocationChain{
+		statements: append(append([]verifiedRevocationStatement(nil), previous.revocations.statements...), verifiedRevocationStatement{
+			raw: statementRaw,
+			verification: RevocationStatementVerification{
+				Sequence: advancement.Entry.Sequence, StatementVersion: advancement.Entry.StatementVersion,
+				StatementDigest: advancement.Entry.StatementDigest, PackageDigest: advancement.Entry.PackageDigest,
+				FormRef: advancement.Entry.FormRef, SourcePath: revocationStatementSourcePath(statementVersion), Tag: advancement.Tag,
+			},
+		}),
+		checkpoints: append(append([]verifiedRevocationCheckpoint(nil), previous.revocations.checkpoints...), verifiedRevocationCheckpoint{raw: checkpointRaw}),
+	}
+	if err := verifySourceRevocationHistory(repositoryRoot, proposed, true); err != nil {
+		return PreparationReport{}, err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
+		return PreparationReport{}, fmt.Errorf("create signing output parent: %w", err)
+	}
+	if err := os.Mkdir(output, 0o755); err != nil {
+		return PreparationReport{}, fmt.Errorf("create signing output create-only: %w", err)
+	}
+	for _, file := range []struct {
+		relative string
+		raw      []byte
+	}{
+		{relative: PublisherPolicyPath, raw: policyRaw},
+		{relative: TrustedRootPath, raw: rootRaw},
+		{relative: RevocationCheckpointPath, raw: checkpointRaw},
+	} {
+		if err := writePublicFile(output, file.relative, file.raw); err != nil {
+			return PreparationReport{}, err
+		}
+	}
+	for _, statement := range proposed.statements {
+		if err := writePublicFile(output, revocationStatementEvidencePath(statement.verification.StatementVersion), statement.raw); err != nil {
+			return PreparationReport{}, err
+		}
+	}
+	for _, checkpoint := range previous.revocations.checkpoints {
+		version := checkpoint.verification.CheckpointVersion
+		if err := writePublicFile(output, revocationHistoryCheckpointPath(version), checkpoint.raw); err != nil {
+			return PreparationReport{}, err
+		}
+		if err := writePublicFile(output, revocationHistoryBundlePath(version), checkpoint.bundle); err != nil {
+			return PreparationReport{}, err
+		}
+	}
+
+	subjects := make([]SigningSubject, 0, len(packages)+1)
+	subjects = append(subjects, SigningSubject{
+		Role: "revocation-checkpoint", Path: RevocationCheckpointPath, Digest: formpackage.DigestBytes(checkpointRaw),
+	})
+	for _, packageValue := range packages {
+		relative := packageSubjectPath(packageValue.locator)
+		if err := writePublicFile(output, relative, packageValue.canonicalIndex); err != nil {
+			return PreparationReport{}, err
+		}
+		subjects = append(subjects, SigningSubject{Role: "package-index", Path: relative, Digest: packageValue.candidate.PackageDigest})
+	}
+	sort.Slice(subjects, func(left, right int) bool { return subjects[left].Path < subjects[right].Path })
+	return PreparationReport{
+		Status: SigningRequiredStatus, CoreVersion: CoreVersion, Family: Family,
+		Mode: AdvancementMode, Sequence: advancement.Pin.Sequence, CheckpointVersion: statementVersion,
+		PreviousSetID: previous.report.SetID, RevocationTag: advancement.Tag,
 		PackageCount: len(packages), Output: output, Subjects: subjects,
 	}, nil
 }
@@ -205,27 +460,39 @@ func VerifySigningRequest(repositoryRoot, evidenceRoot, expectedSourceCommit str
 	if err != nil {
 		return VerificationReport{}, err
 	}
-	return verifyEvidence(repositoryRoot, evidenceRoot, expectedSourceCommit, true, packages)
+	verified, err := verifyEvidence(repositoryRoot, evidenceRoot, expectedSourceCommit, true, packages)
+	if err != nil {
+		return VerificationReport{}, err
+	}
+	return verified.report, nil
 }
 
 // VerifyPublishedSet reruns the same cryptographic checks over one installed
 // create-only set. Package subjects are re-derived from the release closures;
 // the set contains no serialized verification shortcut.
 func VerifyPublishedSet(repositoryRoot, setRoot string) (VerificationReport, error) {
-	if err := requireReleasedCore(); err != nil {
+	verified, err := verifyPublishedSetEvidence(repositoryRoot, setRoot)
+	if err != nil {
 		return VerificationReport{}, err
+	}
+	return verified.report, nil
+}
+
+func verifyPublishedSetEvidence(repositoryRoot, setRoot string) (verifiedEvidence, error) {
+	if err := requireReleasedCore(); err != nil {
+		return verifiedEvidence{}, err
 	}
 	setRoot, err := filepath.Abs(setRoot)
 	if err != nil {
-		return VerificationReport{}, fmt.Errorf("resolve trust set: %w", err)
+		return verifiedEvidence{}, fmt.Errorf("resolve trust set: %w", err)
 	}
 	setID := filepath.Base(setRoot)
 	if !validCommit(setID) {
-		return VerificationReport{}, fmt.Errorf("trust set directory %q is not an exact source commit", setID)
+		return verifiedEvidence{}, fmt.Errorf("trust set directory %q is not an exact source commit", setID)
 	}
 	packages, err := discoverPublishedSetPackages(repositoryRoot, setRoot)
 	if err != nil {
-		return VerificationReport{}, err
+		return verifiedEvidence{}, err
 	}
 	return verifyEvidence(repositoryRoot, setRoot, setID, false, packages)
 }
@@ -331,63 +598,67 @@ func validateCoreBuildInfo(build *debug.BuildInfo) error {
 	return fmt.Errorf("compiled publisher trust binary has no Takoform Core dependency")
 }
 
-func verifyEvidence(repositoryRoot, evidenceRoot, expectedSourceCommit string, includesSubjects bool, packages []verifiedCandidate) (VerificationReport, error) {
+func verifyEvidence(repositoryRoot, evidenceRoot, expectedSourceCommit string, includesSubjects bool, packages []verifiedCandidate) (verifiedEvidence, error) {
 	repositoryRoot, err := filepath.Abs(repositoryRoot)
 	if err != nil {
-		return VerificationReport{}, fmt.Errorf("resolve repository root: %w", err)
+		return verifiedEvidence{}, fmt.Errorf("resolve repository root: %w", err)
 	}
 	evidenceRoot, err = filepath.Abs(evidenceRoot)
 	if err != nil {
-		return VerificationReport{}, fmt.Errorf("resolve evidence root: %w", err)
-	}
-	if err := verifyEvidenceInventory(evidenceRoot, packages, includesSubjects); err != nil {
-		return VerificationReport{}, err
+		return verifiedEvidence{}, fmt.Errorf("resolve evidence root: %w", err)
 	}
 
 	pinnedPolicyRaw, policy, err := readPublisherPolicy(repositoryRoot)
 	if err != nil {
-		return VerificationReport{}, err
+		return verifiedEvidence{}, err
 	}
 	if err := validatePublisherPolicy(policy); err != nil {
-		return VerificationReport{}, err
+		return verifiedEvidence{}, err
 	}
 	policyRaw, err := readRegular(filepath.Join(evidenceRoot, PublisherPolicyPath), "publisher policy")
 	if err != nil {
-		return VerificationReport{}, err
+		return verifiedEvidence{}, err
 	}
 	if !bytes.Equal(policyRaw, pinnedPolicyRaw) {
-		return VerificationReport{}, fmt.Errorf("evidence publisher policy differs from the repository-pinned policy")
+		return verifiedEvidence{}, fmt.Errorf("evidence publisher policy differs from the repository-pinned policy")
 	}
 	rootRaw, err := readRegular(filepath.Join(evidenceRoot, TrustedRootPath), "trusted root")
 	if err != nil {
-		return VerificationReport{}, err
+		return verifiedEvidence{}, err
 	}
 	pinnedRootRaw, err := readRegular(filepath.Join(repositoryRoot, filepath.FromSlash(trustedRootSource)), "repository-pinned trusted root")
 	if err != nil {
-		return VerificationReport{}, err
+		return verifiedEvidence{}, err
 	}
 	if !bytes.Equal(rootRaw, pinnedRootRaw) {
-		return VerificationReport{}, fmt.Errorf("evidence trusted root differs from the repository-pinned trusted root")
+		return verifiedEvidence{}, fmt.Errorf("evidence trusted root differs from the repository-pinned trusted root")
 	}
 	checkpointRaw, err := readRegular(filepath.Join(evidenceRoot, filepath.FromSlash(RevocationCheckpointPath)), "revocation checkpoint")
 	if err != nil {
-		return VerificationReport{}, err
+		return verifiedEvidence{}, err
 	}
-	genesis, err := canonicalGenesisBytes()
+	checkpointValue, err := formpackage.ValidateRevocationCheckpoint(checkpointRaw)
 	if err != nil {
-		return VerificationReport{}, err
+		return verifiedEvidence{}, fmt.Errorf("Core %s revocation checkpoint validation: %w", CoreVersion, err)
 	}
-	if !bytes.Equal(checkpointRaw, genesis) {
-		return VerificationReport{}, fmt.Errorf("first publisher trust set requires the exact signed Core v1 revocation genesis")
+	if checkpointValue.Sequence > MaxRevocationSequence {
+		return verifiedEvidence{}, fmt.Errorf("revocation checkpoint sequence %d exceeds publisher replay bound %d", checkpointValue.Sequence, MaxRevocationSequence)
+	}
+	if err := verifyEvidenceInventory(evidenceRoot, packages, includesSubjects, checkpointValue); err != nil {
+		return verifiedEvidence{}, err
 	}
 	checkpointBundle, err := readRegular(filepath.Join(evidenceRoot, filepath.FromSlash(RevocationBundlePath)), "revocation checkpoint signature bundle")
 	if err != nil {
-		return VerificationReport{}, err
+		return verifiedEvidence{}, err
 	}
-	checkpoint, err := trust.VerifyRevocationCheckpoint(checkpointRaw, checkpointBundle, rootRaw, policy, nil)
+	revocations, err := verifyRevocationChain(evidenceRoot, checkpointRaw, checkpointBundle, rootRaw, policy, checkpointValue)
 	if err != nil {
-		return VerificationReport{}, fmt.Errorf("Core %s revocation checkpoint verification: %w", CoreVersion, err)
+		return verifiedEvidence{}, err
 	}
+	if err := verifySourceRevocationHistory(repositoryRoot, revocations, includesSubjects); err != nil {
+		return verifiedEvidence{}, err
+	}
+	checkpoint := revocations.checkpoints[len(revocations.checkpoints)-1].verification
 
 	packageReports := make([]PackageVerification, 0, len(packages))
 	for _, packageValue := range packages {
@@ -395,26 +666,26 @@ func verifyEvidence(repositoryRoot, evidenceRoot, expectedSourceCommit string, i
 		if includesSubjects {
 			prepared, err := readRegular(filepath.Join(evidenceRoot, filepath.FromSlash(packageSubjectPath(packageValue.locator))), packageValue.candidate.Kind+" package-index subject")
 			if err != nil {
-				return VerificationReport{}, err
+				return verifiedEvidence{}, err
 			}
 			if !bytes.Equal(prepared, subject) {
-				return VerificationReport{}, fmt.Errorf("%s package-index subject differs from the exact Core-canonical release bytes", packageValue.candidate.Kind)
+				return verifiedEvidence{}, fmt.Errorf("%s package-index subject differs from the exact Core-canonical release bytes", packageValue.candidate.Kind)
 			}
 		}
 		bundlePath := filepath.Join(evidenceRoot, filepath.FromSlash(packageBundlePath(packageValue.locator)))
 		bundleRaw, err := readRegular(bundlePath, packageValue.candidate.Kind+" signature bundle")
 		if err != nil {
-			return VerificationReport{}, err
+			return verifiedEvidence{}, err
 		}
 		bundleReport, err := trust.VerifyBundle(subject, bundleRaw, rootRaw, policy)
 		if err != nil {
-			return VerificationReport{}, fmt.Errorf("Core %s %s package signature verification: %w", CoreVersion, packageValue.candidate.Kind, err)
+			return verifiedEvidence{}, fmt.Errorf("Core %s %s package signature verification: %w", CoreVersion, packageValue.candidate.Kind, err)
 		}
 		if bundleReport.SubjectDigest != packageValue.candidate.PackageDigest {
-			return VerificationReport{}, fmt.Errorf("%s signed subject digest %s differs from verified package digest %s", packageValue.candidate.Kind, bundleReport.SubjectDigest, packageValue.candidate.PackageDigest)
+			return verifiedEvidence{}, fmt.Errorf("%s signed subject digest %s differs from verified package digest %s", packageValue.candidate.Kind, bundleReport.SubjectDigest, packageValue.candidate.PackageDigest)
 		}
 		if err := checkpoint.CheckNotRevoked(packageValue.candidate.PackageDigest, packageValue.candidate.FormRef); err != nil {
-			return VerificationReport{}, fmt.Errorf("Core %s %s revocation check: %w", CoreVersion, packageValue.candidate.Kind, err)
+			return verifiedEvidence{}, fmt.Errorf("Core %s %s revocation check: %w", CoreVersion, packageValue.candidate.Kind, err)
 		}
 		packageReports = append(packageReports, PackageVerification{
 			Kind: packageValue.candidate.Kind, FormRef: packageValue.candidate.FormRef,
@@ -425,32 +696,46 @@ func verifyEvidence(repositoryRoot, evidenceRoot, expectedSourceCommit string, i
 	provenance := checkpoint.Bundle
 	for _, packageReport := range packageReports {
 		if err := sameProvenance(provenance, packageReport.Bundle); err != nil {
-			return VerificationReport{}, fmt.Errorf("%s signature provenance: %w", packageReport.Kind, err)
+			return verifiedEvidence{}, fmt.Errorf("%s signature provenance: %w", packageReport.Kind, err)
 		}
 	}
-	commits := []struct {
-		role  string
-		value string
-	}{
-		{role: "source", value: provenance.SourceCommit},
-		{role: "workflow", value: provenance.WorkflowCommit},
-		{role: "build config", value: provenance.BuildConfigCommit},
+	if err := validateOfficialBundleCommit(provenance, expectedSourceCommit); err != nil {
+		return verifiedEvidence{}, err
 	}
-	for _, commit := range commits {
-		if !validCommit(commit.value) {
-			return VerificationReport{}, fmt.Errorf("Core verification returned an invalid %s commit %q", commit.role, commit.value)
-		}
-		if expectedSourceCommit != "" && commit.value != expectedSourceCommit {
-			return VerificationReport{}, fmt.Errorf("signed %s commit %s differs from required protected-main commit %s", commit.role, commit.value, expectedSourceCommit)
-		}
+	statements := make([]RevocationStatementVerification, 0, len(revocations.statements))
+	tags := make([]string, 0, len(revocations.statements))
+	for _, statement := range revocations.statements {
+		statements = append(statements, statement.verification)
+		tags = append(tags, statement.verification.Tag)
 	}
-	return VerificationReport{
+	checkpointHistory := make([]PreviousCheckpointVerification, 0, len(revocations.checkpoints))
+	seenCheckpointSets := make(map[string]struct{}, len(revocations.checkpoints))
+	for _, historical := range revocations.checkpoints {
+		setID := historical.verification.Bundle.SourceCommit
+		if _, duplicate := seenCheckpointSets[setID]; duplicate {
+			return verifiedEvidence{}, fmt.Errorf("checkpoint history reuses publisher set identity %s", setID)
+		}
+		seenCheckpointSets[setID] = struct{}{}
+		checkpointHistory = append(checkpointHistory, PreviousCheckpointVerification{
+			SetID: setID, SetTag: setTagPrefix + setID,
+			CheckpointVersion: historical.verification.CheckpointVersion,
+			Pin:               historical.verification.Pin,
+		})
+	}
+	report := VerificationReport{
 		Status: VerifiedPublicationStatus, CoreVersion: CoreVersion, Family: Family,
 		SetID: provenance.SourceCommit, SetTag: setTagPrefix + provenance.SourceCommit,
 		PackageCount: len(packageReports), PublisherIdentity: provenance.PublisherIdentity,
 		SourceCommit: provenance.SourceCommit, WorkflowCommit: provenance.WorkflowCommit,
-		BuildConfigCommit: provenance.BuildConfigCommit, Checkpoint: checkpoint, Packages: packageReports,
-	}, nil
+		BuildConfigCommit: provenance.BuildConfigCommit, Checkpoint: checkpoint, CheckpointHistory: checkpointHistory,
+		RevocationTags: tags, Statements: statements, Packages: packageReports,
+	}
+	if len(revocations.checkpoints) > 1 {
+		previous := checkpointHistory[len(checkpointHistory)-2]
+		report.PreviousCheckpoint = &previous
+		report.RevocationTag = tags[len(tags)-1]
+	}
+	return verifiedEvidence{report: report, revocations: revocations}, nil
 }
 
 // discoverPublishedSetPackages derives a historical set's exact package
@@ -624,19 +909,188 @@ func canonicalGenesisBytes() ([]byte, error) {
 	return canonical, nil
 }
 
-func verifyEvidenceInventory(root string, packages []verifiedCandidate, includesSubjects bool) error {
+func verifyRevocationChain(
+	evidenceRoot string,
+	currentRaw, currentBundle, trustedRootRaw []byte,
+	policy trust.PublisherPolicy,
+	current formpackage.RevocationCheckpoint,
+) (verifiedRevocationChain, error) {
+	statements := make([]verifiedRevocationStatement, 0, current.Sequence)
+	for index, expected := range current.Entries {
+		statementPath := revocationStatementEvidencePath(expected.StatementVersion)
+		raw, err := readRegular(filepath.Join(evidenceRoot, filepath.FromSlash(statementPath)), fmt.Sprintf("revocation statement sequence %d", index+1))
+		if err != nil {
+			return verifiedRevocationChain{}, err
+		}
+		entry, err := formpackage.RevocationCheckpointEntryForStatement(raw)
+		if err != nil {
+			return verifiedRevocationChain{}, fmt.Errorf("Core %s revocation statement %s: %w", CoreVersion, expected.StatementVersion, err)
+		}
+		if entry != expected {
+			return verifiedRevocationChain{}, fmt.Errorf("revocation statement %s does not equal checkpoint entry sequence %d", expected.StatementVersion, expected.Sequence)
+		}
+		statements = append(statements, verifiedRevocationStatement{
+			raw: raw,
+			verification: RevocationStatementVerification{
+				Sequence: expected.Sequence, StatementVersion: expected.StatementVersion,
+				StatementDigest: expected.StatementDigest, PackageDigest: expected.PackageDigest,
+				FormRef: expected.FormRef, SourcePath: revocationStatementSourcePath(expected.StatementVersion),
+				Tag: revocationTagPrefix + expected.StatementVersion,
+			},
+		})
+	}
+
+	checkpoints := make([]verifiedRevocationCheckpoint, 0, current.Sequence+1)
+	var previous *formpackage.RevocationCheckpointPin
+	for sequence := uint64(0); sequence <= current.Sequence; sequence++ {
+		checkpointRaw := currentRaw
+		bundleRaw := currentBundle
+		version := current.CheckpointVersion
+		if sequence < current.Sequence {
+			version = checkpointVersionAt(current, sequence)
+			checkpointPath := revocationHistoryCheckpointPath(version)
+			bundlePath := revocationHistoryBundlePath(version)
+			var err error
+			checkpointRaw, err = readRegular(filepath.Join(evidenceRoot, filepath.FromSlash(checkpointPath)), fmt.Sprintf("revocation checkpoint history sequence %d", sequence))
+			if err != nil {
+				return verifiedRevocationChain{}, err
+			}
+			bundleRaw, err = readRegular(filepath.Join(evidenceRoot, filepath.FromSlash(bundlePath)), fmt.Sprintf("revocation checkpoint history bundle sequence %d", sequence))
+			if err != nil {
+				return verifiedRevocationChain{}, err
+			}
+		}
+		checkpoint, err := formpackage.ValidateRevocationCheckpoint(checkpointRaw)
+		if err != nil {
+			return verifiedRevocationChain{}, fmt.Errorf("Core %s revocation checkpoint history sequence %d: %w", CoreVersion, sequence, err)
+		}
+		if checkpoint.APIVersion != formpackage.CurrentTrustAPIVersion || checkpoint.Sequence != sequence ||
+			checkpoint.CheckpointVersion != version || !slices.Equal(checkpoint.Entries, current.Entries[:int(sequence)]) {
+			return verifiedRevocationChain{}, fmt.Errorf("revocation checkpoint history sequence %d is not the exact retained cumulative prefix", sequence)
+		}
+		verification, err := trust.VerifyRevocationCheckpoint(checkpointRaw, bundleRaw, trustedRootRaw, policy, previous)
+		if err != nil {
+			return verifiedRevocationChain{}, fmt.Errorf("Core %s revocation checkpoint history sequence %d verification: %w", CoreVersion, sequence, err)
+		}
+		if err := validateOfficialBundleCommit(verification.Bundle, ""); err != nil {
+			return verifiedRevocationChain{}, fmt.Errorf("revocation checkpoint history sequence %d provenance: %w", sequence, err)
+		}
+		checkpoints = append(checkpoints, verifiedRevocationCheckpoint{raw: checkpointRaw, bundle: bundleRaw, verification: verification})
+		pin := verification.Pin
+		previous = &pin
+	}
+	return verifiedRevocationChain{statements: statements, checkpoints: checkpoints}, nil
+}
+
+func verifySourceRevocationHistory(repositoryRoot string, chain verifiedRevocationChain, exact bool) error {
+	expected := map[string][]byte{"README.md": nil}
+	for index, statement := range chain.statements {
+		version := statement.verification.StatementVersion
+		statementSource := filepath.ToSlash(filepath.Join(version + ".json"))
+		checkpointSource := filepath.ToSlash(filepath.Join("checkpoints", version+".json"))
+		expected[statementSource] = statement.raw
+		expected[checkpointSource] = chain.checkpoints[index+1].raw
+		for relative, want := range map[string][]byte{statementSource: statement.raw, checkpointSource: chain.checkpoints[index+1].raw} {
+			actual, err := readRegular(filepath.Join(repositoryRoot, filepath.FromSlash(revocationSourceRoot), filepath.FromSlash(relative)), "repository revocation source "+relative)
+			if err != nil {
+				return err
+			}
+			if !bytes.Equal(actual, want) {
+				return fmt.Errorf("repository revocation source %s differs from the signed checkpoint chain", relative)
+			}
+		}
+	}
+	if !exact {
+		return nil
+	}
+	actual, err := inventoryRegularFiles(filepath.Join(repositoryRoot, filepath.FromSlash(revocationSourceRoot)))
+	if err != nil {
+		return fmt.Errorf("inventory repository revocation source: %w", err)
+	}
+	for _, relative := range actual {
+		if _, ok := expected[relative]; !ok {
+			return fmt.Errorf("repository revocation source has an uncommitted advancement or rewritten history at %s", relative)
+		}
+	}
+	for relative := range expected {
+		if relative == "README.md" {
+			continue
+		}
+		if !slices.Contains(actual, relative) {
+			return fmt.Errorf("repository revocation source is missing signed history %s", relative)
+		}
+	}
+	return nil
+}
+
+func validateOfficialBundleCommit(bundle trust.BundleVerification, expected string) error {
+	commits := []struct {
+		role  string
+		value string
+	}{
+		{role: "source", value: bundle.SourceCommit},
+		{role: "workflow", value: bundle.WorkflowCommit},
+		{role: "build config", value: bundle.BuildConfigCommit},
+	}
+	for _, commit := range commits {
+		if !validCommit(commit.value) {
+			return fmt.Errorf("Core verification returned an invalid %s commit %q", commit.role, commit.value)
+		}
+		if expected != "" && commit.value != expected {
+			return fmt.Errorf("signed %s commit %s differs from required protected-main commit %s", commit.role, commit.value, expected)
+		}
+	}
+	if bundle.SourceCommit != bundle.WorkflowCommit || bundle.SourceCommit != bundle.BuildConfigCommit {
+		return fmt.Errorf("official publisher source/workflow/build commits are not one exact commit")
+	}
+	return nil
+}
+
+func checkpointVersionAt(checkpoint formpackage.RevocationCheckpoint, sequence uint64) string {
+	if sequence == 0 {
+		return "0.0.0"
+	}
+	return checkpoint.Entries[sequence-1].StatementVersion
+}
+
+func revocationStatementEvidencePath(version string) string {
+	return filepath.ToSlash(filepath.Join(RevocationStatementsPath, version+".json"))
+}
+
+func revocationHistoryCheckpointPath(version string) string {
+	return filepath.ToSlash(filepath.Join(RevocationHistoryPath, version+".json"))
+}
+
+func revocationHistoryBundlePath(version string) string {
+	return filepath.ToSlash(filepath.Join(RevocationHistoryPath, version+".sigstore.json"))
+}
+
+func revocationStatementSourcePath(version string) string {
+	return filepath.ToSlash(filepath.Join(revocationSourceRoot, version+".json"))
+}
+
+func revocationCheckpointSourcePath(version string) string {
+	return filepath.ToSlash(filepath.Join(revocationSourceCheckpoints, version+".json"))
+}
+
+func verifyEvidenceInventory(root string, packages []verifiedCandidate, includesSubjects bool, checkpoint formpackage.RevocationCheckpoint) error {
 	allowed := map[string]struct{}{
 		PublisherPolicyPath: {}, TrustedRootPath: {}, RevocationCheckpointPath: {}, RevocationBundlePath: {},
 	}
-	requiredBundles := make([]string, 0, len(packages)+1)
-	requiredBundles = append(requiredBundles, RevocationBundlePath)
+	for _, entry := range checkpoint.Entries {
+		allowed[revocationStatementEvidencePath(entry.StatementVersion)] = struct{}{}
+	}
+	for sequence := uint64(0); sequence < checkpoint.Sequence; sequence++ {
+		version := checkpointVersionAt(checkpoint, sequence)
+		allowed[revocationHistoryCheckpointPath(version)] = struct{}{}
+		allowed[revocationHistoryBundlePath(version)] = struct{}{}
+	}
 	for _, packageValue := range packages {
 		if includesSubjects {
 			allowed[packageSubjectPath(packageValue.locator)] = struct{}{}
 		}
 		bundle := packageBundlePath(packageValue.locator)
 		allowed[bundle] = struct{}{}
-		requiredBundles = append(requiredBundles, bundle)
 	}
 	actual, err := inventoryRegularFiles(root)
 	if err != nil {
@@ -651,23 +1105,21 @@ func verifyEvidenceInventory(root string, packages []verifiedCandidate, includes
 	for _, relative := range actual {
 		actualSet[relative] = struct{}{}
 	}
-	for _, required := range []string{PublisherPolicyPath, TrustedRootPath, RevocationCheckpointPath} {
-		if _, ok := actualSet[required]; !ok {
-			return fmt.Errorf("required evidence file %s is missing", required)
-		}
+	requiredPaths := make([]string, 0, len(allowed))
+	for required := range allowed {
+		requiredPaths = append(requiredPaths, required)
 	}
-	if includesSubjects {
-		for _, packageValue := range packages {
-			required := packageSubjectPath(packageValue.locator)
-			if _, ok := actualSet[required]; !ok {
+	sort.Strings(requiredPaths)
+	for _, required := range requiredPaths {
+		if _, ok := actualSet[required]; !ok {
+			switch {
+			case strings.HasSuffix(required, ".sigstore.json"):
+				return fmt.Errorf("signature bundle is missing: %s", required)
+			case strings.HasPrefix(required, "packages/") && strings.HasSuffix(required, "/"+PackageIndexName):
 				return fmt.Errorf("required package-index subject %s is missing", required)
+			default:
+				return fmt.Errorf("required evidence file %s is missing", required)
 			}
-		}
-	}
-	sort.Strings(requiredBundles)
-	for _, required := range requiredBundles {
-		if _, ok := actualSet[required]; !ok {
-			return fmt.Errorf("signature bundle is missing: %s", required)
 		}
 	}
 	return nil
@@ -675,6 +1127,18 @@ func verifyEvidenceInventory(root string, packages []verifiedCandidate, includes
 
 func installedEvidencePaths(report VerificationReport) []string {
 	paths := []string{PublisherPolicyPath, TrustedRootPath, RevocationCheckpointPath, RevocationBundlePath}
+	for _, statement := range report.Statements {
+		paths = append(paths, revocationStatementEvidencePath(statement.StatementVersion))
+	}
+	if report.Checkpoint.Pin.Sequence > 0 {
+		paths = append(paths, revocationHistoryCheckpointPath("0.0.0"), revocationHistoryBundlePath("0.0.0"))
+		for _, statement := range report.Statements[:len(report.Statements)-1] {
+			paths = append(paths,
+				revocationHistoryCheckpointPath(statement.StatementVersion),
+				revocationHistoryBundlePath(statement.StatementVersion),
+			)
+		}
+	}
 	for _, packageReport := range report.Packages {
 		paths = append(paths, packageBundlePath(packageReport.Locator))
 	}

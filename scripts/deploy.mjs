@@ -29,6 +29,7 @@ export const REPOSITORY_URL = "https://github.com/tako0614/takoform-forms.git";
 export const REPOSITORY = "tako0614/takoform-forms";
 export const OWNER_GATE = "bun run check";
 export const TRUST_SET_TAG_PREFIX = "forms/sets/";
+export const REVOCATION_TAG_PREFIX = "forms/revocations/v";
 export const PUBLISHER_REPOSITORY = `https://github.com/${REPOSITORY}`;
 export const PUBLISHER_WORKFLOW = `${PUBLISHER_REPOSITORY}/.github/workflows/form-package-signing.yml`;
 export const PUBLISHER_REF = "refs/heads/main";
@@ -44,6 +45,9 @@ export const GENESIS_ENTRIES_DIGEST =
 
 const commitPattern = /^[0-9a-f]{40}$/u;
 const digestPattern = /^sha256:[0-9a-f]{64}$/u;
+const semverPattern =
+  /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u;
+const MAX_REVOCATION_SEQUENCE = 1024;
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -52,11 +56,12 @@ export const DEPLOY_CONTRACT = Object.freeze({
   surfaces: [
     {
       surface: RELEASE_SURFACE,
-      target: `${REPOSITORY_URL}:main + forms/<release-id>/sha256-<digest> + forms/sets/<signed-source-commit>`,
+      target: `${REPOSITORY_URL}:main + forms/<release-id>/sha256-<digest> + forms/sets/<signed-source-commit> + forms/revocations/v<statement-version>`,
       covers: [
         "forms/candidates/current-family-index.json",
         "forms/candidates/edge.forms.takoform.com",
         "forms/releases",
+        "forms/revocations",
         "forms/trust",
         "cmd/form-package",
         "cmd/publisher-trust",
@@ -70,17 +75,17 @@ export const DEPLOY_CONTRACT = Object.freeze({
       triggers: ["authority", "published-identity"],
       obligations: {
         provenance:
-          "The one clean canonical main commit is gated once. Released Core v1.1.0 verifies all 16 exact canonical package-index subjects, the exact publisher policy and trusted root, every Sigstore v0.3 bundle, one signed API v1 revocation genesis, and every not-revoked decision. All evidence must report one protected-main publisher/source/workflow/build commit; package subjects and publisher verification code remain byte-exact from that signed commit through publication.",
+          "The one clean canonical main commit is gated once. Released Core v1.1.0 verifies all 16 exact canonical package-index subjects, the exact publisher policy and trusted root, every Sigstore v0.3 bundle, the bounded signed API v1 checkpoint chain from genesis, every canonical statement digest, and every not-revoked decision. All new evidence reports one protected-main publisher/source/workflow/build commit; package subjects, revocation source, and publisher verification code remain byte-exact from that signed commit through publication.",
         "post-conditions":
-          "After one ordinary atomic non-force push, credential-free verification reads origin main, every Core-derived package tag, and the create-only forms/sets/<source-commit> tag; fetches the public set commit into fresh storage; compares every package byte; and reruns Core v1.1.0 package, publisher, signature, checkpoint, and revocation verification.",
+          "After one ordinary atomic non-force push, credential-free verification reads origin main, every Core-derived package tag, the create-only forms/sets/<source-commit> tag, and every immutable forms/revocations/v<statement-version> tag; fetches public commits into fresh storage; compares package and revocation bytes; and replays Core v1.1.0 package, publisher, signature, checkpoint, continuity, and revocation verification.",
         reversal:
-          "Package tags, release paths, signed trust-set paths, and set tags are immutable and are never deleted, retagged, or overwritten. A bad publication cannot be rolled back in place; forward repair signs a new source commit and creates a new set, while changed package bytes also create a new Core-derived package identity.",
+          "Package tags, release paths, signed trust-set paths, set tags, revocation statements, checkpoints, and revocation tags are immutable and are never deleted, retagged, or overwritten. A bad publication cannot be rolled back in place; forward repair appends one new statement/checkpoint, signs a new source commit, and creates a new set, while changed package bytes also create a new Core-derived package identity.",
         "failure-handling":
-          "The entrypoint prints bounded command diagnostics and stops before mutation whenever the signed trust closure, source identity, exact package closure, or tag state is uncertain. A failure during or after the single atomic push is reported as indeterminate; no local tags are created and there is no blind retry, cleanup, deletion, or force path.",
+          "The entrypoint prints bounded command diagnostics and stops before mutation whenever the signed trust closure, source identity, exact package/revocation closure, public predecessor, or tag state is uncertain. A failure during or after the single atomic push is reported as indeterminate; rerun settles only an exact anonymous readback match, and there is no blind retry, cleanup, deletion, update, or force path.",
         "independent-review":
           "The non-authoring TASK-0042 independent architecture review examined this publisher authority boundary and identified this contract omission. Before any publication, a person or agent that did not author the release must review the exact signed source commit, trust-set verification report, immutable tag plan, and atomic refspecs; the operator retains the named reviewer and exact commit outside the repository, and neither the signing workflow nor a green gate substitutes for that review.",
         "no-overwrite":
-          "Immediately before mutation, the set tag must be absent locally and remotely. Existing Core-derived package tags are reused only when their tagged package path is byte-identical to the Core-verified signed source; absent package tags are created once. The atomic push has no force, delete, or retag path.",
+          "Immediately before mutation, the new set tag and new revocation tag must be absent locally and remotely. Existing Core-derived package tags are reused only when their tagged package path is byte-identical to the Core-verified signed source; prior revocation refs and bytes must equal the signed cumulative prefix. The atomic push has no force, delete, update, or retag path.",
       },
     },
   ],
@@ -202,8 +207,24 @@ export function runDeploy(args, dependencies = defaultDependencies()) {
     );
     const firstCommit = requireSourceIdentity(dependencies, {
       expectedRemoteCommit: beforeTrust.sourceCommit,
+      allowCurrentRemote: true,
     });
     requireSignedSourceClosure(dependencies, beforeTrust, firstCommit);
+    const observedRemote = readRemoteMain(dependencies);
+    if (observedRemote === firstCommit) {
+      const evidence = runPublicVerification(
+        before,
+        beforeTrust,
+        dependencies,
+        { expectedCommit: firstCommit },
+      );
+      outputJSON(dependencies, {
+        ...evidence,
+        status: "PUBLISHED_SETTLED",
+      });
+      return 0;
+    }
+    requirePublicPredecessor(before, beforeTrust, dependencies);
     runOwnerGate(dependencies);
     const commit = requireSourceIdentity(dependencies, {
       expectedRemoteCommit: beforeTrust.sourceCommit,
@@ -243,7 +264,7 @@ export function runDeploy(args, dependencies = defaultDependencies()) {
     }
 
     pushAll(dependencies, after, afterTrust, commit, missingPackageTags);
-    const evidence = verifyPublicPublication(after, afterTrust, dependencies, {
+    const evidence = runPublicVerification(after, afterTrust, dependencies, {
       expectedCommit: commit,
       mutationStarted: true,
     });
@@ -282,7 +303,11 @@ function readTrustSet(
   dependencies,
   plan,
   trustSet,
-  { credentialFree = false, repositoryRoot = root } = {},
+  {
+    credentialFree = false,
+    repositoryRoot = root,
+    validateCurrentPackages = true,
+  } = {},
 ) {
   let report;
   if (typeof dependencies.readTrustSet === "function") {
@@ -327,11 +352,16 @@ function readTrustSet(
       );
     }
   }
-  validateTrustReport(report, plan, trustSet);
+  validateTrustReport(report, plan, trustSet, { validateCurrentPackages });
   return report;
 }
 
-function validateTrustReport(report, plan, trustSet) {
+function validateTrustReport(
+  report,
+  plan,
+  trustSet,
+  { validateCurrentPackages = true } = {},
+) {
   if (
     report === null ||
     typeof report !== "object" ||
@@ -344,49 +374,189 @@ function validateTrustReport(report, plan, trustSet) {
     report.workflowCommit !== trustSet ||
     report.buildConfigCommit !== trustSet ||
     report.publisherIdentity !== PUBLISHER_IDENTITY ||
-    report.packageCount !== plan.formCount ||
+    report.packageCount !== 16 ||
     !Array.isArray(report.packages) ||
-    report.packages.length !== plan.formCount ||
-    report.checkpoint?.status !== "verified"
+    report.packages.length !== 16 ||
+    report.checkpoint?.status !== "verified" ||
+    !Number.isSafeInteger(report.checkpoint?.pin?.sequence) ||
+    report.checkpoint.pin.sequence < 0 ||
+    report.checkpoint.pin.sequence > MAX_REVOCATION_SEQUENCE ||
+    report.checkpoint.entryCount !== report.checkpoint.pin.sequence ||
+    report.checkpoint.pin.checkpointApiVersion !==
+      "trust.forms.takoform.com/v1" ||
+    !digestPattern.test(report.checkpoint.pin.digest ?? "") ||
+    !digestPattern.test(report.checkpoint.pin.entriesDigest ?? "") ||
+    !Array.isArray(report.checkpointHistory) ||
+    !Array.isArray(report.revocationTags) ||
+    !Array.isArray(report.statements)
   ) {
     throw new DeployBlocked(
       `trust set ${trustSet} did not return the exact Core v1.1.0 publisher/package/checkpoint report`,
     );
   }
-  const expectedTags = plan.forms.map((form) => form.locator.tag);
+  if (validateCurrentPackages && plan.formCount !== 16) {
+    throw new DeployBlocked(
+      "publication plan must contain exactly 16 packages",
+    );
+  }
+  const expectedTags = validateCurrentPackages
+    ? plan.forms.map((form) => form.locator.tag)
+    : null;
   const verifiedTags = report.packages.map((entry) => entry?.locator?.tag);
-  if (expectedTags.join("\n") !== verifiedTags.join("\n")) {
+  if (
+    validateCurrentPackages &&
+    expectedTags.join("\n") !== verifiedTags.join("\n")
+  ) {
     throw new DeployBlocked(
       `trust set ${trustSet} package identities differ from the publication plan`,
     );
   }
+  const sequence = report.checkpoint.pin.sequence;
   const checkpointBundle = report.checkpoint.bundle;
-  if (
-    report.checkpoint.checkpointVersion !== "0.0.0" ||
-    report.checkpoint.entryCount !== 0 ||
-    report.checkpoint.pin?.checkpointApiVersion !==
-      "trust.forms.takoform.com/v1" ||
-    report.checkpoint.pin?.sequence !== 0 ||
-    report.checkpoint.pin?.digest !== GENESIS_DIGEST ||
-    report.checkpoint.pin?.entriesDigest !== GENESIS_ENTRIES_DIGEST ||
-    !exactPublisherBundle(checkpointBundle, GENESIS_DIGEST, trustSet)
-  ) {
+  if (report.checkpointHistory.length !== sequence + 1) {
     throw new DeployBlocked(
-      `trust set ${trustSet} does not contain the exact signed Core API v1 genesis`,
+      `trust set ${trustSet} does not contain the complete bounded checkpoint publisher history`,
     );
   }
-  for (let index = 0; index < plan.forms.length; index += 1) {
-    const form = plan.forms[index];
-    const verified = report.packages[index];
+  const seenCheckpointSets = new Set();
+  for (let index = 0; index < report.checkpointHistory.length; index += 1) {
+    const historical = report.checkpointHistory[index];
+    const expectedVersion =
+      index === 0 ? "0.0.0" : report.statements[index - 1]?.statementVersion;
     if (
-      verified.packageDigest !== form.packageDigest ||
-      !exactPublisherBundle(verified.bundle, form.packageDigest, trustSet)
+      !commitPattern.test(historical?.setId ?? "") ||
+      historical.setTag !== `${TRUST_SET_TAG_PREFIX}${historical.setId}` ||
+      historical.checkpointVersion !== expectedVersion ||
+      historical.pin?.checkpointApiVersion !== "trust.forms.takoform.com/v1" ||
+      historical.pin?.sequence !== index ||
+      !digestPattern.test(historical.pin?.digest ?? "") ||
+      !digestPattern.test(historical.pin?.entriesDigest ?? "") ||
+      seenCheckpointSets.has(historical.setId)
     ) {
       throw new DeployBlocked(
-        `trust set ${trustSet} has incomplete exact evidence for ${form.kind}`,
+        `trust set ${trustSet} has invalid checkpoint publisher history at sequence ${index}`,
+      );
+    }
+    seenCheckpointSets.add(historical.setId);
+  }
+  const currentHistory = report.checkpointHistory.at(-1);
+  if (
+    currentHistory.setId !== trustSet ||
+    currentHistory.checkpointVersion !== report.checkpoint.checkpointVersion ||
+    !pinsEqual(currentHistory.pin, report.checkpoint.pin)
+  ) {
+    throw new DeployBlocked(
+      `trust set ${trustSet} checkpoint publisher history does not end at the current signed set`,
+    );
+  }
+  if (sequence === 0) {
+    if (
+      report.checkpoint.checkpointVersion !== "0.0.0" ||
+      report.checkpoint.pin.digest !== GENESIS_DIGEST ||
+      report.checkpoint.pin.entriesDigest !== GENESIS_ENTRIES_DIGEST ||
+      report.previousCheckpoint !== undefined ||
+      (report.revocationTag ?? "") !== "" ||
+      report.revocationTags.length !== 0 ||
+      report.statements.length !== 0 ||
+      !exactPublisherBundle(checkpointBundle, GENESIS_DIGEST, trustSet)
+    ) {
+      throw new DeployBlocked(
+        `trust set ${trustSet} does not contain the exact signed Core API v1 genesis`,
+      );
+    }
+  } else {
+    const previous = report.previousCheckpoint;
+    const historicalPrevious = report.checkpointHistory.at(-2);
+    if (
+      previous === null ||
+      typeof previous !== "object" ||
+      !commitPattern.test(previous.setId ?? "") ||
+      previous.setTag !== `${TRUST_SET_TAG_PREFIX}${previous.setId}` ||
+      previous.pin?.checkpointApiVersion !== "trust.forms.takoform.com/v1" ||
+      previous.pin?.sequence !== sequence - 1 ||
+      !digestPattern.test(previous.pin?.digest ?? "") ||
+      !digestPattern.test(previous.pin?.entriesDigest ?? "") ||
+      report.revocationTags.length !== sequence ||
+      report.statements.length !== sequence ||
+      !exactPublisherBundle(
+        checkpointBundle,
+        report.checkpoint.pin.digest,
+        trustSet,
+      )
+    ) {
+      throw new DeployBlocked(
+        `trust set ${trustSet} does not contain one exact Core API v1 checkpoint advancement`,
+      );
+    }
+    if (
+      previous.setId !== historicalPrevious.setId ||
+      previous.setTag !== historicalPrevious.setTag ||
+      previous.checkpointVersion !== historicalPrevious.checkpointVersion ||
+      !pinsEqual(previous.pin, historicalPrevious.pin)
+    ) {
+      throw new DeployBlocked(
+        `trust set ${trustSet} immediate predecessor differs from its signed checkpoint history`,
+      );
+    }
+    const seenVersions = new Set();
+    for (let index = 0; index < report.statements.length; index += 1) {
+      const statement = report.statements[index];
+      const version = statement?.statementVersion;
+      const tag = `${REVOCATION_TAG_PREFIX}${version}`;
+      if (
+        statement?.sequence !== index + 1 ||
+        !semverPattern.test(version ?? "") ||
+        version === "0.0.0" ||
+        seenVersions.has(version) ||
+        !digestPattern.test(statement.statementDigest ?? "") ||
+        !digestPattern.test(statement.packageDigest ?? "") ||
+        statement.sourcePath !== `forms/revocations/${version}.json` ||
+        statement.tag !== tag ||
+        report.revocationTags[index] !== tag
+      ) {
+        throw new DeployBlocked(
+          `trust set ${trustSet} has invalid or non-consecutive revocation statement evidence at sequence ${index + 1}`,
+        );
+      }
+      seenVersions.add(version);
+    }
+    const latest = report.statements.at(-1).statementVersion;
+    const priorVersion =
+      sequence === 1 ? "0.0.0" : report.statements.at(-2).statementVersion;
+    if (
+      report.checkpoint.checkpointVersion !== latest ||
+      previous.checkpointVersion !== priorVersion ||
+      report.revocationTag !== `${REVOCATION_TAG_PREFIX}${latest}`
+    ) {
+      throw new DeployBlocked(
+        `trust set ${trustSet} revocation tag/version does not equal its checkpoint head`,
       );
     }
   }
+  for (let index = 0; index < report.packages.length; index += 1) {
+    const form = validateCurrentPackages ? plan.forms[index] : null;
+    const verified = report.packages[index];
+    if (
+      !digestPattern.test(verified?.packageDigest ?? "") ||
+      typeof verified?.locator?.tag !== "string" ||
+      (validateCurrentPackages &&
+        verified.packageDigest !== form.packageDigest) ||
+      !exactPublisherBundle(verified.bundle, verified.packageDigest, trustSet)
+    ) {
+      throw new DeployBlocked(
+        `trust set ${trustSet} has incomplete exact package evidence at index ${index}`,
+      );
+    }
+  }
+}
+
+function pinsEqual(left, right) {
+  return (
+    left?.checkpointApiVersion === right?.checkpointApiVersion &&
+    left?.sequence === right?.sequence &&
+    left?.digest === right?.digest &&
+    left?.entriesDigest === right?.entriesDigest
+  );
 }
 
 function exactPublisherBundle(bundle, subjectDigest, sourceCommit) {
@@ -412,7 +582,11 @@ function exactPublisherBundle(bundle, subjectDigest, sourceCommit) {
 
 function requireSourceIdentity(
   dependencies,
-  { credentialFree = false, expectedRemoteCommit } = {},
+  {
+    credentialFree = false,
+    expectedRemoteCommit,
+    allowCurrentRemote = false,
+  } = {},
 ) {
   const status = requireSuccess(
     dependencies,
@@ -487,12 +661,40 @@ function requireSourceIdentity(
   );
   const remoteCommit = parseRemoteRef(remoteMain, "refs/heads/main");
   const requiredRemote = expectedRemoteCommit ?? commit;
-  if (remoteCommit !== requiredRemote) {
+  if (
+    remoteCommit !== requiredRemote &&
+    !(allowCurrentRemote && remoteCommit === commit)
+  ) {
     throw new DeployBlocked(
       `origin main is ${remoteCommit || "<missing>"}, expected ${requiredRemote}`,
     );
   }
   return commit;
+}
+
+function readRemoteMain(dependencies, mutationStarted = false) {
+  const remoteMain = requireSuccess(
+    dependencies,
+    "git",
+    ["ls-remote", "origin", "refs/heads/main"],
+    "cannot read origin main",
+    mutationStarted,
+    true,
+  );
+  const commit = parseRemoteRef(remoteMain, "refs/heads/main");
+  if (!commitPattern.test(commit)) {
+    throw new DeployBlocked(
+      `origin main did not resolve an exact commit: ${commit || "<missing>"}`,
+      mutationStarted,
+    );
+  }
+  return commit;
+}
+
+function runPublicVerification(plan, trust, dependencies, options = {}) {
+  return typeof dependencies.verifyPublicPublication === "function"
+    ? dependencies.verifyPublicPublication(plan, trust, options)
+    : verifyPublicPublication(plan, trust, dependencies, options);
 }
 
 function requireSignedSourceClosure(dependencies, trust, currentCommit) {
@@ -518,6 +720,7 @@ function requireSignedSourceClosure(dependencies, trust, currentCommit) {
       currentCommit,
       "--",
       "forms/releases",
+      "forms/revocations",
       "forms/candidates/current-family-index.json",
       "forms/candidates/edge.forms.takoform.com",
     ],
@@ -580,6 +783,319 @@ function runOwnerGate(dependencies) {
   if (gate.exitCode !== 0) throw new DeployBlocked(`${OWNER_GATE} failed`);
 }
 
+function requirePublicPredecessor(plan, trust, dependencies) {
+  const sequence = trust.checkpoint.pin.sequence;
+  const expectedTags = trust.revocationTags.slice(0, -1);
+  const expectedSetTags = trust.checkpointHistory
+    .slice(0, -1)
+    .map((checkpoint) => checkpoint.setTag);
+  const remoteSetTags = readRemoteTrustSetTags(dependencies);
+  assertExactTagNames(
+    remoteSetTags,
+    expectedSetTags,
+    "public publisher-set predecessor",
+  );
+  const remoteTags = readRemoteRevocationTags(dependencies);
+  assertExactTagNames(
+    remoteTags,
+    expectedTags,
+    "public revocation predecessor",
+  );
+  if (sequence === 0) return;
+
+  const previous = trust.previousCheckpoint;
+  const setTagCommits = new Map();
+  for (const historical of trust.checkpointHistory.slice(0, -1)) {
+    setTagCommits.set(
+      historical.setTag,
+      readRemoteTagCommit(
+        dependencies,
+        historical.setTag,
+        "public predecessor set",
+      ),
+    );
+  }
+  for (let index = 0; index < expectedTags.length; index += 1) {
+    const checkpointSetTag = trust.checkpointHistory[index + 1].setTag;
+    if (
+      remoteTags.get(expectedTags[index]) !==
+      setTagCommits.get(checkpointSetTag)
+    ) {
+      throw new DeployBlocked(
+        `public checkpoint set ${checkpointSetTag} and revocation ${expectedTags[index]} do not identify one atomic publication commit`,
+      );
+    }
+  }
+
+  let temporary;
+  try {
+    temporary = mkdtempSync(
+      path.join(tmpdir(), "takoform-public-predecessor-"),
+    );
+    requireSuccess(
+      dependencies,
+      "git",
+      [
+        "clone",
+        "--quiet",
+        "--no-checkout",
+        "--depth=1",
+        "--branch",
+        "main",
+        REPOSITORY_URL,
+        temporary,
+      ],
+      "cannot fetch fresh anonymous public predecessor main",
+      false,
+      true,
+    );
+    const publicMain = requireSuccess(
+      dependencies,
+      "git",
+      ["-C", temporary, "rev-parse", "HEAD"],
+      "cannot resolve fresh public predecessor main",
+      false,
+      true,
+    );
+    if (publicMain !== trust.sourceCommit) {
+      throw new DeployBlocked(
+        `fresh public predecessor main is ${publicMain}, expected signed source ${trust.sourceCommit}`,
+      );
+    }
+    requireSuccess(
+      dependencies,
+      "git",
+      ["-C", temporary, "checkout", "--quiet", "--detach", publicMain],
+      "cannot materialize fresh public predecessor main",
+      false,
+      true,
+    );
+    const tagRefspecs = [...expectedSetTags, ...expectedTags].map(
+      (tag) => `refs/tags/${tag}:refs/tags/${tag}`,
+    );
+    requireSuccess(
+      dependencies,
+      "git",
+      [
+        "-C",
+        temporary,
+        "fetch",
+        "--quiet",
+        "--no-tags",
+        "origin",
+        ...tagRefspecs,
+      ],
+      "cannot fetch immutable public predecessor refs",
+      false,
+      true,
+    );
+    for (const historical of trust.checkpointHistory.slice(0, -1)) {
+      const fetchedSetCommit = requireSuccess(
+        dependencies,
+        "git",
+        [
+          "-C",
+          temporary,
+          "rev-parse",
+          `refs/tags/${historical.setTag}^{commit}`,
+        ],
+        `cannot resolve fetched predecessor set ${historical.setTag}`,
+        false,
+        true,
+      );
+      if (fetchedSetCommit !== setTagCommits.get(historical.setTag)) {
+        throw new DeployBlocked(
+          `public predecessor set ${historical.setTag} changed during anonymous readback`,
+        );
+      }
+      requireSuccess(
+        dependencies,
+        "git",
+        [
+          "-C",
+          temporary,
+          "diff",
+          "--quiet",
+          fetchedSetCommit,
+          publicMain,
+          "--",
+          `forms/trust/sets/${historical.setId}`,
+        ],
+        `public predecessor set bytes changed after ${historical.setTag}`,
+        false,
+        true,
+      );
+    }
+    for (let index = 0; index < expectedTags.length; index += 1) {
+      const tag = expectedTags[index];
+      const version = trust.statements[index].statementVersion;
+      const fetched = requireSuccess(
+        dependencies,
+        "git",
+        ["-C", temporary, "rev-parse", `refs/tags/${tag}^{commit}`],
+        `cannot resolve fetched revocation tag ${tag}`,
+        false,
+        true,
+      );
+      if (fetched !== remoteTags.get(tag)) {
+        throw new DeployBlocked(
+          `public revocation tag ${tag} changed during anonymous readback`,
+        );
+      }
+      requireSuccess(
+        dependencies,
+        "git",
+        [
+          "-C",
+          temporary,
+          "diff",
+          "--quiet",
+          fetched,
+          publicMain,
+          "--",
+          `forms/revocations/${version}.json`,
+          `forms/revocations/checkpoints/${version}.json`,
+        ],
+        `public revocation bytes at ${tag} were updated or deleted`,
+        false,
+        true,
+      );
+    }
+    const predecessor = readTrustSet(dependencies, plan, previous.setId, {
+      credentialFree: true,
+      repositoryRoot: temporary,
+      validateCurrentPackages: false,
+    });
+    if (
+      predecessor.setTag !== previous.setTag ||
+      predecessor.checkpoint.checkpointVersion !== previous.checkpointVersion ||
+      JSON.stringify(predecessor.checkpoint.pin) !==
+        JSON.stringify(previous.pin) ||
+      predecessor.revocationTags.join("\n") !== expectedTags.join("\n") ||
+      JSON.stringify(predecessor.checkpointHistory) !==
+        JSON.stringify(trust.checkpointHistory.slice(0, -1))
+    ) {
+      throw new DeployBlocked(
+        `fresh public predecessor ${previous.setTag} does not equal the checkpoint pin signed into ${trust.setTag}`,
+      );
+    }
+  } finally {
+    if (temporary) rmSync(temporary, { recursive: true, force: true });
+  }
+}
+
+function readRemoteTrustSetTags(dependencies, mutationStarted = false) {
+  return readRemoteTagInventory(
+    dependencies,
+    TRUST_SET_TAG_PREFIX,
+    "publisher-set",
+    mutationStarted,
+  );
+}
+
+function readRemoteRevocationTags(dependencies, mutationStarted = false) {
+  return readRemoteTagInventory(
+    dependencies,
+    REVOCATION_TAG_PREFIX,
+    "revocation",
+    mutationStarted,
+  );
+}
+
+function readRemoteTagInventory(
+  dependencies,
+  prefix,
+  label,
+  mutationStarted = false,
+) {
+  const output = requireSuccess(
+    dependencies,
+    "git",
+    ["ls-remote", "--tags", "origin", `refs/tags/${prefix}*`],
+    `cannot read public ${label} tag inventory`,
+    mutationStarted,
+    true,
+  );
+  const found = new Map();
+  for (const line of output.split(/\r?\n/u).filter(Boolean)) {
+    const [commit, ref, extra] = line.trim().split(/\s+/u);
+    if (
+      extra !== undefined ||
+      !commitPattern.test(commit ?? "") ||
+      !ref?.startsWith(`refs/tags/${prefix}`) ||
+      ref.endsWith("^{}")
+    ) {
+      throw new DeployBlocked(
+        `public ${label} tag inventory contains an invalid ref: ${line}`,
+        mutationStarted,
+      );
+    }
+    const tag = ref.slice("refs/tags/".length);
+    if (found.has(tag)) {
+      throw new DeployBlocked(
+        `public ${label} tag inventory repeats ${tag}`,
+        mutationStarted,
+      );
+    }
+    found.set(tag, commit);
+    const limit =
+      prefix === TRUST_SET_TAG_PREFIX
+        ? MAX_REVOCATION_SEQUENCE + 1
+        : MAX_REVOCATION_SEQUENCE;
+    if (found.size > limit) {
+      throw new DeployBlocked(
+        `public ${label} tag inventory exceeds the bounded ${limit}-ref publisher history`,
+        mutationStarted,
+      );
+    }
+  }
+  return found;
+}
+
+function assertExactTagNames(actual, expected, label, mutationStarted = false) {
+  if (
+    actual.size !== expected.length ||
+    expected.some((tag) => !actual.has(tag))
+  ) {
+    throw new DeployBlocked(
+      `${label} refs are ${[...actual.keys()].sort().join(", ") || "<empty>"}, expected ${expected.join(", ") || "<empty>"}`,
+      mutationStarted,
+    );
+  }
+}
+
+function readRemoteTagCommit(
+  dependencies,
+  tag,
+  label,
+  mutationStarted = false,
+) {
+  const output = requireSuccess(
+    dependencies,
+    "git",
+    [
+      "ls-remote",
+      "--tags",
+      "origin",
+      `refs/tags/${tag}`,
+      `refs/tags/${tag}^{}`,
+    ],
+    `cannot read ${label} tag ${tag}`,
+    mutationStarted,
+    true,
+  );
+  const direct = parseRemoteRef(output, `refs/tags/${tag}`);
+  const peeled = parseRemoteRef(output, `refs/tags/${tag}^{}`);
+  const commit = peeled || direct;
+  if (!commitPattern.test(commit ?? "")) {
+    throw new DeployBlocked(
+      `${label} tag ${tag} did not resolve to an exact commit`,
+      mutationStarted,
+    );
+  }
+  return commit;
+}
+
 function requireCreateOnlyIdentities(dependencies, plan, trust) {
   const setTag = trust.setTag;
   const localSet = runDependency(dependencies, "git", [
@@ -610,6 +1126,43 @@ function requireCreateOnlyIdentities(dependencies, plan, trust) {
   );
   if (remoteSet !== "") {
     throw new DeployBlocked(`remote set tag ${setTag} already exists`);
+  }
+
+  if (trust.revocationTag) {
+    const revocationTag = trust.revocationTag;
+    const localRevocation = runDependency(dependencies, "git", [
+      "show-ref",
+      "--verify",
+      "--quiet",
+      `refs/tags/${revocationTag}`,
+    ]);
+    if (localRevocation.exitCode === 0) {
+      throw new DeployBlocked(
+        `local revocation tag ${revocationTag} already exists`,
+      );
+    }
+    if (localRevocation.exitCode !== 1) {
+      throw new DeployBlocked(
+        `cannot prove local revocation tag ${revocationTag} is absent${commandDetail(localRevocation) ? `:\n${commandDetail(localRevocation)}` : ""}`,
+      );
+    }
+    const remoteRevocation = requireSuccess(
+      dependencies,
+      "git",
+      [
+        "ls-remote",
+        "--tags",
+        "origin",
+        `refs/tags/${revocationTag}`,
+        `refs/tags/${revocationTag}^{}`,
+      ],
+      `cannot inspect origin revocation tag ${revocationTag}`,
+    );
+    if (remoteRevocation !== "") {
+      throw new DeployBlocked(
+        `remote revocation tag ${revocationTag} already exists; update/delete/retag is forbidden`,
+      );
+    }
   }
 
   const missingPackageTags = [];
@@ -682,11 +1235,14 @@ function pushAll(dependencies, plan, trust, commit, missingPackageTags) {
     }
   }
   refs.push(`${commit}:refs/tags/${trust.setTag}`);
+  if (trust.revocationTag) {
+    refs.push(`${commit}:refs/tags/${trust.revocationTag}`);
+  }
   requireSuccess(
     dependencies,
     "git",
     ["push", "--atomic", "origin", ...refs],
-    `push of main, ${missingPackageTags.length} new package tags, and signed set ${trust.setTag} did not complete cleanly`,
+    `push of main, ${missingPackageTags.length} new package tags, signed set ${trust.setTag}${trust.revocationTag ? `, and revocation ${trust.revocationTag}` : ""} did not complete cleanly`,
     true,
   );
 }
@@ -744,6 +1300,55 @@ export function verifyPublicPublication(
       `public signed set tag ${trust.setTag} points to ${setPeeled || setDirect || "<missing>"}, expected ${localCommit}`,
       mutationStarted,
     );
+  }
+
+  const setTagCommits = readRemoteTrustSetTags(dependencies, mutationStarted);
+  const expectedSetTags = trust.checkpointHistory.map(
+    (historical) => historical.setTag,
+  );
+  assertExactTagNames(
+    setTagCommits,
+    expectedSetTags,
+    "public publisher-set",
+    mutationStarted,
+  );
+  if (setTagCommits.get(trust.setTag) !== localCommit) {
+    throw new DeployBlocked(
+      `public signed set tag ${trust.setTag} points to ${setTagCommits.get(trust.setTag) || "<missing>"}, expected ${localCommit}`,
+      mutationStarted,
+    );
+  }
+
+  const revocationTagCommits = readRemoteRevocationTags(
+    dependencies,
+    mutationStarted,
+  );
+  assertExactTagNames(
+    revocationTagCommits,
+    trust.revocationTags,
+    "public revocation",
+    mutationStarted,
+  );
+  if (
+    trust.revocationTag &&
+    revocationTagCommits.get(trust.revocationTag) !== localCommit
+  ) {
+    throw new DeployBlocked(
+      `public revocation tag ${trust.revocationTag} points to ${revocationTagCommits.get(trust.revocationTag) || "<missing>"}, expected ${localCommit}`,
+      mutationStarted,
+    );
+  }
+  for (let index = 0; index < trust.revocationTags.length; index += 1) {
+    const checkpointSetTag = trust.checkpointHistory[index + 1].setTag;
+    if (
+      revocationTagCommits.get(trust.revocationTags[index]) !==
+      setTagCommits.get(checkpointSetTag)
+    ) {
+      throw new DeployBlocked(
+        `public checkpoint set ${checkpointSetTag} and revocation ${trust.revocationTags[index]} do not identify one atomic publication commit`,
+        mutationStarted,
+      );
+    }
   }
 
   const packageTagCommits = new Map();
@@ -833,12 +1438,54 @@ export function verifyPublicPublication(
           (form) =>
             `refs/tags/${form.locator.tag}:refs/tags/${form.locator.tag}`,
         ),
+        ...expectedSetTags.map((tag) => `refs/tags/${tag}:refs/tags/${tag}`),
+        ...trust.revocationTags.map(
+          (tag) => `refs/tags/${tag}:refs/tags/${tag}`,
+        ),
       ],
       "cannot fetch the public package tags",
       mutationStarted,
       true,
     );
     try {
+      for (const historical of trust.checkpointHistory) {
+        const fetchedSetCommit = requireSuccess(
+          dependencies,
+          "git",
+          [
+            "-C",
+            temporary,
+            "rev-parse",
+            `refs/tags/${historical.setTag}^{commit}`,
+          ],
+          `cannot resolve fetched public publisher set ${historical.setTag}`,
+          mutationStarted,
+          true,
+        );
+        if (fetchedSetCommit !== setTagCommits.get(historical.setTag)) {
+          throw new DeployBlocked(
+            `public publisher set ${historical.setTag} changed during readback`,
+            mutationStarted,
+          );
+        }
+        requireSuccess(
+          dependencies,
+          "git",
+          [
+            "-C",
+            temporary,
+            "diff",
+            "--quiet",
+            fetchedSetCommit,
+            localCommit,
+            "--",
+            `forms/trust/sets/${historical.setId}`,
+          ],
+          `public publisher set bytes at ${historical.setTag} were updated or deleted`,
+          mutationStarted,
+          true,
+        );
+      }
       for (const form of plan.forms) {
         const fetchedTagCommit = requireSuccess(
           dependencies,
@@ -873,6 +1520,42 @@ export function verifyPublicPublication(
             form.locator.sourcePath,
           ],
           `public package tag ${form.locator.tag} does not contain the Core-verified package bytes`,
+          mutationStarted,
+          true,
+        );
+      }
+      for (let index = 0; index < trust.revocationTags.length; index += 1) {
+        const tag = trust.revocationTags[index];
+        const version = trust.statements[index].statementVersion;
+        const fetchedTagCommit = requireSuccess(
+          dependencies,
+          "git",
+          ["-C", temporary, "rev-parse", `refs/tags/${tag}^{commit}`],
+          `cannot resolve fetched public revocation tag ${tag}`,
+          mutationStarted,
+          true,
+        );
+        if (fetchedTagCommit !== revocationTagCommits.get(tag)) {
+          throw new DeployBlocked(
+            `public revocation tag ${tag} changed during readback`,
+            mutationStarted,
+          );
+        }
+        requireSuccess(
+          dependencies,
+          "git",
+          [
+            "-C",
+            temporary,
+            "diff",
+            "--quiet",
+            fetchedTagCommit,
+            localCommit,
+            "--",
+            `forms/revocations/${version}.json`,
+            `forms/revocations/checkpoints/${version}.json`,
+          ],
+          `public revocation tag ${tag} bytes were updated or deleted`,
           mutationStarted,
           true,
         );
@@ -912,7 +1595,16 @@ export function verifyPublicPublication(
       workflowCommit: trust.workflowCommit,
       buildConfigCommit: trust.buildConfigCommit,
       checkpointPin: trust.checkpoint.pin,
+      checkpointHistory: trust.checkpointHistory,
+      revocationTag: trust.revocationTag || null,
     },
+    revocationTagCount: trust.revocationTags.length,
+    revocationTags: trust.revocationTags.map((tag, index) => ({
+      tag,
+      commit: revocationTagCommits.get(tag),
+      statementVersion: trust.statements[index].statementVersion,
+      statementDigest: trust.statements[index].statementDigest,
+    })),
     tagCount: plan.formCount,
     tags: plan.forms.map((form) => ({
       tag: form.locator.tag,
@@ -925,6 +1617,7 @@ export function verifyPublicPublication(
     postConditions: [
       "PUBLIC_MAIN_READBACK",
       "SIGNED_SET_TAG_READBACK",
+      "APPEND_ONLY_REVOCATION_TAG_CHAIN_READBACK",
       "ALL_16_TAGGED_PACKAGE_BYTES_READBACK",
       "FRESH_TREE_BYTE_COMPARISON",
       "CORE_V1_1_0_PACKAGE_TRUST_REVOCATION_VERIFICATION",
@@ -1094,6 +1787,11 @@ function assertTrustReportsEqual(before, after) {
       workflowCommit: report.workflowCommit,
       buildConfigCommit: report.buildConfigCommit,
       checkpoint: report.checkpoint,
+      checkpointHistory: report.checkpointHistory,
+      previousCheckpoint: report.previousCheckpoint ?? null,
+      revocationTag: report.revocationTag ?? null,
+      revocationTags: report.revocationTags,
+      statements: report.statements,
       packages: report.packages,
     });
   if (stable(before) !== stable(after)) {
@@ -1114,10 +1812,13 @@ function dryRunEvidence(plan, trust, commit, missingPackageTags) {
       tag: trust.setTag,
       sourceCommit: trust.sourceCommit,
       publisherIdentity: trust.publisherIdentity,
+      previousSetId: trust.previousCheckpoint?.setId ?? null,
+      revocationTag: trust.revocationTag || null,
     },
     tagCount: plan.formCount,
     tags: plan.forms.map((form) => form.locator.tag),
     packageTagsToCreate: missingPackageTags,
+    revocationTagToCreate: trust.revocationTag || null,
     status: "DRY_RUN_VERIFIED",
   };
 }

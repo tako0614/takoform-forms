@@ -8,6 +8,14 @@ on:
         description: Exact protected-main source commit to sign
         required: true
         type: string
+      previous_set:
+        description: Exact public predecessor set source commit; leave blank only for the first genesis set
+        required: false
+        type: string
+      statement_version:
+        description: New revocation statement SemVer; required with previous_set
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -38,6 +46,8 @@ jobs:
         shell: bash
         env:
           EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          PREVIOUS_SET: ${{ inputs.previous_set }}
+          STATEMENT_VERSION: ${{ inputs.statement_version }}
         run: |
           set -euo pipefail
           if [[ ! "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
@@ -59,6 +69,20 @@ jobs:
           if [[ "$(git rev-parse refs/remotes/origin/main)" != "$EXPECTED_COMMIT" ]]; then
             echo "expected_commit must be current origin/main" >&2
             exit 1
+          fi
+          if [[ -n "$PREVIOUS_SET" || -n "$STATEMENT_VERSION" ]]; then
+            if [[ -z "$PREVIOUS_SET" || -z "$STATEMENT_VERSION" ]]; then
+              echo "previous_set and statement_version must be supplied together" >&2
+              exit 1
+            fi
+            if [[ ! "$PREVIOUS_SET" =~ ^[0-9a-f]{40}$ || "$PREVIOUS_SET" =~ ^0{40}$ ]]; then
+              echo "previous_set must be an exact lowercase nonzero 40-character source commit" >&2
+              exit 1
+            fi
+            if [[ ! "$STATEMENT_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ || "$STATEMENT_VERSION" == "0.0.0" ]]; then
+              echo "statement_version must be a non-genesis SemVer" >&2
+              exit 1
+            fi
           fi
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
@@ -90,6 +114,8 @@ jobs:
         shell: bash
         env:
           EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          PREVIOUS_SET: ${{ inputs.previous_set }}
+          STATEMENT_VERSION: ${{ inputs.statement_version }}
         run: |
           set -euo pipefail
           cosign_version="$(cosign version 2>&1)"
@@ -97,13 +123,32 @@ jobs:
 
           candidate="$RUNNER_TEMP/edge-form-package-signing/$EXPECTED_COMMIT"
           preparation="$RUNNER_TEMP/edge-form-package-signing-preparation.json"
-          go run ./cmd/publisher-trust prepare \
-            --repository . \
-            --output "$candidate" > "$preparation"
-          jq -e \
-            --arg output "$candidate" \
-            '.status == "signing-required" and .coreVersion == "v1.1.0" and .packageCount == 16 and .output == $output and (.subjects | length == 17)' \
-            "$preparation" >/dev/null
+          if [[ -z "$PREVIOUS_SET" ]]; then
+            public_refs="$(GIT_TERMINAL_PROMPT=0 git -c credential.helper= -c http.extraHeader= ls-remote --tags https://github.com/tako0614/takoform-forms.git 'refs/tags/forms/sets/*' 'refs/tags/forms/revocations/v*')"
+            if [[ -n "$public_refs" ]]; then
+              echo "genesis signing is first-set-only; public publisher/revocation refs already exist" >&2
+              exit 1
+            fi
+            go run ./cmd/publisher-trust prepare \
+              --repository . \
+              --output "$candidate" > "$preparation"
+            jq -e \
+              --arg output "$candidate" \
+              '.status == "signing-required" and .coreVersion == "v1.1.0" and .mode == "genesis" and .sequence == 0 and .checkpointVersion == "0.0.0" and .packageCount == 16 and .output == $output and (.subjects | length == 17)' \
+              "$preparation" >/dev/null
+          else
+            go run ./cmd/publisher-trust prepare-advancement \
+              --repository . \
+              --previous-set "$PREVIOUS_SET" \
+              --statement-version "$STATEMENT_VERSION" \
+              --output "$candidate" > "$preparation"
+            jq -e \
+              --arg output "$candidate" \
+              --arg previous "$PREVIOUS_SET" \
+              --arg version "$STATEMENT_VERSION" \
+              '.status == "signing-required" and .coreVersion == "v1.1.0" and .mode == "advancement" and .sequence >= 1 and .checkpointVersion == $version and .previousSetId == $previous and .revocationTag == ("forms/revocations/v" + $version) and .packageCount == 16 and .output == $output and (.subjects | length == 17)' \
+              "$preparation" >/dev/null
+          fi
 
           while IFS= read -r subject; do
             case "$subject" in
@@ -131,8 +176,17 @@ jobs:
             --expected-source-commit "$EXPECTED_COMMIT" > "$verification"
           jq -e \
             --arg commit "$EXPECTED_COMMIT" \
-            '.status == "verified" and .coreVersion == "v1.1.0" and .setId == $commit and .sourceCommit == $commit and .packageCount == 16 and (.packages | length == 16) and .checkpoint.status == "verified"' \
+            '.status == "verified" and .coreVersion == "v1.1.0" and .setId == $commit and .sourceCommit == $commit and .packageCount == 16 and (.packages | length == 16) and .checkpoint.status == "verified" and (.checkpointHistory | length) == (.checkpoint.pin.sequence + 1)' \
             "$verification" >/dev/null
+          if [[ -z "$PREVIOUS_SET" ]]; then
+            jq -e '.checkpoint.pin.sequence == 0 and (.revocationTags | length) == 0 and (.statements | length) == 0' "$verification" >/dev/null
+          else
+            jq -e \
+              --arg previous "$PREVIOUS_SET" \
+              --arg version "$STATEMENT_VERSION" \
+              '.checkpoint.pin.sequence >= 1 and .previousCheckpoint.setId == $previous and .revocationTag == ("forms/revocations/v" + $version) and .statements[-1].statementVersion == $version' \
+              "$verification" >/dev/null
+          fi
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
           echo "candidate=$candidate" >> "$GITHUB_OUTPUT"
 

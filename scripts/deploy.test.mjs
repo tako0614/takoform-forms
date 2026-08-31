@@ -22,6 +22,10 @@ import {
 const COMMIT = "0123456789abcdef0123456789abcdef01234567";
 const SOURCE_COMMIT = "89abcdef0123456789abcdef0123456789abcdef";
 const EXISTING_TAG_COMMIT = "fedcba9876543210fedcba9876543210fedcba98";
+const PREVIOUS_SET = "13579bdf02468ace13579bdf02468ace13579bdf";
+const GENESIS_SET = "2468ace13579bdf02468ace13579bdf02468ace1";
+const REVOCATION_TAG = "forms/revocations/v1.0.0";
+const SECOND_REVOCATION_TAG = "forms/revocations/v1.1.0";
 
 describe("Edge Form Package deploy surface", () => {
   test("exposes the exact contract and accepts only the documented CLI", () => {
@@ -135,7 +139,7 @@ describe("Edge Form Package deploy surface", () => {
       ),
     ).toBe(1);
     expect(wrongMain.stderr).toContain(
-      `origin main is ${COMMIT}, expected ${SOURCE_COMMIT}`,
+      `public signed set tag forms/sets/${SOURCE_COMMIT} points to <missing>, expected ${COMMIT}`,
     );
     expect(
       wrongMain.calls.some(
@@ -222,12 +226,160 @@ describe("Edge Form Package deploy surface", () => {
     expect(fixture.stderr).toContain("publication is indeterminate");
   });
 
-  test("verify reads only through the credential-free dependency route and checks all tags and bytes", () => {
+  test("advancement atomically creates one immutable revocation tag while preserving all package identities", () => {
+    const plan = makePlan();
+    const trust = makeAdvancementTrustReport(plan);
+    const fixture = makeCommandDependencies(plan, {
+      trustReport: trust,
+      previousTrustReport: trustAtCommit(makeTrustReport(plan), PREVIOUS_SET),
+      remoteTags: new Map([
+        [`forms/sets/${PREVIOUS_SET}`, EXISTING_TAG_COMMIT],
+      ]),
+      pushExitCode: 1,
+    });
+
+    expect(
+      runDeploy(
+        [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT],
+        fixture.dependencies,
+      ),
+    ).toBe(1);
+    const pushes = fixture.calls.filter(
+      (call) => call.command === "git" && call.args[0] === "push",
+    );
+    expect(pushes).toHaveLength(1);
+    expect(pushes[0].args).toContain(`${COMMIT}:refs/tags/${REVOCATION_TAG}`);
+    expect(
+      pushes[0].args.filter((value) =>
+        value.includes("refs/tags/forms/revocations/"),
+      ),
+    ).toEqual([`${COMMIT}:refs/tags/${REVOCATION_TAG}`]);
+    expect(pushes[0].args.filter((value) => value.startsWith("+:"))).toEqual(
+      [],
+    );
+    for (const form of plan.forms) {
+      expect(pushes[0].args).toContain(
+        `${SOURCE_COMMIT}:refs/tags/${form.locator.tag}`,
+      );
+    }
+  });
+
+  test("settles an exact lost acknowledgement by anonymous readback without a second push", () => {
+    const plan = makePlan();
+    const trust = makeAdvancementTrustReport(plan);
+    const remoteTags = new Map([
+      [`forms/sets/${PREVIOUS_SET}`, EXISTING_TAG_COMMIT],
+      [trust.setTag, COMMIT],
+      [REVOCATION_TAG, COMMIT],
+      ...plan.forms.map((form) => [form.locator.tag, EXISTING_TAG_COMMIT]),
+    ]);
+    const fixture = makeCommandDependencies(plan, {
+      trustReport: trust,
+      previousTrustReport: trustAtCommit(makeTrustReport(plan), PREVIOUS_SET),
+      remoteMainCommit: COMMIT,
+      remoteTags,
+      verifyPublicPublication: () => ({
+        kind: "takoform.form-package-publication-verification@v1",
+        status: "VERIFIED",
+        commit: COMMIT,
+      }),
+    });
+
+    expect(
+      runDeploy(
+        [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT],
+        fixture.dependencies,
+      ),
+    ).toBe(0);
+    expect(JSON.parse(fixture.stdout).status).toBe("PUBLISHED_SETTLED");
+    expect(
+      fixture.calls.some(
+        (call) => call.command === "git" && call.args[0] === "push",
+      ),
+    ).toBe(false);
+  });
+
+  test("refuses revocation-tag insertion, deletion, or retagging before mutation", () => {
+    const plan = makePlan();
+    const first = makeAdvancementTrustReport(plan);
+    const inserted = makeCommandDependencies(plan, {
+      trustReport: first,
+      previousTrustReport: trustAtCommit(makeTrustReport(plan), PREVIOUS_SET),
+      remoteTags: new Map([
+        [`forms/sets/${PREVIOUS_SET}`, EXISTING_TAG_COMMIT],
+        [REVOCATION_TAG, COMMIT],
+      ]),
+    });
+    expect(
+      runDeploy(
+        [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT],
+        inserted.dependencies,
+      ),
+    ).toBe(1);
+    expect(inserted.stderr).toContain(
+      `public revocation predecessor refs are ${REVOCATION_TAG}, expected <empty>`,
+    );
+
+    const second = makeSecondAdvancementTrustReport(plan);
+    const previous = makePreviousAdvancementTrustReport(plan);
+    const deleted = makeCommandDependencies(plan, {
+      trustReport: second,
+      previousTrustReport: previous,
+      remoteTags: new Map([
+        [
+          `forms/sets/${GENESIS_SET}`,
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ],
+        [`forms/sets/${PREVIOUS_SET}`, EXISTING_TAG_COMMIT],
+      ]),
+    });
+    expect(
+      runDeploy(
+        [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT],
+        deleted.dependencies,
+      ),
+    ).toBe(1);
+    expect(deleted.stderr).toContain(
+      `public revocation predecessor refs are <empty>, expected ${REVOCATION_TAG}`,
+    );
+
+    const retagged = makeCommandDependencies(plan, {
+      trustReport: second,
+      previousTrustReport: previous,
+      remoteTags: new Map([
+        [
+          `forms/sets/${GENESIS_SET}`,
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ],
+        [`forms/sets/${PREVIOUS_SET}`, EXISTING_TAG_COMMIT],
+        [REVOCATION_TAG, COMMIT],
+      ]),
+    });
+    expect(
+      runDeploy(
+        [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT],
+        retagged.dependencies,
+      ),
+    ).toBe(1);
+    expect(retagged.stderr).toContain(
+      `public checkpoint set forms/sets/${PREVIOUS_SET} and revocation ${REVOCATION_TAG} do not identify one atomic publication commit`,
+    );
+
+    for (const fixture of [inserted, deleted, retagged]) {
+      expect(
+        fixture.calls.some(
+          (call) => call.command === "git" && call.args[0] === "push",
+        ),
+      ).toBe(false);
+    }
+  });
+
+  test("anonymous advancement verification checks every set, revocation, package tag, and byte closure", () => {
     const root = mkdtempSync(
       path.join(tmpdir(), "takoform-public-verify-test-"),
     );
     const plan = makePlan(root);
-    const trust = makeTrustReport(plan);
+    const trust = makeAdvancementTrustReport(plan);
     writePublicFixture(plan);
     const calls = [];
     const dependencies = {
@@ -250,9 +402,19 @@ describe("Edge Form Package deploy surface", () => {
           args[1] === "--tags"
         ) {
           const refs = args.slice(3);
-          const commit = refs.includes(`refs/tags/${trust.setTag}`)
-            ? COMMIT
-            : EXISTING_TAG_COMMIT;
+          if (refs.some((ref) => ref.endsWith("*"))) {
+            if (refs.includes("refs/tags/forms/sets/*")) {
+              return ok(
+                `${EXISTING_TAG_COMMIT}\trefs/tags/forms/sets/${PREVIOUS_SET}\n${COMMIT}\trefs/tags/${trust.setTag}\n`,
+              );
+            }
+            return ok(`${COMMIT}\trefs/tags/${REVOCATION_TAG}\n`);
+          }
+          const commit =
+            refs.includes(`refs/tags/${trust.setTag}`) ||
+            refs.includes(`refs/tags/${REVOCATION_TAG}`)
+              ? COMMIT
+              : EXISTING_TAG_COMMIT;
           return ok(refs.map((ref) => `${commit}\t${ref}\n`).join(""));
         }
         if (command === "git" && args[0] === "clone") {
@@ -262,7 +424,7 @@ describe("Edge Form Package deploy surface", () => {
         }
         if (command === "git" && args[0] === "-C" && args[2] === "rev-parse") {
           return ok(
-            `${args.at(-1).startsWith("refs/tags/") ? EXISTING_TAG_COMMIT : COMMIT}\n`,
+            `${args.at(-1).includes(trust.setTag) || args.at(-1).includes(REVOCATION_TAG) || !args.at(-1).startsWith("refs/tags/") ? COMMIT : EXISTING_TAG_COMMIT}\n`,
           );
         }
         if (command === "git" && args[0] === "-C" && args[2] === "checkout") {
@@ -298,6 +460,15 @@ describe("Edge Form Package deploy surface", () => {
     });
     expect(evidence.status).toBe("VERIFIED");
     expect(evidence.tagCount).toBe(16);
+    expect(evidence.revocationTagCount).toBe(1);
+    expect(evidence.revocationTags).toEqual([
+      {
+        tag: REVOCATION_TAG,
+        commit: COMMIT,
+        statementVersion: "1.0.0",
+        statementDigest: trust.statements[0].statementDigest,
+      },
+    ]);
     expect(evidence.tags.map((tag) => tag.tag)).toEqual(
       plan.forms.map((form) => form.locator.tag),
     );
@@ -320,6 +491,8 @@ describe("Edge Form Package deploy surface", () => {
       GIT_CONFIG: "/tmp/private-git-config",
       GIT_CONFIG_PARAMETERS: "'http.proxy'='https://user:secret@proxy.example'",
       GIT_CONFIG_SYSTEM: "/tmp/private-system-git-config",
+      GIT_DIR: "/tmp/other.git",
+      GIT_WORK_TREE: "/tmp/other-tree",
       GOAUTH: "netrc",
       GOENV: "/tmp/private-goenv",
       GOPRIVATE: "private.example",
@@ -355,9 +528,12 @@ describe("Edge Form Package deploy surface", () => {
     expect(invocation.env.GIT_CONFIG).toBeUndefined();
     expect(invocation.env.GIT_CONFIG_PARAMETERS).toBeUndefined();
     expect(invocation.env.GIT_CONFIG_SYSTEM).toBeUndefined();
+    expect(invocation.env.GIT_DIR).toBeUndefined();
+    expect(invocation.env.GIT_WORK_TREE).toBeUndefined();
     expect(invocation.env.GIT_TERMINAL_PROMPT).toBe("0");
     expect(invocation.env.GIT_CONFIG_NOSYSTEM).toBe("1");
     expect(invocation.env.GIT_CONFIG_GLOBAL).toBe("/dev/null");
+    expect(invocation.env.GIT_OPTIONAL_LOCKS).toBe("0");
 
     const goInvocation = credentialFreeInvocation(
       "go",
@@ -418,8 +594,12 @@ function makeCommandDependencies(
     existingRemoteTagDiverges = false,
     pushExitCode = 0,
     remoteMainCommit = SOURCE_COMMIT,
+    remoteTags = new Map(),
     signedVerifierDiverges = false,
+    trustReport = makeTrustReport(plan),
+    previousTrustReport = undefined,
     trustError = "",
+    verifyPublicPublication = undefined,
   } = {},
 ) {
   const calls = [];
@@ -434,6 +614,14 @@ function makeCommandDependencies(
     if (args[0] === "remote" && args.at(-1) === "origin")
       return ok(`${REPOSITORY_URL}\n`);
     if (args[0] === "rev-parse") return ok(`${COMMIT}\n`);
+    if (args[0] === "-C" && args[2] === "rev-parse") {
+      if (args[3] === "HEAD") return ok(`${remoteMainCommit}\n`);
+      const tag = args[3]
+        ?.replace(/^refs\/tags\//u, "")
+        .replace(/\^\{commit\}$/u, "");
+      const commit = remoteTags.get(tag);
+      return commit ? ok(`${commit}\n`) : fail();
+    }
     if (
       args[0] === "ls-remote" &&
       args[1] === "origin" &&
@@ -443,6 +631,25 @@ function makeCommandDependencies(
     }
     if (args[0] === "show-ref") return fail();
     if (args[0] === "ls-remote" && args[1] === "--tags") {
+      const requested = args
+        .slice(3)
+        .filter((value) => value.startsWith("refs/tags/"));
+      const lines = [];
+      for (const ref of requested) {
+        if (ref.endsWith("*")) {
+          const prefix = ref.slice("refs/tags/".length, -1);
+          for (const [tag, commit] of remoteTags) {
+            if (tag.startsWith(prefix)) {
+              lines.push(`${commit}\trefs/tags/${tag}`);
+            }
+          }
+          continue;
+        }
+        const tag = ref.replace(/^refs\/tags\//u, "").replace(/\^\{\}$/u, "");
+        const commit = remoteTags.get(tag);
+        if (commit) lines.push(`${commit}\t${ref}`);
+      }
+      if (lines.length > 0) return ok(`${lines.join("\n")}\n`);
       return existingRemoteTag &&
         args.includes(`refs/tags/${existingRemoteTag}`)
         ? ok(`${EXISTING_TAG_COMMIT}\trefs/tags/${existingRemoteTag}\n`)
@@ -478,10 +685,13 @@ function makeCommandDependencies(
     },
     dependencies: {
       readPlan: () => plan,
-      readTrustSet: () => {
+      readTrustSet: ({ trustSet }) => {
         if (trustError) throw new Error(trustError);
-        return makeTrustReport(plan);
+        if (previousTrustReport && trustSet === PREVIOUS_SET)
+          return previousTrustReport;
+        return trustReport;
       },
+      ...(verifyPublicPublication ? { verifyPublicPublication } : {}),
       run(command, args) {
         return run(command, args);
       },
@@ -496,6 +706,138 @@ function makeCommandDependencies(
       },
     },
   };
+}
+
+function makeAdvancementTrustReport(plan) {
+  const report = makeTrustReport(plan);
+  const previous = report.checkpoint;
+  const statementDigest = `sha256:${"c".repeat(64)}`;
+  const checkpointDigest = `sha256:${"d".repeat(64)}`;
+  report.checkpoint = {
+    status: "verified",
+    checkpointVersion: "1.0.0",
+    entryCount: 1,
+    pin: {
+      checkpointApiVersion: "trust.forms.takoform.com/v1",
+      sequence: 1,
+      digest: checkpointDigest,
+      entriesDigest: `sha256:${"e".repeat(64)}`,
+    },
+    bundle: {
+      ...previous.bundle,
+      subjectDigest: checkpointDigest,
+    },
+  };
+  report.previousCheckpoint = {
+    setId: PREVIOUS_SET,
+    setTag: `forms/sets/${PREVIOUS_SET}`,
+    checkpointVersion: "0.0.0",
+    pin: previous.pin,
+  };
+  report.checkpointHistory = [
+    {
+      setId: PREVIOUS_SET,
+      setTag: `forms/sets/${PREVIOUS_SET}`,
+      checkpointVersion: "0.0.0",
+      pin: previous.pin,
+    },
+    {
+      setId: SOURCE_COMMIT,
+      setTag: `forms/sets/${SOURCE_COMMIT}`,
+      checkpointVersion: "1.0.0",
+      pin: report.checkpoint.pin,
+    },
+  ];
+  report.revocationTag = REVOCATION_TAG;
+  report.revocationTags = [REVOCATION_TAG];
+  report.statements = [
+    {
+      sequence: 1,
+      statementVersion: "1.0.0",
+      statementDigest,
+      packageDigest: `sha256:${"f".repeat(64)}`,
+      formRef: plan.forms[0].formRef ?? {
+        apiVersion: "edge.forms.takoform.com",
+        kind: plan.forms[0].kind,
+        definitionVersion: "0.1.0",
+        schemaDigest: `sha256:${"1".repeat(64)}`,
+      },
+      sourcePath: "forms/revocations/1.0.0.json",
+      tag: REVOCATION_TAG,
+    },
+  ];
+  return report;
+}
+
+function makeSecondAdvancementTrustReport(plan) {
+  const report = makeAdvancementTrustReport(plan);
+  const previousCheckpoint = report.checkpoint;
+  report.checkpoint = {
+    status: "verified",
+    checkpointVersion: "1.1.0",
+    entryCount: 2,
+    pin: {
+      checkpointApiVersion: "trust.forms.takoform.com/v1",
+      sequence: 2,
+      digest: `sha256:${"2".repeat(64)}`,
+      entriesDigest: `sha256:${"3".repeat(64)}`,
+    },
+    bundle: {
+      ...previousCheckpoint.bundle,
+      subjectDigest: `sha256:${"2".repeat(64)}`,
+    },
+  };
+  report.previousCheckpoint = {
+    setId: PREVIOUS_SET,
+    setTag: `forms/sets/${PREVIOUS_SET}`,
+    checkpointVersion: "1.0.0",
+    pin: previousCheckpoint.pin,
+  };
+  report.checkpointHistory = [
+    {
+      setId: GENESIS_SET,
+      setTag: `forms/sets/${GENESIS_SET}`,
+      checkpointVersion: "0.0.0",
+      pin: report.checkpointHistory[0].pin,
+    },
+    {
+      setId: PREVIOUS_SET,
+      setTag: `forms/sets/${PREVIOUS_SET}`,
+      checkpointVersion: "1.0.0",
+      pin: previousCheckpoint.pin,
+    },
+    {
+      setId: SOURCE_COMMIT,
+      setTag: `forms/sets/${SOURCE_COMMIT}`,
+      checkpointVersion: "1.1.0",
+      pin: report.checkpoint.pin,
+    },
+  ];
+  report.revocationTag = SECOND_REVOCATION_TAG;
+  report.revocationTags = [REVOCATION_TAG, SECOND_REVOCATION_TAG];
+  report.statements.push({
+    sequence: 2,
+    statementVersion: "1.1.0",
+    statementDigest: `sha256:${"4".repeat(64)}`,
+    packageDigest: `sha256:${"5".repeat(64)}`,
+    formRef: report.statements[0].formRef,
+    sourcePath: "forms/revocations/1.1.0.json",
+    tag: SECOND_REVOCATION_TAG,
+  });
+  return report;
+}
+
+function makePreviousAdvancementTrustReport(plan) {
+  const report = trustAtCommit(makeAdvancementTrustReport(plan), PREVIOUS_SET);
+  report.previousCheckpoint.setId = GENESIS_SET;
+  report.previousCheckpoint.setTag = `forms/sets/${GENESIS_SET}`;
+  report.checkpointHistory[0].setId = GENESIS_SET;
+  report.checkpointHistory[0].setTag = `forms/sets/${GENESIS_SET}`;
+  return report;
+}
+
+function trustAtCommit(report, commit) {
+  return JSON.parse(JSON.stringify(report).replaceAll(SOURCE_COMMIT, commit));
 }
 
 function makeTrustReport(plan) {
@@ -548,6 +890,23 @@ function makeTrustReport(plan) {
         "a",
       ),
     },
+    checkpointHistory: [
+      {
+        setId: SOURCE_COMMIT,
+        setTag: `forms/sets/${SOURCE_COMMIT}`,
+        checkpointVersion: "0.0.0",
+        pin: {
+          checkpointApiVersion: "trust.forms.takoform.com/v1",
+          sequence: 0,
+          digest:
+            "sha256:35c5c4cdc6cd6c4beaec8ba273091be10ae02c0d6f49861f97062fd59f9e8f66",
+          entriesDigest:
+            "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        },
+      },
+    ],
+    revocationTags: [],
+    statements: [],
     packages: plan.forms.map((form) => ({
       kind: form.kind,
       packageDigest: form.packageDigest,
