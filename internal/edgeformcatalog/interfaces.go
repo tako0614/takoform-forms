@@ -659,8 +659,9 @@ func edgeObjectsInterface() InterfaceDefinition {
 			"are written through the multipart operations: createMultipartUpload opens an upload, uploadPart " +
 			"writes one numbered part, completeMultipartUpload assembles the parts in part-number order into " +
 			"one object with one etag, and abortMultipartUpload discards the upload. At completion, every part except " +
-			"the highest-numbered part in that completion request MUST be at least 5242880 bytes; otherwise completion " +
-			"fails with invalid_part and assembles nothing. An upload holds no key until it completes, so " +
+			"the highest-numbered part in that completion request MUST be at least 5242880 bytes, and every non-final " +
+			"part MUST have the same byte length; otherwise completion fails with invalid_part and assembles nothing. " +
+			"An upload holds no key until it completes, so " +
 			"a get of that key before completion behaves as though the upload did not exist. " +
 			"In a behavior trace, a step whose input declares bodyStream sends exactly contentLength bytes " +
 			"whose value at index i is i modulo 256, which makes every trace below byte-for-byte reproducible. " +
@@ -817,8 +818,9 @@ func edgeObjectsInterface() InterfaceDefinition {
 				Description: "Assemble the named parts, in ascending part-number order, into one object at the key and " +
 					"return the object's strong etag and total size. Every part listed must have been uploaded and must " +
 					"carry the etag uploadPart returned for it; a mismatch fails with invalid_part and assembles nothing. " +
-					"Every part except the highest-numbered part in this completion request MUST be at least 5242880 bytes; " +
-					"an undersized non-final part fails with invalid_part and assembles nothing. " +
+					"Every part except the highest-numbered part in this completion request MUST be at least 5242880 bytes. " +
+					"Every non-final part MUST have the same byte length; undersized or unequal-sized non-final parts fail " +
+					"with invalid_part and assemble nothing. " +
 					"The object becomes visible atomically: no reader ever observes a partially assembled object. " +
 					"Completing an upload the host no longer holds fails with upload_not_found.",
 				InputSchema: operationObject([]string{"key", "parts", "uploadId"}, map[string]any{

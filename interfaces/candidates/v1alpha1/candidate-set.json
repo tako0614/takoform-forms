@@ -11,7 +11,7 @@
     {
       "name": "edge.objects",
       "version": "1.0.0",
-      "schemaDigest": "sha256:2f72433d51ec09ba88a1b9209cbb9bd9a6bd0362c6c538bfcb6229298ef24c76"
+      "schemaDigest": "sha256:b58cb2d54c93e4d97abe4ff3684dd88c8a400b4e39ec7fe2f3ba549c4ac448ba"
     },
     {
       "name": "edge.queue",

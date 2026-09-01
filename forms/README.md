@@ -55,10 +55,15 @@ forms/<releaseId>/sha256-<digest>
 ```
 
 The publisher signs 17 current package-index subjects. The append-only
-`forms/releases` tree and release-tag readback cover those 17 current roots
-plus the exact historical `WorkerVersion` 0.2.0 and `WorkerDeployment` 0.1.0
-roots recorded in [`retained-packages.json`](retained-packages.json), for 19
-release roots. The retained roots are immutable and are never rewritten.
+`forms/releases` tree and release readback cover those 17 current roots, the
+exact historical `WorkerVersion` 0.2.0 and `WorkerDeployment` 0.1.0 roots
+recorded in [`retained-packages.json`](retained-packages.json), and the three
+old roots recorded in the one-time
+[`abandoned-prepublication.json`](trust/abandoned-prepublication.json)
+recovery manifest. The local tree therefore has 22 roots. Only the 17 current
+and two retained roots receive publishable package tags (19 tags); the three
+abandoned roots are evidence-only and never receive tags. Every historical
+root is immutable and is never rewritten.
 
 See the [root README](../README.md#preparing-and-publishing-packages) for
 generation, signing, verification, and publication commands. Package tags are

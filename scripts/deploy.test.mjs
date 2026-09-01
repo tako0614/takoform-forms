@@ -114,6 +114,27 @@ describe("Edge Form Package deploy surface", () => {
     }
   });
 
+  test("does not push when remote main is already HEAD but the selected set tag is missing", () => {
+    const plan = makePlan();
+    const fixture = makeCommandDependencies(plan, {
+      remoteMainCommit: COMMIT,
+    });
+    expect(
+      runDeploy(
+        [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT],
+        fixture.dependencies,
+      ),
+    ).toBe(1);
+    expect(fixture.stderr).toContain(
+      `public signed set tag forms/sets/${SOURCE_COMMIT} points to <missing>, expected ${COMMIT}`,
+    );
+    expect(
+      fixture.calls.some(
+        (call) => call.command === "git" && call.args[0] === "push",
+      ),
+    ).toBe(false);
+  });
+
   test("dry-run proves preconditions and reuses only byte-identical package tags", () => {
     const plan = makePlan();
     const clean = makeCommandDependencies(plan);
@@ -255,6 +276,56 @@ describe("Edge Form Package deploy surface", () => {
         (call) => call.command === "git" && call.args[0] === "push",
       ),
     ).toBe(false);
+  });
+
+  test("rejects any abandoned set or evidence-only package tag before mutation", () => {
+    const plan = makePlan();
+    plan.evidenceOnlyPackages = [
+      ["abandoned-object-bucket", "e", "f"],
+      ["abandoned-worker-version", "c", "d"],
+      ["abandoned-worker-deployment", "a", "b"],
+    ].map(([releaseId, schemaByte, packageByte]) => ({
+      formRef: {
+        apiVersion: plan.family,
+        kind: releaseId,
+        definitionVersion: "0.1.0",
+        schemaDigest: `sha256:${schemaByte.repeat(64)}`,
+      },
+      packageDigest: `sha256:${packageByte.repeat(64)}`,
+      releaseId,
+      artifactId: `sha256-${packageByte.repeat(64)}`,
+      tag: `forms/${releaseId}/sha256-${packageByte.repeat(64)}`,
+      sourcePath: `forms/releases/${releaseId}/sha256-${packageByte.repeat(64)}`,
+    }));
+    const forbiddenTags = [
+      "forms/sets/cdd30b711e2c6857b1b4d247b1471f5676904933",
+      ...plan.evidenceOnlyPackages.map((entry) => entry.tag),
+    ];
+    for (const location of ["local", "remote"]) {
+      for (const tag of forbiddenTags) {
+        const forbidden = makeCommandDependencies(plan, {
+          localTags: location === "local" ? new Set([tag]) : new Set(),
+          remoteTags:
+            location === "remote"
+              ? new Map([[tag, EXISTING_TAG_COMMIT]])
+              : new Map(),
+        });
+        expect(
+          runDeploy(
+            [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT, "--dry-run"],
+            forbidden.dependencies,
+          ),
+        ).toBe(1);
+        expect(forbidden.stderr).toContain(
+          `${location} abandoned evidence-only tag ${tag} already exists`,
+        );
+        expect(
+          forbidden.calls.some(
+            (call) => call.command === "git" && call.args[0] === "push",
+          ),
+        ).toBe(false);
+      }
+    }
   });
 
   test("uses one atomic first push with direct tag refspecs and no local tag creation", () => {
@@ -747,6 +818,7 @@ function makeCommandDependencies(
     existingRemoteTagDiverges = false,
     pushExitCode = 0,
     remoteMainCommit = SOURCE_COMMIT,
+    localTags = new Set(),
     remoteTags = new Map(),
     retainedTagMode = "all",
     signedVerifierDiverges = false,
@@ -816,7 +888,10 @@ function makeCommandDependencies(
     ) {
       return ok(`${remoteMainCommit}\trefs/heads/main\n`);
     }
-    if (args[0] === "show-ref") return fail();
+    if (args[0] === "show-ref") {
+      const tag = args.at(-1)?.replace(/^refs\/tags\//u, "");
+      return localTags.has(tag) ? ok() : fail();
+    }
     if (args[0] === "ls-remote" && args[1] === "--tags") {
       const requested = args
         .slice(3)

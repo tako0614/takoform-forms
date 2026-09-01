@@ -471,6 +471,7 @@ func TestObjectBucketBindingUsesLengthAwareStreamingABI(t *testing.T) {
 			"object-relative range that cannot be served is range_not_satisfiable",
 			"unmet validator is precondition_failed",
 			"undersized non-final parts is invalid_part",
+			"completion with unequal-sized non-final parts is invalid_part",
 			"unknown upload is upload_not_found",
 			"Absent ReadableStream contentLength",
 			"numeric contentLength that is non-finite, non-integral, negative, unsafe, over the Interface limit, or mismatched",
@@ -547,6 +548,8 @@ func TestEdgeObjectsDefersMultipartMinimumSizeValidationUntilCompletion(t *testi
 		}
 		for _, phrase := range []string{
 			"Every part except the highest-numbered part in this completion request MUST be at least 5242880 bytes",
+			"Every non-final part MUST have the same byte length",
+			"unequal-sized non-final parts fail with invalid_part and assemble nothing",
 			"fails with invalid_part and assembles nothing",
 		} {
 			if !strings.Contains(completeMultipartUpload.Description, phrase) {

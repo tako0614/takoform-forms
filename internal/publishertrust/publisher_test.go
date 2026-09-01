@@ -42,6 +42,71 @@ func TestPublisherTrustUsesExactReleasedCore(t *testing.T) {
 	}
 }
 
+func TestReadAbandonedPrepublicationRequiresTheExactSingletonRecord(t *testing.T) {
+	t.Parallel()
+	repositoryRoot := filepath.Join("..", "..")
+	record, err := ReadAbandonedPrepublication(repositoryRoot)
+	if err != nil {
+		t.Fatalf("read abandoned prepublication record: %v", err)
+	}
+	if record.Format != AbandonedPrepublicationFormat ||
+		record.Family != Family ||
+		record.SetID != AbandonedPrepublicationSetID ||
+		record.Disposition != AbandonedPrepublicationDisposition ||
+		len(record.EvidenceOnlyPackages) != 3 {
+		t.Fatalf("unexpected abandoned prepublication record: %+v", record)
+	}
+	if record.EvidenceOnlyPackages[0].FormRef.Kind != "ObjectBucket" {
+		t.Fatalf("first evidence-only package = %+v, want ObjectBucket", record.EvidenceOnlyPackages[0])
+	}
+
+	fixture := t.TempDir()
+	manifestPath := filepath.Join(fixture, filepath.FromSlash(AbandonedPrepublicationPath))
+	if err := os.MkdirAll(filepath.Dir(manifestPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(repositoryRoot, filepath.FromSlash(AbandonedPrepublicationPath)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest map[string]any
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	manifest["evidenceOnlyPackages"] = append(manifest["evidenceOnlyPackages"].([]any), map[string]any{})
+	mutated, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifestPath, mutated, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadAbandonedPrepublication(fixture); err == nil || !strings.Contains(err.Error(), "exactly 3 evidence-only") {
+		t.Fatalf("singleton expansion error = %v, want exact-count refusal", err)
+	}
+}
+
+func TestVerifyPublishedSetClassifiesAbandonedEvidenceOnlyPackages(t *testing.T) {
+	t.Parallel()
+	repositoryRoot := filepath.Join("..", "..")
+	setRoot := filepath.Join(repositoryRoot, filepath.FromSlash(TrustSetsRelativePath), AbandonedPrepublicationSetID)
+	report, err := VerifyPublishedSet(repositoryRoot, setRoot)
+	if err != nil {
+		t.Fatalf("verify abandoned publisher set: %v", err)
+	}
+	if report.Disposition != AbandonedPrepublicationDisposition {
+		t.Fatalf("disposition = %q, want %q", report.Disposition, AbandonedPrepublicationDisposition)
+	}
+	if len(report.EvidenceOnlyPackages) != 3 {
+		t.Fatalf("evidence-only package count = %d, want 3", len(report.EvidenceOnlyPackages))
+	}
+	for _, entry := range report.EvidenceOnlyPackages {
+		if entry.FormRef.Kind != "ObjectBucket" && entry.FormRef.Kind != "WorkerDeployment" && entry.FormRef.Kind != "WorkerVersion" {
+			t.Fatalf("unexpected evidence-only package: %+v", entry)
+		}
+	}
+}
+
 func TestPrepareSigningRequestEmitsExactCoreSubjectsAndRefusesOverwrite(t *testing.T) {
 	t.Parallel()
 	repositoryRoot := filepath.Join("..", "..")

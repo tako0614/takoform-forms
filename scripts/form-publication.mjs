@@ -23,8 +23,14 @@ import { fileURLToPath } from "node:url";
 export const ACTIVE_FAMILY = "edge.forms.takoform.com";
 export const EXPECTED_FORM_COUNT = 17;
 export const EXPECTED_RETAINED_PACKAGE_COUNT = 2;
+export const EXPECTED_EVIDENCE_ONLY_PACKAGE_COUNT = 3;
 export const RETAINED_PACKAGE_INVENTORY_RELATIVE =
   "forms/retained-packages.json";
+export const ABANDONED_PREPUBLICATION_RELATIVE =
+  "forms/trust/abandoned-prepublication.json";
+export const ABANDONED_PREPUBLICATION_SET_ID =
+  "cdd30b711e2c6857b1b4d247b1471f5676904933";
+export const ABANDONED_PREPUBLICATION_SET_TAG = `forms/sets/${ABANDONED_PREPUBLICATION_SET_ID}`;
 export const FORM_PACKAGE_VERIFY = [
   "go",
   "run",
@@ -43,6 +49,56 @@ const digestPattern = /^sha256:[0-9a-f]{64}$/u;
 const contentAddressedPackageFile = /^([^/]+)\/(sha256-[0-9a-f]{64})(?:\/.+)$/u;
 const releaseIdPattern = /^[a-z0-9-]+$/u;
 const artifactIdPattern = /^sha256-[0-9a-f]{64}$/u;
+
+// This is a one-time, source-controlled recovery record. It is deliberately
+// an exact allowlist rather than a wildcard for any historical package root.
+// A second abandoned set needs a new format and explicit architecture
+// decision; this manifest must not silently grow into a lifecycle registry.
+const expectedEvidenceOnlyPackages = Object.freeze([
+  Object.freeze({
+    formRef: Object.freeze({
+      apiVersion: ACTIVE_FAMILY,
+      kind: "ObjectBucket",
+      definitionVersion: "0.1.0",
+      schemaDigest:
+        "sha256:eeda7b2fe4450bdd2301a348c27d7ade81b0a94bf9708655875329d72f902c57",
+    }),
+    packageDigest:
+      "sha256:52a0cd0b11d35fbf8ab57ac7d5717f550efa77a2b20997b8ac0abdf3e4752200",
+    releaseId: "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2pmjvgky3uij2wg23foq",
+    artifactId:
+      "sha256-52a0cd0b11d35fbf8ab57ac7d5717f550efa77a2b20997b8ac0abdf3e4752200",
+  }),
+  Object.freeze({
+    formRef: Object.freeze({
+      apiVersion: ACTIVE_FAMILY,
+      kind: "WorkerDeployment",
+      definitionVersion: "0.2.0",
+      schemaDigest:
+        "sha256:247d64335cbff296efc0298aa6811f299714fe7187d29aec6f73ed734e978756",
+    }),
+    packageDigest:
+      "sha256:f90f1b86cc9311d9457cd1cf0d665e6a310367d52e3f8e8c5c6c5acff842526d",
+    releaseId:
+      "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlsirsxa3dppfwwk3tu",
+    artifactId:
+      "sha256-f90f1b86cc9311d9457cd1cf0d665e6a310367d52e3f8e8c5c6c5acff842526d",
+  }),
+  Object.freeze({
+    formRef: Object.freeze({
+      apiVersion: ACTIVE_FAMILY,
+      kind: "WorkerVersion",
+      definitionVersion: "0.3.0",
+      schemaDigest:
+        "sha256:e82dce714f8b623ca926379c855ee9e314c83262e5564828ccc37be2dbe05820",
+    }),
+    packageDigest:
+      "sha256:d1ccfb0b47a4110f4ffbe6e842433639b1114feb11d5a690c9dc2ee1f938dd52",
+    releaseId: "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlskzsxe43jn5xa",
+    artifactId:
+      "sha256-d1ccfb0b47a4110f4ffbe6e842433639b1114feb11d5a690c9dc2ee1f938dd52",
+  }),
+]);
 
 // These are the only two pre-current package identities that this publisher
 // is authorized to retain. The inventory is an append-only locator manifest,
@@ -110,6 +166,7 @@ export function derivePublicationPlan({
   verifyPackage = verifyWithCore,
 } = {}) {
   const retainedPackages = readRetainedPackageInventory(root);
+  const evidenceOnlyPackages = readAbandonedPrepublication(root);
   const familyIndexPath = resolveRepositoryPath(
     root,
     currentFamilyIndexRelative,
@@ -246,10 +303,123 @@ export function derivePublicationPlan({
     formCount: forms.length,
     currentPackageCount: forms.length,
     retainedPackageCount: retainedPackages.length,
-    releaseRootCount: forms.length + retainedPackages.length,
+    evidenceOnlyPackageCount: evidenceOnlyPackages.length,
+    releaseRootCount:
+      forms.length + retainedPackages.length + evidenceOnlyPackages.length,
     forms,
     retainedPackages,
+    evidenceOnlyPackages,
   };
+}
+
+/**
+ * Read the one-time abandoned prepublication recovery record. This is an
+ * exact singleton allowlist: it is intentionally not a general historical
+ * package registry, and a second abandoned set requires a new format and
+ * explicit architecture decision.
+ */
+export function readAbandonedPrepublication(root = repositoryRoot) {
+  const manifestPath = resolveRepositoryPath(
+    root,
+    ABANDONED_PREPUBLICATION_RELATIVE,
+  );
+  const manifest = readJSON(manifestPath, "abandoned prepublication manifest");
+  if (
+    manifest === null ||
+    typeof manifest !== "object" ||
+    Object.keys(manifest).sort().join(",") !==
+      "disposition,evidenceOnlyPackages,family,format,setId,setTag" ||
+    manifest.format !== "takoform.abandoned-prepublication@v1" ||
+    manifest.family !== ACTIVE_FAMILY ||
+    manifest.setId !== ABANDONED_PREPUBLICATION_SET_ID ||
+    manifest.setTag !== ABANDONED_PREPUBLICATION_SET_TAG ||
+    manifest.disposition !== "evidence-only" ||
+    !Array.isArray(manifest.evidenceOnlyPackages) ||
+    manifest.evidenceOnlyPackages.length !==
+      EXPECTED_EVIDENCE_ONLY_PACKAGE_COUNT
+  ) {
+    throw new Error(
+      `abandoned prepublication manifest must contain exactly ${EXPECTED_EVIDENCE_ONLY_PACKAGE_COUNT} evidence-only ${ACTIVE_FAMILY} roots`,
+    );
+  }
+  const expectedByKey = new Map(
+    expectedEvidenceOnlyPackages.map((entry) => [
+      `${entry.formRef.kind}@${entry.formRef.definitionVersion}`,
+      entry,
+    ]),
+  );
+  const seen = new Set();
+  return manifest.evidenceOnlyPackages.map((entry, index) => {
+    if (entry === null || typeof entry !== "object") {
+      throw new Error(
+        `abandoned prepublication evidence entry[${index}] is invalid`,
+      );
+    }
+    if (
+      Object.keys(entry).sort().join(",") !==
+      "artifactId,formRef,packageDigest,releaseId,sourcePath,tag"
+    ) {
+      throw new Error(
+        `abandoned prepublication evidence entry[${index}] has unexpected fields`,
+      );
+    }
+    const formRef = entry.formRef;
+    if (
+      formRef === null ||
+      typeof formRef !== "object" ||
+      Object.keys(formRef).sort().join(",") !==
+        "apiVersion,definitionVersion,kind,schemaDigest" ||
+      formRef.apiVersion !== ACTIVE_FAMILY ||
+      typeof formRef.kind !== "string" ||
+      typeof formRef.definitionVersion !== "string" ||
+      !digestPattern.test(formRef.schemaDigest) ||
+      !digestPattern.test(entry.packageDigest) ||
+      typeof entry.releaseId !== "string" ||
+      !releaseIdPattern.test(entry.releaseId) ||
+      typeof entry.artifactId !== "string" ||
+      !artifactIdPattern.test(entry.artifactId) ||
+      typeof entry.tag !== "string" ||
+      typeof entry.sourcePath !== "string"
+    ) {
+      throw new Error(
+        `abandoned prepublication evidence entry[${index}] is invalid`,
+      );
+    }
+    const key = `${formRef.kind}@${formRef.definitionVersion}`;
+    const expected = expectedByKey.get(key);
+    if (!expected || seen.has(key)) {
+      throw new Error(
+        `abandoned prepublication evidence entry[${index}] is not one of the exact abandoned identities`,
+      );
+    }
+    seen.add(key);
+    const expectedArtifact = entry.packageDigest.replace(":", "-");
+    const expectedTag = `forms/${entry.releaseId}/${entry.artifactId}`;
+    const expectedSourcePath = `${publicationRootRelative}/${entry.releaseId}/${entry.artifactId}`;
+    if (
+      entry.artifactId !== expectedArtifact ||
+      entry.tag !== expectedTag ||
+      entry.sourcePath !== expectedSourcePath ||
+      JSON.stringify(formRef) !== JSON.stringify(expected.formRef) ||
+      entry.packageDigest !== expected.packageDigest ||
+      entry.releaseId !== expected.releaseId ||
+      entry.artifactId !== expected.artifactId
+    ) {
+      throw new Error(
+        `abandoned prepublication evidence entry ${key} differs from the exact abandoned identity`,
+      );
+    }
+    const releasePath = resolveRepositoryPath(root, entry.sourcePath);
+    return {
+      formRef,
+      packageDigest: entry.packageDigest,
+      releaseId: entry.releaseId,
+      artifactId: entry.artifactId,
+      tag: entry.tag,
+      sourcePath: entry.sourcePath,
+      releasePath,
+    };
+  });
 }
 
 /**
@@ -435,6 +605,27 @@ export function inspectPublicationTree(plan, { root = repositoryRoot } = {}) {
     }
   }
 
+  const evidenceOnlyPackages = plan.evidenceOnlyPackages ?? [];
+  for (const evidence of evidenceOnlyPackages) {
+    const releaseRoot = resolveRepositoryPath(root, evidence.sourcePath);
+    const packageRoot = `${evidence.releaseId}/${evidence.artifactId}`;
+    expectedPackageRoots.add(packageRoot);
+    if (!pathExists(releaseRoot)) {
+      failures.push(
+        `${evidence.sourcePath}: abandoned evidence-only release root is missing`,
+      );
+    }
+    if (
+      !releaseRoot.startsWith(
+        resolveRepositoryPath(root, publicationRootRelative) + path.sep,
+      )
+    ) {
+      throw new Error(
+        `${evidence.formRef.kind}: abandoned evidence source path escapes forms/releases`,
+      );
+    }
+  }
+
   const actual = new Map();
   const releaseRoot = resolveRepositoryPath(root, publicationRootRelative);
   if (pathExists(releaseRoot)) {
@@ -454,6 +645,7 @@ export function inspectPublicationTree(plan, { root = repositoryRoot } = {}) {
     }
   }
   const retainedRoots = new Set();
+  const evidenceRoots = new Set();
   for (const relative of actual.keys()) {
     if (expected.has(relative)) continue;
     const packageRoot = contentAddressedPackageRoot(
@@ -472,6 +664,12 @@ export function inspectPublicationTree(plan, { root = repositoryRoot } = {}) {
         )
       ) {
         retainedRoots.add(packageRoot);
+      } else if (
+        evidenceOnlyPackages.some(
+          (entry) => `${entry.releaseId}/${entry.artifactId}` === packageRoot,
+        )
+      ) {
+        evidenceRoots.add(packageRoot);
       } else {
         failures.push(`${relative}: extra release file`);
       }
@@ -482,6 +680,7 @@ export function inspectPublicationTree(plan, { root = repositoryRoot } = {}) {
     actual,
     failures,
     retainedRoots,
+    evidenceRoots,
   };
 }
 
@@ -500,6 +699,7 @@ export function verifyPublicationTree(
     );
   }
   verifyRetainedPublicationRoots(plan, { root, verifyPackage });
+  verifyEvidenceOnlyPublicationRoots(plan, { root, verifyPackage });
   const checked = [];
   for (const form of plan.forms) {
     const releasePath = resolveRepositoryPath(root, form.locator.sourcePath);
@@ -550,6 +750,9 @@ export function writePublication({
   // Validate retained package bytes before staging any new tree. Retained
   // identities are never created, replaced, or removed by this writer.
   verifyRetainedPublicationRoots(plan, { root, verifyPackage });
+  // Abandoned evidence-only roots are also immutable and must already be
+  // present; this writer never materializes or changes them.
+  verifyEvidenceOnlyPublicationRoots(plan, { root, verifyPackage });
 
   const stagingParent = mkdtempSync(
     path.join(root, ".form-publication-build-"),
@@ -662,6 +865,49 @@ function verifyRetainedPublicationRoots(
     if (locator.artifactId !== retained.packageDigest.replace(":", "-")) {
       throw new Error(
         `retained release ${retained.sourcePath}: Core package identity differs from the exact inventory digest`,
+      );
+    }
+  }
+}
+
+function verifyEvidenceOnlyPublicationRoots(
+  plan,
+  { root = repositoryRoot, verifyPackage = verifyWithCore } = {},
+) {
+  for (const evidence of plan.evidenceOnlyPackages ?? []) {
+    const releasePath = resolveRepositoryPath(root, evidence.sourcePath);
+    if (!pathExists(releasePath)) {
+      throw new Error(
+        `${evidence.formRef.kind}: abandoned evidence-only release root ${evidence.sourcePath} is missing`,
+      );
+    }
+    const locator = verifyPackage(releasePath, root);
+    const expectedLocator = {
+      apiVersion: "packages.forms.takoform.com/v1alpha5",
+      releaseId: evidence.releaseId,
+      artifactId: evidence.artifactId,
+      tag: evidence.tag,
+      sourcePath: evidence.sourcePath,
+    };
+    if (!sameLocator(locator, expectedLocator)) {
+      throw new Error(
+        `abandoned evidence-only release ${evidence.sourcePath}: locator differs from the exact manifest entry`,
+      );
+    }
+    const packageIndex = readJSON(
+      path.join(releasePath, "package-index.json"),
+      `${evidence.formRef.kind} abandoned evidence-only release package index`,
+    );
+    if (
+      JSON.stringify(packageIndex.formRef) !== JSON.stringify(evidence.formRef)
+    ) {
+      throw new Error(
+        `abandoned evidence-only release ${evidence.sourcePath}: FormRef differs from the exact manifest entry`,
+      );
+    }
+    if (locator.artifactId !== evidence.packageDigest.replace(":", "-")) {
+      throw new Error(
+        `abandoned evidence-only release ${evidence.sourcePath}: Core package identity differs from the exact manifest digest`,
       );
     }
   }

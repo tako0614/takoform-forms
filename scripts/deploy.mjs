@@ -20,6 +20,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  ABANDONED_PREPUBLICATION_SET_ID,
+  ABANDONED_PREPUBLICATION_SET_TAG,
   credentialFreeEnvironment,
   derivePublicationPlan,
 } from "./form-publication.mjs";
@@ -76,9 +78,9 @@ export const DEPLOY_CONTRACT = Object.freeze({
       triggers: ["authority", "published-identity"],
       obligations: {
         provenance:
-          "The one clean canonical main commit is gated once. Released Core v1.1.0 verifies all 17 exact canonical package-index subjects, the exact publisher policy and trusted root, every Sigstore v0.3 bundle, the bounded signed API v1 checkpoint chain from genesis, every canonical statement digest, and every not-revoked decision. Publication separately verifies the exact 19-root release inventory (17 current roots plus two retained immutable roots). All new evidence reports one protected-main publisher/source/workflow/build commit; package subjects, revocation source, retained inventory, and publisher verification code remain byte-exact from that signed commit through publication.",
+          "The one clean canonical main commit is gated once. Released Core v1.1.0 verifies all 17 exact canonical package-index subjects, the exact publisher policy and trusted root, every Sigstore v0.3 bundle, the bounded signed API v1 checkpoint chain from genesis, every canonical statement digest, and every not-revoked decision. Publication separately verifies the exact local release inventory (17 current roots, two retained immutable roots, and three explicitly listed abandoned evidence-only roots) while only 19 current/retained roots receive publishable package tags. All new evidence reports one protected-main publisher/source/workflow/build commit; package subjects, revocation source, retained inventory, abandoned recovery manifest, and publisher verification code remain byte-exact from that signed commit through publication.",
         "post-conditions":
-          "After one ordinary atomic non-force push, credential-free verification reads origin main, all 19 exact release-root tags (17 current package tags plus two retained tags), the create-only forms/sets/<source-commit> tag, and every immutable forms/revocations/v<statement-version> tag; fetches public commits into fresh storage; compares package and revocation bytes; and replays Core v1.1.0 package, publisher, signature, checkpoint, continuity, and revocation verification.",
+          "After one ordinary atomic non-force push, credential-free verification reads origin main, all 19 exact publishable release-root tags (17 current package tags plus two retained tags), the three untagged abandoned evidence-only roots from the recovery manifest, the create-only forms/sets/<source-commit> tag, and every immutable forms/revocations/v<statement-version> tag; fetches public commits into fresh storage; compares package and revocation bytes; and replays Core v1.1.0 package, publisher, signature, checkpoint, continuity, and revocation verification.",
         reversal:
           "Package tags, release paths, signed trust-set paths, set tags, revocation statements, checkpoints, and revocation tags are immutable and are never deleted, retagged, or overwritten. A bad publication cannot be rolled back in place; forward repair appends one new statement/checkpoint, signs a new source commit, and creates a new set, while changed package bytes also create a new Core-derived package identity.",
         "failure-handling":
@@ -211,6 +213,7 @@ export function runDeploy(args, dependencies = defaultDependencies()) {
       allowCurrentRemote: true,
     });
     requireSignedSourceClosure(dependencies, beforeTrust, firstCommit);
+    preflightAbandonedIdentities(dependencies, before);
     const observedRemote = readRemoteMain(dependencies);
     if (observedRemote === firstCommit) {
       const evidence = runPublicVerification(
@@ -364,6 +367,14 @@ function validateTrustReport(
   trustSet,
   { validateCurrentPackages = true } = {},
 ) {
+  if (
+    trustSet === ABANDONED_PREPUBLICATION_SET_ID ||
+    report?.disposition === "evidence-only"
+  ) {
+    throw new DeployBlocked(
+      `trust set ${trustSet} is abandoned evidence-only and cannot be deployed`,
+    );
+  }
   if (
     report === null ||
     typeof report !== "object" ||
@@ -723,6 +734,7 @@ function requireSignedSourceClosure(dependencies, trust, currentCommit) {
       "--",
       "forms/releases",
       "forms/retained-packages.json",
+      "forms/trust/abandoned-prepublication.json",
       "forms/revocations",
       "forms/candidates/current-family-index.json",
       "forms/candidates/edge.forms.takoform.com",
@@ -750,6 +762,7 @@ function requireSignedSourceClosure(dependencies, trust, currentCommit) {
       "scripts/form-publication.mjs",
       "forms/trust/publisher-policy.json",
       "forms/trust/trusted-root.json",
+      "forms/trust/abandoned-prepublication.json",
     ],
     "publisher trust verifier or authority inputs changed after the signed source",
   );
@@ -1162,6 +1175,56 @@ function preflightPackageTagInventory(dependencies, plan, trust) {
     ) {
       throw new DeployBlocked(
         `retained package tag ${entry.tag} Core locator differs from the exact inventory`,
+      );
+    }
+  }
+}
+
+/**
+ * Evidence-only recovery roots are retained in the release tree for audit and
+ * readback, but their abandoned set/package tags must never enter the public
+ * tag inventory. Prove those four immutable refs absent before the owner gate
+ * and before any push. A non-zero remote/local result is only acceptable when
+ * it is the ordinary "not found" status; uncertainty fails closed.
+ */
+function preflightAbandonedIdentities(dependencies, plan) {
+  const entries = plan.evidenceOnlyPackages ?? [];
+  const forbiddenTags = [
+    ABANDONED_PREPUBLICATION_SET_TAG,
+    ...entries.map((entry) => entry.tag),
+  ];
+  for (const tag of forbiddenTags) {
+    const local = runDependency(dependencies, "git", [
+      "show-ref",
+      "--verify",
+      "--quiet",
+      `refs/tags/${tag}`,
+    ]);
+    if (local.exitCode === 0) {
+      throw new DeployBlocked(
+        `local abandoned evidence-only tag ${tag} already exists`,
+      );
+    }
+    if (local.exitCode !== 1) {
+      throw new DeployBlocked(
+        `cannot prove local abandoned evidence-only tag ${tag} is absent${commandDetail(local) ? `:\n${commandDetail(local)}` : ""}`,
+      );
+    }
+    const remote = requireSuccess(
+      dependencies,
+      "git",
+      [
+        "ls-remote",
+        "--tags",
+        "origin",
+        `refs/tags/${tag}`,
+        `refs/tags/${tag}^{}`,
+      ],
+      `cannot inspect remote abandoned evidence-only tag ${tag}`,
+    );
+    if (remote !== "") {
+      throw new DeployBlocked(
+        `remote abandoned evidence-only tag ${tag} already exists`,
       );
     }
   }
@@ -1801,7 +1864,9 @@ export function verifyPublicPublication(
     currentPackageCount: plan.formCount,
     releaseRootCount:
       plan.releaseRootCount ??
-      plan.formCount + (plan.retainedPackages ?? []).length,
+      plan.formCount +
+        (plan.retainedPackages ?? []).length +
+        (plan.evidenceOnlyPackages ?? []).length,
     releaseTagCount: plan.formCount + (plan.retainedPackages ?? []).length,
     tagCount: plan.formCount,
     tags: plan.forms.map((form) => ({
@@ -1820,11 +1885,18 @@ export function verifyPublicPublication(
       sourcePath: retained.sourcePath,
       packageDigest: retained.packageDigest,
     })),
+    evidenceOnlyPackages: (plan.evidenceOnlyPackages ?? []).map((evidence) => ({
+      releaseId: evidence.releaseId,
+      artifactId: evidence.artifactId,
+      sourcePath: evidence.sourcePath,
+      packageDigest: evidence.packageDigest,
+      formRef: evidence.formRef,
+    })),
     postConditions: [
       "PUBLIC_MAIN_READBACK",
       "SIGNED_SET_TAG_READBACK",
       "APPEND_ONLY_REVOCATION_TAG_CHAIN_READBACK",
-      "ALL_19_RELEASE_ROOT_AND_TAGGED_PACKAGE_BYTES_READBACK",
+      "ALL_22_RELEASE_ROOTS_AND_19_TAGGED_PACKAGE_BYTES_READBACK",
       "FRESH_TREE_BYTE_COMPARISON",
       "CORE_V1_1_0_PACKAGE_TRUST_REVOCATION_VERIFICATION",
     ],
@@ -1846,6 +1918,27 @@ function verifyFetchedReleaseTree(
         kind: form.kind,
         locator: form.locator,
         packageDigest: form.packageDigest,
+      },
+      fetchedRoot,
+      localRoot,
+      dependencies,
+      mutationStarted,
+      expected,
+    );
+  }
+  for (const evidence of plan.evidenceOnlyPackages ?? []) {
+    verifyFetchedReleaseRoot(
+      {
+        kind: evidence.formRef.kind,
+        locator: {
+          apiVersion: "packages.forms.takoform.com/v1alpha5",
+          releaseId: evidence.releaseId,
+          artifactId: evidence.artifactId,
+          tag: evidence.tag,
+          sourcePath: evidence.sourcePath,
+        },
+        packageDigest: evidence.packageDigest,
+        formRef: evidence.formRef,
       },
       fetchedRoot,
       localRoot,
@@ -2056,6 +2149,18 @@ function assertPlansEqual(before, after) {
       "retained publication inventory changed during the owner gate",
     );
   }
+  const evidenceOnly = (plan) =>
+    (plan.evidenceOnlyPackages ?? [])
+      .map(
+        (entry) =>
+          `${entry.tag}:${entry.sourcePath}:${entry.packageDigest}:${JSON.stringify(entry.formRef)}`,
+      )
+      .join("\n");
+  if (evidenceOnly(before) !== evidenceOnly(after)) {
+    throw new DeployBlocked(
+      "abandoned evidence-only publication inventory changed during the owner gate",
+    );
+  }
 }
 
 function assertTrustReportsEqual(before, after) {
@@ -2066,6 +2171,8 @@ function assertTrustReportsEqual(before, after) {
       family: report.family,
       setId: report.setId,
       setTag: report.setTag,
+      disposition: report.disposition ?? null,
+      evidenceOnlyPackages: report.evidenceOnlyPackages ?? [],
       packageCount: report.packageCount,
       publisherIdentity: report.publisherIdentity,
       sourceCommit: report.sourceCommit,
@@ -2103,10 +2210,18 @@ function dryRunEvidence(plan, trust, commit, missingPackageTags) {
     currentPackageCount: plan.formCount,
     releaseRootCount:
       plan.releaseRootCount ??
-      plan.formCount + (plan.retainedPackages ?? []).length,
+      plan.formCount +
+        (plan.retainedPackages ?? []).length +
+        (plan.evidenceOnlyPackages ?? []).length,
     releaseTagCount: plan.formCount + (plan.retainedPackages ?? []).length,
     tagCount: plan.formCount,
     tags: plan.forms.map((form) => form.locator.tag),
+    evidenceOnlyPackages: (plan.evidenceOnlyPackages ?? []).map((entry) => ({
+      tag: entry.tag,
+      sourcePath: entry.sourcePath,
+      packageDigest: entry.packageDigest,
+      formRef: entry.formRef,
+    })),
     packageTagsToCreate: missingPackageTags,
     revocationTagToCreate: trust.revocationTag || null,
     status: "DRY_RUN_VERIFIED",

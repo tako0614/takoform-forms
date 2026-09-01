@@ -93,7 +93,7 @@ describe("Edge Form Package publication materialization", () => {
     });
 
     expect(checked.checked).toHaveLength(17);
-    expect(listPackageRoots(fixture)).toHaveLength(19);
+    expect(listPackageRoots(fixture)).toHaveLength(22);
     for (const snapshot of snapshots) {
       expect(
         snapshotTree(
@@ -138,7 +138,7 @@ describe("Edge Form Package publication materialization", () => {
     expect(() => writePublication({ root: fixture, verifyPackage })).toThrow(
       /retained release root is missing/,
     );
-    expect(listPackageRoots(fixture)).toHaveLength(1);
+    expect(listPackageRoots(fixture)).toHaveLength(4);
     expect(plan.retainedPackageCount).toBe(2);
   });
 
@@ -167,6 +167,39 @@ describe("Edge Form Package publication materialization", () => {
     expect(() =>
       derivePublicationPlan({ root: fixture, verifyPackage }),
     ).toThrow(/differs from the exact published identity/);
+  });
+
+  test("requires the one exact abandoned prepublication manifest", () => {
+    const fixture = makeFixture();
+    const manifestPath = path.join(
+      fixture,
+      "forms",
+      "trust",
+      "abandoned-prepublication.json",
+    );
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.evidenceOnlyPackages.pop();
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+    expect(() => derivePublicationPlan({ root: fixture })).toThrow(
+      /exactly 3 evidence-only/,
+    );
+
+    const expanded = JSON.parse(
+      readFileSync(
+        path.join(
+          repositoryRoot,
+          "forms",
+          "trust",
+          "abandoned-prepublication.json",
+        ),
+        "utf8",
+      ),
+    );
+    expanded.extra = true;
+    writeFileSync(manifestPath, `${JSON.stringify(expanded, null, 2)}\n`);
+    expect(() => derivePublicationPlan({ root: fixture })).toThrow(
+      /exactly 3 evidence-only/,
+    );
   });
 });
 
@@ -198,6 +231,26 @@ function makeFixture() {
   for (const entry of JSON.parse(
     readFileSync(path.join(fixture, "forms", "retained-packages.json"), "utf8"),
   ).packages) {
+    const source = path.join(repositoryRoot, entry.sourcePath);
+    const target = path.join(fixture, entry.sourcePath);
+    cpSync(source, target, { recursive: true });
+  }
+  mkdirSync(path.join(fixture, "forms", "trust"), { recursive: true });
+  cpSync(
+    path.join(
+      repositoryRoot,
+      "forms",
+      "trust",
+      "abandoned-prepublication.json",
+    ),
+    path.join(fixture, "forms", "trust", "abandoned-prepublication.json"),
+  );
+  for (const entry of JSON.parse(
+    readFileSync(
+      path.join(fixture, "forms", "trust", "abandoned-prepublication.json"),
+      "utf8",
+    ),
+  ).evidenceOnlyPackages) {
     const source = path.join(repositoryRoot, entry.sourcePath);
     const target = path.join(fixture, entry.sourcePath);
     cpSync(source, target, { recursive: true });

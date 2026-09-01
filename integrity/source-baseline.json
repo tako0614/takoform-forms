@@ -14,7 +14,7 @@
   "files": {
     "bindings/candidates/v1alpha2/candidate-set.json": {
       "bytes": 1384,
-      "sha256": "b869c330961f98c2590fa095307163bb0995c3a7b054dfe447d10188001e3b78"
+      "sha256": "ed725f798c2079c074a5a19e22d3494d920e5b46f85f11eea6c1e3c098a065fd"
     },
     "bindings/candidates/v1alpha2/module-worker.actor/definition.json": {
       "bytes": 2136,
@@ -25,8 +25,8 @@
       "sha256": "b15d9369b0fd0bcbe9464d1098f9ddab92793cd651e7d465623d579f2f7ff230"
     },
     "bindings/candidates/v1alpha2/module-worker.object-bucket/definition.json": {
-      "bytes": 5019,
-      "sha256": "22a07afe9b9fcc9847c5e63dd304c0ed5f55f83687b7aaf6f02e852abf74bda3"
+      "bytes": 5034,
+      "sha256": "e30b6d05b7a74632fd70527cf14510192c24a58b879d26a37d1276d39ccb576a"
     },
     "bindings/candidates/v1alpha2/module-worker.queue-producer/definition.json": {
       "bytes": 1728,
@@ -118,7 +118,7 @@
     },
     "forms/candidates/current-family-index.json": {
       "bytes": 673,
-      "sha256": "bb07b9f9b995b08e9052814698c0b9e29e953afbd4009a0c28439ede60f1b400"
+      "sha256": "9eecc0732fbb8595bd1c84827f256ed7f68258f5d4658799fb3ae049607976ea"
     },
     "forms/candidates/edge.forms.takoform.com/actor-namespace/definition.json": {
       "bytes": 5052,
@@ -182,7 +182,7 @@
     },
     "forms/candidates/edge.forms.takoform.com/candidate-set.json": {
       "bytes": 8756,
-      "sha256": "7a4d12e7aa21a6c8efd37172a0f50c09974fd3c533c6fd6fc07a9c7324d657ea"
+      "sha256": "02dcede7086df8fdf1513c3f47bb4ee011eed8f0812d601d38d942b2d6da5ccf"
     },
     "forms/candidates/edge.forms.takoform.com/durable-workflow/definition.json": {
       "bytes": 5091,
@@ -250,7 +250,7 @@
     },
     "forms/candidates/edge.forms.takoform.com/object-bucket/definition.json": {
       "bytes": 2141,
-      "sha256": "583c49d165d6995b2b7fa2dc137218ef37cf7b0657dd9fc86832a9067ed123ee"
+      "sha256": "08b46ae23f383c3b66edd5316121e834c9c3799679d647bdaf47bc470d9afa4a"
     },
     "forms/candidates/edge.forms.takoform.com/object-bucket/fixtures/desired.json": {
       "bytes": 3,
@@ -262,7 +262,7 @@
     },
     "forms/candidates/edge.forms.takoform.com/object-bucket/package-index.json": {
       "bytes": 1006,
-      "sha256": "db824f852ebdacc347297170a1b8c5bcef1dba8330882fd0617c1cb1d1286b4b"
+      "sha256": "cce99c541e80a46be2ca3f96d23eb879a80638f2d4d5470080cb03592add700d"
     },
     "forms/candidates/edge.forms.takoform.com/queue-consumer/definition.json": {
       "bytes": 10957,
@@ -526,7 +526,7 @@
     },
     "forms/candidates/edge.forms.takoform.com/worker-deployment/definition.json": {
       "bytes": 5836,
-      "sha256": "b4c282b2c1c0d3d57c25eb19f0ad01217a79038fc528643bcfe99fb97b9fff1d"
+      "sha256": "ce97f83acdcfcb8b440b1aae76928b9b46424381a29533689e7b9c49cb1c1603"
     },
     "forms/candidates/edge.forms.takoform.com/worker-deployment/fixtures/desired.json": {
       "bytes": 327,
@@ -562,7 +562,7 @@
     },
     "forms/candidates/edge.forms.takoform.com/worker-deployment/package-index.json": {
       "bytes": 2307,
-      "sha256": "1f14ea08976ad134a6f3599bc595ce2d198ec1be1710f2b982c4ba7a65479b23"
+      "sha256": "6de3aa22d2e838090407e663317f75968614c8bed7864137f8beaf7abddd376e"
     },
     "forms/candidates/edge.forms.takoform.com/worker-endpoint/definition.json": {
       "bytes": 7867,
@@ -590,7 +590,7 @@
     },
     "forms/candidates/edge.forms.takoform.com/worker-version/definition.json": {
       "bytes": 32831,
-      "sha256": "41cafbc9c682454a407df4ee7f49282eeb44b3b18200591ab2e5b90773f20a9a"
+      "sha256": "3ec4c3d368139cac4f8fbb663ac04049baec7dd655c376c4c939e86fb498d1d2"
     },
     "forms/candidates/edge.forms.takoform.com/worker-version/fixtures/desired.json": {
       "bytes": 2262,
@@ -678,7 +678,7 @@
     },
     "forms/candidates/edge.forms.takoform.com/worker-version/package-index.json": {
       "bytes": 5241,
-      "sha256": "afda19abacda1fd1562cb71eaa8e6bd5665dbc814db9cf9ecd6ef8704c33c4b4"
+      "sha256": "71914f67d6e1f8287c578b19594a0d20f03665220fb28e443b54da3b61728f0c"
     },
     "forms/retained-packages.json": {
       "bytes": 1863,
@@ -686,15 +686,15 @@
     },
     "interfaces/candidates/v1alpha1/candidate-set.json": {
       "bytes": 1475,
-      "sha256": "f9c9ca731a806bf75e5aa55da881bc445141fd591c34077d1aaf908fc2473722"
+      "sha256": "2a66a036d0393c4acd37541bdd3ebaa879b897c5bdbe325f02ee2aa69ae4a402"
     },
     "interfaces/candidates/v1alpha1/edge.kv/definition.json": {
       "bytes": 12330,
       "sha256": "8977362aef4ed2111b89e10e0bebfceb231b1bd183dc7ea678764bf62417b03e"
     },
     "interfaces/candidates/v1alpha1/edge.objects/definition.json": {
-      "bytes": 24645,
-      "sha256": "9ed92ab83cf13031f7ba65bf22c860cf81a60f2b2c1c154ad8355234db44552f"
+      "bytes": 24768,
+      "sha256": "fb7ae9e44e808c5be710698fbfbae5b7570d90d947bfd81c2d9707eb56397954"
     },
     "interfaces/candidates/v1alpha1/edge.queue/definition.json": {
       "bytes": 13268,

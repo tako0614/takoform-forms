@@ -2,9 +2,20 @@
 
 This directory owns public publisher inputs and immutable signed evidence for
 the 17 current Edge Form Packages. It does not grant Host support or
-admission. Publication separately retains two exact historical package roots,
-so the release tree and tag readback contain 19 roots without adding them as
-signed subjects.
+admission. The signed set
+`cdd30b711e2c6857b1b4d247b1471f5676904933` is cryptographically verified but
+is explicitly abandoned as `evidence-only`: three package identities changed
+before publication. The exact old ObjectBucket, WorkerDeployment, and
+WorkerVersion roots are listed in
+[`abandoned-prepublication.json`](abandoned-prepublication.json) and remain
+in `forms/releases` for audit/readback only. Together with the two retained
+roots, the local release tree has 22 roots; only 19 current/retained roots
+receive package tags.
+
+The abandoned record is a one-time singleton format. A second abandoned set
+requires a new format and an explicit architecture decision; do not append
+another set to this manifest. The abandoned set tag and its three old package
+tags must remain absent locally and remotely, and deployment rejects the set.
 
 `publisher-policy.json` pins the exact GitHub Actions OIDC issuer, repository,
 workflow, and `refs/heads/main` identity accepted for this publisher.
@@ -59,10 +70,11 @@ complete, tagged, or public set is never removed; repair is a new signed source
 commit and set. See the
 [operator runbook](../../docs/revocation-advancement.md#recover-an-interrupted-local-install).
 
-The deploy surface requires one installed set and performs the same
-credential-free verification after public readback. It verifies the 17 current
-signed package subjects plus the two retained release roots (19 immutable
-roots/tags total). The package tags remain
+The deploy surface requires one installed non-abandoned set and performs the
+same credential-free verification after public readback. It verifies the 17
+current signed package subjects, the two retained release roots, and the three
+untagged abandoned evidence-only roots (22 immutable roots locally; 19
+publishable package tags). The package tags remain
 the Core-derived content identities and may retain their older immutable Git
 commit when the tagged package bytes exactly match the signed source.
 `forms/sets/<source-commit>` identifies the signed publisher evidence closure.

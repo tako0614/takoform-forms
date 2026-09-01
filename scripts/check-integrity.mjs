@@ -12,6 +12,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const baselinePath = path.join(root, "integrity", "source-baseline.json");
 const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
 const failures = [];
+const abandonedPrepublicationRelative =
+  "forms/trust/abandoned-prepublication.json";
+const supplementalIntegrityPaths = [abandonedPrepublicationRelative];
 
 if (baseline.format !== "takoform-forms.source-baseline@v1") {
   failures.push(
@@ -49,6 +52,9 @@ function pathUnderRoot(relative, label) {
 }
 
 const expectedPaths = Object.keys(baseline.files ?? {}).sort();
+const expectedIntegrityPaths = [
+  ...new Set([...expectedPaths, ...supplementalIntegrityPaths]),
+].sort();
 for (const relative of expectedPaths) {
   const expected = baseline.files[relative];
   const absolute = pathUnderRoot(relative, "baseline path");
@@ -94,12 +100,12 @@ const trackedRoots = [
 ];
 const actualPaths = trackedRoots
   .flatMap((relative) => walk(path.join(root, relative), relative))
-  .concat("forms/retained-packages.json")
+  .concat("forms/retained-packages.json", ...supplementalIntegrityPaths)
   .sort();
-if (actualPaths.join("\n") !== expectedPaths.join("\n")) {
-  const expected = new Set(expectedPaths);
+if (actualPaths.join("\n") !== expectedIntegrityPaths.join("\n")) {
+  const expected = new Set(expectedIntegrityPaths);
   const actual = new Set(actualPaths);
-  for (const relative of expectedPaths)
+  for (const relative of expectedIntegrityPaths)
     if (!actual.has(relative))
       failures.push(`${relative}: baseline path is not present`);
   for (const relative of actualPaths)
@@ -268,6 +274,143 @@ if (!existsSync(retainedInventoryPath)) {
     !retainedKeys.has("WorkerDeployment@0.1.0")
   ) {
     failures.push("retained package inventory identities drift");
+  }
+}
+
+const abandonedPrepublicationPath = path.join(
+  root,
+  abandonedPrepublicationRelative,
+);
+const expectedAbandonedPrepublication = [
+  {
+    formRef: {
+      apiVersion: "edge.forms.takoform.com",
+      kind: "ObjectBucket",
+      definitionVersion: "0.1.0",
+      schemaDigest:
+        "sha256:eeda7b2fe4450bdd2301a348c27d7ade81b0a94bf9708655875329d72f902c57",
+    },
+    packageDigest:
+      "sha256:52a0cd0b11d35fbf8ab57ac7d5717f550efa77a2b20997b8ac0abdf3e4752200",
+    releaseId: "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2pmjvgky3uij2wg23foq",
+    artifactId:
+      "sha256-52a0cd0b11d35fbf8ab57ac7d5717f550efa77a2b20997b8ac0abdf3e4752200",
+  },
+  {
+    formRef: {
+      apiVersion: "edge.forms.takoform.com",
+      kind: "WorkerDeployment",
+      definitionVersion: "0.2.0",
+      schemaDigest:
+        "sha256:247d64335cbff296efc0298aa6811f299714fe7187d29aec6f73ed734e978756",
+    },
+    packageDigest:
+      "sha256:f90f1b86cc9311d9457cd1cf0d665e6a310367d52e3f8e8c5c6c5acff842526d",
+    releaseId:
+      "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlsirsxa3dppfwwk3tu",
+    artifactId:
+      "sha256-f90f1b86cc9311d9457cd1cf0d665e6a310367d52e3f8e8c5c6c5acff842526d",
+  },
+  {
+    formRef: {
+      apiVersion: "edge.forms.takoform.com",
+      kind: "WorkerVersion",
+      definitionVersion: "0.3.0",
+      schemaDigest:
+        "sha256:e82dce714f8b623ca926379c855ee9e314c83262e5564828ccc37be2dbe05820",
+    },
+    packageDigest:
+      "sha256:d1ccfb0b47a4110f4ffbe6e842433639b1114feb11d5a690c9dc2ee1f938dd52",
+    releaseId: "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlskzsxe43jn5xa",
+    artifactId:
+      "sha256-d1ccfb0b47a4110f4ffbe6e842433639b1114feb11d5a690c9dc2ee1f938dd52",
+  },
+];
+if (!existsSync(abandonedPrepublicationPath)) {
+  failures.push("abandoned prepublication manifest is missing");
+} else {
+  let abandoned;
+  try {
+    abandoned = JSON.parse(readFileSync(abandonedPrepublicationPath, "utf8"));
+  } catch (error) {
+    failures.push(
+      `abandoned prepublication manifest is not valid JSON: ${error.message}`,
+    );
+  }
+  if (abandoned) {
+    if (
+      Object.keys(abandoned).sort().join(",") !==
+        "disposition,evidenceOnlyPackages,family,format,setId,setTag" ||
+      abandoned.format !== "takoform.abandoned-prepublication@v1" ||
+      abandoned.family !== "edge.forms.takoform.com" ||
+      abandoned.setId !== "cdd30b711e2c6857b1b4d247b1471f5676904933" ||
+      abandoned.setTag !==
+        "forms/sets/cdd30b711e2c6857b1b4d247b1471f5676904933" ||
+      abandoned.disposition !== "evidence-only" ||
+      !Array.isArray(abandoned.evidenceOnlyPackages) ||
+      abandoned.evidenceOnlyPackages.length !==
+        expectedAbandonedPrepublication.length
+    ) {
+      failures.push("abandoned prepublication manifest format/count drift");
+    } else {
+      const seen = new Set();
+      for (const entry of abandoned.evidenceOnlyPackages) {
+        const key = `${entry.formRef?.kind}@${entry.formRef?.definitionVersion}`;
+        const expected = expectedAbandonedPrepublication.find(
+          (candidate) =>
+            `${candidate.formRef.kind}@${candidate.formRef.definitionVersion}` ===
+            key,
+        );
+        const expectedArtifact = String(entry.packageDigest ?? "").replace(
+          ":",
+          "-",
+        );
+        const expectedTag = `forms/${entry.releaseId}/${entry.artifactId}`;
+        const expectedSourcePath = `forms/releases/${entry.releaseId}/${entry.artifactId}`;
+        if (
+          !expected ||
+          seen.has(key) ||
+          Object.keys(entry).sort().join(",") !==
+            "artifactId,formRef,packageDigest,releaseId,sourcePath,tag" ||
+          JSON.stringify(entry.formRef) !== JSON.stringify(expected.formRef) ||
+          entry.packageDigest !== expected.packageDigest ||
+          entry.releaseId !== expected.releaseId ||
+          entry.artifactId !== expected.artifactId ||
+          entry.tag !== expectedTag ||
+          entry.sourcePath !== expectedSourcePath ||
+          entry.artifactId !== expectedArtifact ||
+          !isSafeRelative(entry.sourcePath)
+        ) {
+          failures.push(
+            `abandoned prepublication package ${key}: identity drift`,
+          );
+          continue;
+        }
+        seen.add(key);
+        const packageIndexPath = path.join(
+          root,
+          entry.sourcePath,
+          "package-index.json",
+        );
+        if (!existsSync(packageIndexPath)) {
+          failures.push(
+            `abandoned prepublication package ${key}: package index is missing`,
+          );
+          continue;
+        }
+        const packageIndex = JSON.parse(readFileSync(packageIndexPath, "utf8"));
+        if (
+          JSON.stringify(packageIndex.formRef) !== JSON.stringify(entry.formRef)
+        ) {
+          failures.push(
+            `abandoned prepublication package ${key}: FormRef drift`,
+          );
+        }
+      }
+      if (seen.size !== expectedAbandonedPrepublication.length) {
+        failures.push("abandoned prepublication manifest identities drift");
+      }
+    }
   }
 }
 

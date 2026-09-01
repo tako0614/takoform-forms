@@ -23,28 +23,33 @@ import (
 )
 
 const (
-	Family                    = "edge.forms.takoform.com"
-	ExpectedPackageCount      = 17
-	CoreVersion               = "v1.1.0"
-	SigningRequiredStatus     = "signing-required"
-	VerifiedPublicationStatus = "verified"
-	GenesisMode               = "genesis"
-	AdvancementMode           = "advancement"
-	PublisherRepository       = "https://github.com/tako0614/takoform-forms"
-	PublisherWorkflow         = PublisherRepository + "/.github/workflows/form-package-signing.yml"
-	PublisherRef              = "refs/heads/main"
-	PublisherPolicyPath       = "publisher-policy.json"
-	TrustedRootPath           = "trusted-root.json"
-	RevocationCheckpointPath  = "revocations/checkpoint.json"
-	RevocationBundlePath      = "revocations/checkpoint.sigstore.json"
-	RevocationStatementsPath  = "revocations/statements"
-	RevocationHistoryPath     = "revocations/history/checkpoints"
-	PackageIndexName          = "package-index.json"
-	PackageBundleName         = "package-index.sigstore.json"
-	TrustSetsRelativePath     = "forms/trust/sets"
-	MaxRevocationSequence     = 1024
-	setTagPrefix              = "forms/sets/"
-	revocationTagPrefix       = "forms/revocations/v"
+	Family                             = "edge.forms.takoform.com"
+	ExpectedPackageCount               = 17
+	CoreVersion                        = "v1.1.0"
+	SigningRequiredStatus              = "signing-required"
+	VerifiedPublicationStatus          = "verified"
+	GenesisMode                        = "genesis"
+	AdvancementMode                    = "advancement"
+	PublisherRepository                = "https://github.com/tako0614/takoform-forms"
+	PublisherWorkflow                  = PublisherRepository + "/.github/workflows/form-package-signing.yml"
+	PublisherRef                       = "refs/heads/main"
+	PublisherPolicyPath                = "publisher-policy.json"
+	TrustedRootPath                    = "trusted-root.json"
+	RevocationCheckpointPath           = "revocations/checkpoint.json"
+	RevocationBundlePath               = "revocations/checkpoint.sigstore.json"
+	RevocationStatementsPath           = "revocations/statements"
+	RevocationHistoryPath              = "revocations/history/checkpoints"
+	PackageIndexName                   = "package-index.json"
+	PackageBundleName                  = "package-index.sigstore.json"
+	TrustSetsRelativePath              = "forms/trust/sets"
+	AbandonedPrepublicationPath        = "forms/trust/abandoned-prepublication.json"
+	AbandonedPrepublicationFormat      = "takoform.abandoned-prepublication@v1"
+	AbandonedPrepublicationDisposition = "evidence-only"
+	AbandonedPrepublicationSetID       = "cdd30b711e2c6857b1b4d247b1471f5676904933"
+	AbandonedPrepublicationSetTag      = "forms/sets/cdd30b711e2c6857b1b4d247b1471f5676904933"
+	MaxRevocationSequence              = 1024
+	setTagPrefix                       = "forms/sets/"
+	revocationTagPrefix                = "forms/revocations/v"
 )
 
 const (
@@ -52,6 +57,7 @@ const (
 	trustedRootSource              = "forms/trust/trusted-root.json"
 	candidateSetSource             = "forms/candidates/edge.forms.takoform.com/candidate-set.json"
 	retainedPackageInventorySource = "forms/retained-packages.json"
+	abandonedPrepublicationSource  = AbandonedPrepublicationPath
 	revocationSourceRoot           = "forms/revocations"
 	revocationSourceCheckpoints    = "forms/revocations/checkpoints"
 )
@@ -65,6 +71,28 @@ type retainedPackageInventory struct {
 }
 
 type retainedPackageEntry struct {
+	FormRef       formpackage.FormRef `json:"formRef"`
+	PackageDigest string              `json:"packageDigest"`
+	ReleaseID     string              `json:"releaseId"`
+	ArtifactID    string              `json:"artifactId"`
+	Tag           string              `json:"tag"`
+	SourcePath    string              `json:"sourcePath"`
+}
+
+// AbandonedPrepublicationRecord is the one-time recovery declaration for a
+// cryptographically verified set that is retained only as audit evidence.
+// It is intentionally a singleton format: adding another abandoned set
+// requires a new format and explicit architecture decision.
+type AbandonedPrepublicationRecord struct {
+	Format               string                           `json:"format"`
+	Family               string                           `json:"family"`
+	SetID                string                           `json:"setId"`
+	SetTag               string                           `json:"setTag"`
+	Disposition          string                           `json:"disposition"`
+	EvidenceOnlyPackages []AbandonedPrepublicationPackage `json:"evidenceOnlyPackages"`
+}
+
+type AbandonedPrepublicationPackage struct {
 	FormRef       formpackage.FormRef `json:"formRef"`
 	PackageDigest string              `json:"packageDigest"`
 	ReleaseID     string              `json:"releaseId"`
@@ -102,23 +130,25 @@ type PackageVerification struct {
 }
 
 type VerificationReport struct {
-	Status             string                                 `json:"status"`
-	CoreVersion        string                                 `json:"coreVersion"`
-	Family             string                                 `json:"family"`
-	SetID              string                                 `json:"setId"`
-	SetTag             string                                 `json:"setTag"`
-	PackageCount       int                                    `json:"packageCount"`
-	PublisherIdentity  string                                 `json:"publisherIdentity"`
-	SourceCommit       string                                 `json:"sourceCommit"`
-	WorkflowCommit     string                                 `json:"workflowCommit"`
-	BuildConfigCommit  string                                 `json:"buildConfigCommit"`
-	Checkpoint         trust.RevocationCheckpointVerification `json:"checkpoint"`
-	CheckpointHistory  []PreviousCheckpointVerification       `json:"checkpointHistory"`
-	PreviousCheckpoint *PreviousCheckpointVerification        `json:"previousCheckpoint,omitempty"`
-	RevocationTag      string                                 `json:"revocationTag,omitempty"`
-	RevocationTags     []string                               `json:"revocationTags"`
-	Statements         []RevocationStatementVerification      `json:"statements"`
-	Packages           []PackageVerification                  `json:"packages"`
+	Status               string                                 `json:"status"`
+	CoreVersion          string                                 `json:"coreVersion"`
+	Family               string                                 `json:"family"`
+	SetID                string                                 `json:"setId"`
+	SetTag               string                                 `json:"setTag"`
+	Disposition          string                                 `json:"disposition,omitempty"`
+	EvidenceOnlyPackages []AbandonedPrepublicationPackage       `json:"evidenceOnlyPackages,omitempty"`
+	PackageCount         int                                    `json:"packageCount"`
+	PublisherIdentity    string                                 `json:"publisherIdentity"`
+	SourceCommit         string                                 `json:"sourceCommit"`
+	WorkflowCommit       string                                 `json:"workflowCommit"`
+	BuildConfigCommit    string                                 `json:"buildConfigCommit"`
+	Checkpoint           trust.RevocationCheckpointVerification `json:"checkpoint"`
+	CheckpointHistory    []PreviousCheckpointVerification       `json:"checkpointHistory"`
+	PreviousCheckpoint   *PreviousCheckpointVerification        `json:"previousCheckpoint,omitempty"`
+	RevocationTag        string                                 `json:"revocationTag,omitempty"`
+	RevocationTags       []string                               `json:"revocationTags"`
+	Statements           []RevocationStatementVerification      `json:"statements"`
+	Packages             []PackageVerification                  `json:"packages"`
 }
 
 type PreviousCheckpointVerification struct {
@@ -190,6 +220,90 @@ type verifiedRevocationChain struct {
 type verifiedEvidence struct {
 	report      VerificationReport
 	revocations verifiedRevocationChain
+}
+
+// ReadAbandonedPrepublication validates the source-controlled one-time
+// recovery record. Every package locator is compared with an exact immutable
+// identity; a Core-valid historical root alone is not enough authority to be
+// classified as evidence-only.
+func ReadAbandonedPrepublication(repositoryRoot string) (AbandonedPrepublicationRecord, error) {
+	raw, err := readRegular(filepath.Join(repositoryRoot, filepath.FromSlash(abandonedPrepublicationSource)), "abandoned prepublication manifest")
+	if err != nil {
+		return AbandonedPrepublicationRecord{}, err
+	}
+	var record AbandonedPrepublicationRecord
+	if err := decodeStrict(raw, &record); err != nil {
+		return AbandonedPrepublicationRecord{}, fmt.Errorf("decode abandoned prepublication manifest: %w", err)
+	}
+	if record.Format != AbandonedPrepublicationFormat || record.Family != Family ||
+		record.SetID != AbandonedPrepublicationSetID ||
+		record.SetTag != AbandonedPrepublicationSetTag ||
+		record.Disposition != AbandonedPrepublicationDisposition ||
+		len(record.EvidenceOnlyPackages) != len(expectedAbandonedPrepublicationPackages()) {
+		return AbandonedPrepublicationRecord{}, fmt.Errorf("abandoned prepublication manifest must contain exactly %d evidence-only %s roots", len(expectedAbandonedPrepublicationPackages()), Family)
+	}
+	expected := expectedAbandonedPrepublicationPackages()
+	seen := make(map[string]struct{}, len(record.EvidenceOnlyPackages))
+	for _, entry := range record.EvidenceOnlyPackages {
+		key := entry.FormRef.Kind + "@" + entry.FormRef.DefinitionVersion
+		want, ok := expected[key]
+		if !ok {
+			return AbandonedPrepublicationRecord{}, fmt.Errorf("abandoned prepublication entry %s is not an exact abandoned identity", key)
+		}
+		if _, duplicate := seen[key]; duplicate {
+			return AbandonedPrepublicationRecord{}, fmt.Errorf("abandoned prepublication manifest repeats %s", key)
+		}
+		seen[key] = struct{}{}
+		if entry != want {
+			return AbandonedPrepublicationRecord{}, fmt.Errorf("abandoned prepublication entry %s differs from the exact abandoned identity", key)
+		}
+		if !formpackage.ValidDigest(entry.PackageDigest) || !safeRelative(entry.ReleaseID) ||
+			!safeRelative(entry.ArtifactID) || !safeRelative(entry.Tag) || !safeRelative(entry.SourcePath) {
+			return AbandonedPrepublicationRecord{}, fmt.Errorf("abandoned prepublication entry %s has an unsafe locator", key)
+		}
+	}
+	if len(seen) != len(expected) {
+		return AbandonedPrepublicationRecord{}, fmt.Errorf("abandoned prepublication manifest is missing one or more exact identities")
+	}
+	return record, nil
+}
+
+func expectedAbandonedPrepublicationPackages() map[string]AbandonedPrepublicationPackage {
+	return map[string]AbandonedPrepublicationPackage{
+		"ObjectBucket@0.1.0": {
+			FormRef: formpackage.FormRef{
+				APIVersion: Family, Kind: "ObjectBucket", DefinitionVersion: "0.1.0",
+				SchemaDigest: "sha256:eeda7b2fe4450bdd2301a348c27d7ade81b0a94bf9708655875329d72f902c57",
+			},
+			PackageDigest: "sha256:52a0cd0b11d35fbf8ab57ac7d5717f550efa77a2b20997b8ac0abdf3e4752200",
+			ReleaseID:     "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2pmjvgky3uij2wg23foq",
+			ArtifactID:    "sha256-52a0cd0b11d35fbf8ab57ac7d5717f550efa77a2b20997b8ac0abdf3e4752200",
+			Tag:           "forms/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2pmjvgky3uij2wg23foq/sha256-52a0cd0b11d35fbf8ab57ac7d5717f550efa77a2b20997b8ac0abdf3e4752200",
+			SourcePath:    "forms/releases/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2pmjvgky3uij2wg23foq/sha256-52a0cd0b11d35fbf8ab57ac7d5717f550efa77a2b20997b8ac0abdf3e4752200",
+		},
+		"WorkerDeployment@0.2.0": {
+			FormRef: formpackage.FormRef{
+				APIVersion: Family, Kind: "WorkerDeployment", DefinitionVersion: "0.2.0",
+				SchemaDigest: "sha256:247d64335cbff296efc0298aa6811f299714fe7187d29aec6f73ed734e978756",
+			},
+			PackageDigest: "sha256:f90f1b86cc9311d9457cd1cf0d665e6a310367d52e3f8e8c5c6c5acff842526d",
+			ReleaseID:     "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlsirsxa3dppfwwk3tu",
+			ArtifactID:    "sha256-f90f1b86cc9311d9457cd1cf0d665e6a310367d52e3f8e8c5c6c5acff842526d",
+			Tag:           "forms/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlsirsxa3dppfwwk3tu/sha256-f90f1b86cc9311d9457cd1cf0d665e6a310367d52e3f8e8c5c6c5acff842526d",
+			SourcePath:    "forms/releases/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlsirsxa3dppfwwk3tu/sha256-f90f1b86cc9311d9457cd1cf0d665e6a310367d52e3f8e8c5c6c5acff842526d",
+		},
+		"WorkerVersion@0.3.0": {
+			FormRef: formpackage.FormRef{
+				APIVersion: Family, Kind: "WorkerVersion", DefinitionVersion: "0.3.0",
+				SchemaDigest: "sha256:e82dce714f8b623ca926379c855ee9e314c83262e5564828ccc37be2dbe05820",
+			},
+			PackageDigest: "sha256:d1ccfb0b47a4110f4ffbe6e842433639b1114feb11d5a690c9dc2ee1f938dd52",
+			ReleaseID:     "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlskzsxe43jn5xa",
+			ArtifactID:    "sha256-d1ccfb0b47a4110f4ffbe6e842433639b1114feb11d5a690c9dc2ee1f938dd52",
+			Tag:           "forms/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlskzsxe43jn5xa/sha256-d1ccfb0b47a4110f4ffbe6e842433639b1114feb11d5a690c9dc2ee1f938dd52",
+			SourcePath:    "forms/releases/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlskzsxe43jn5xa/sha256-d1ccfb0b47a4110f4ffbe6e842433639b1114feb11d5a690c9dc2ee1f938dd52",
+		},
+	}
 }
 
 // validateRevocationAdvancement binds one exact canonical statement to the
@@ -493,7 +607,74 @@ func VerifyPublishedSet(repositoryRoot, setRoot string) (VerificationReport, err
 	if err != nil {
 		return VerificationReport{}, err
 	}
+	if verified.report.SetID == AbandonedPrepublicationSetID {
+		if err := classifyAbandonedPrepublication(repositoryRoot, &verified); err != nil {
+			return VerificationReport{}, err
+		}
+	}
 	return verified.report, nil
+}
+
+func classifyAbandonedPrepublication(repositoryRoot string, verified *verifiedEvidence) error {
+	record, err := ReadAbandonedPrepublication(repositoryRoot)
+	if err != nil {
+		return err
+	}
+	if record.SetID != verified.report.SetID || record.SetTag != verified.report.SetTag {
+		return fmt.Errorf("abandoned prepublication manifest set identity differs from the verified publisher set")
+	}
+	current, err := discoverCurrentPackageIdentities(repositoryRoot)
+	if err != nil {
+		return err
+	}
+	if err := verifyRetainedPackageInventory(repositoryRoot); err != nil {
+		return err
+	}
+	retained, err := readRetainedPackageEntries(repositoryRoot)
+	if err != nil {
+		return err
+	}
+	currentKeys := make(map[string]struct{}, len(current))
+	for _, packageValue := range current {
+		currentKeys[packageIdentityKey(packageValue.candidate.FormRef, packageValue.candidate.PackageDigest, packageValue.locator)] = struct{}{}
+	}
+	retainedKeys := make(map[string]struct{}, len(retained))
+	for _, entry := range retained {
+		retainedKeys[packageIdentityKey(entry.FormRef, entry.PackageDigest, formpackage.PublicationLocator{
+			APIVersion: "packages.forms.takoform.com/v1alpha5", ReleaseID: entry.ReleaseID,
+			ArtifactID: entry.ArtifactID, Tag: entry.Tag, SourcePath: entry.SourcePath,
+		})] = struct{}{}
+	}
+	expected := make(map[string]AbandonedPrepublicationPackage, len(record.EvidenceOnlyPackages))
+	for _, entry := range record.EvidenceOnlyPackages {
+		expected[packageIdentityKey(entry.FormRef, entry.PackageDigest, formpackage.PublicationLocator{
+			APIVersion: "packages.forms.takoform.com/v1alpha5", ReleaseID: entry.ReleaseID,
+			ArtifactID: entry.ArtifactID, Tag: entry.Tag, SourcePath: entry.SourcePath,
+		})] = entry
+	}
+	found := make(map[string]struct{}, len(expected))
+	for _, packageReport := range verified.report.Packages {
+		key := packageIdentityKey(packageReport.FormRef, packageReport.PackageDigest, packageReport.Locator)
+		if _, ok := currentKeys[key]; ok {
+			continue
+		}
+		if _, ok := retainedKeys[key]; ok {
+			continue
+		}
+		if _, ok := expected[key]; !ok {
+			return fmt.Errorf("verified abandoned set package %s is neither current, retained, nor an exact evidence-only identity", packageReport.Kind)
+		}
+		if _, duplicate := found[key]; duplicate {
+			return fmt.Errorf("verified abandoned set repeats evidence-only package %s", packageReport.Kind)
+		}
+		found[key] = struct{}{}
+	}
+	if len(found) != len(expected) {
+		return fmt.Errorf("verified abandoned set evidence-only package set differs from the exact manifest")
+	}
+	verified.report.Disposition = record.Disposition
+	verified.report.EvidenceOnlyPackages = append([]AbandonedPrepublicationPackage(nil), record.EvidenceOnlyPackages...)
+	return nil
 }
 
 func verifyPublishedSetEvidence(repositoryRoot, setRoot string) (verifiedEvidence, error) {
@@ -823,6 +1004,83 @@ func discoverPublishedSetPackages(repositoryRoot, setRoot string) ([]verifiedCan
 	}
 	sort.Slice(verified, func(left, right int) bool { return verified[left].locator.Tag < verified[right].locator.Tag })
 	return verified, nil
+}
+
+// discoverCurrentPackageIdentities verifies only the candidate closures. It
+// intentionally does not require current release roots: abandoned-set
+// classification runs before publication materializes the new identities.
+func discoverCurrentPackageIdentities(repositoryRoot string) ([]verifiedCandidate, error) {
+	raw, err := readRegular(filepath.Join(repositoryRoot, filepath.FromSlash(candidateSetSource)), "Edge candidate set")
+	if err != nil {
+		return nil, err
+	}
+	var candidates candidateSet
+	if err := decodeStrict(raw, &candidates); err != nil {
+		return nil, fmt.Errorf("decode Edge candidate set: %w", err)
+	}
+	if candidates.Format != "takoform.form-family-candidates@v1" || candidates.Family != Family || len(candidates.Forms) != ExpectedPackageCount {
+		return nil, fmt.Errorf("Edge candidate set must contain exactly %d packages for %s", ExpectedPackageCount, Family)
+	}
+	seen := make(map[string]struct{}, len(candidates.Forms))
+	verified := make([]verifiedCandidate, 0, len(candidates.Forms))
+	for _, candidate := range candidates.Forms {
+		if candidate.Kind == "" || candidate.Path == "" || !safeRelative(candidate.Path) || !strings.HasPrefix(candidate.Path, "forms/candidates/"+Family+"/") {
+			return nil, fmt.Errorf("%s candidate path is not an exact Edge package path", candidate.Kind)
+		}
+		candidateRoot := filepath.Join(repositoryRoot, filepath.FromSlash(candidate.Path))
+		report, err := formpackage.VerifyDirectory(candidateRoot)
+		if err != nil {
+			return nil, fmt.Errorf("Core %s candidate verification for %s: %w", CoreVersion, candidate.Kind, err)
+		}
+		capability, ok := report.VerifiedPackage()
+		if !ok {
+			return nil, fmt.Errorf("Core %s did not issue a verified package capability for %s", CoreVersion, candidate.Kind)
+		}
+		if report.PackageDigest != candidate.PackageDigest || report.FormRef != candidate.FormRef {
+			return nil, fmt.Errorf("%s candidate identity differs from the candidate set", candidate.Kind)
+		}
+		locator, err := formpackage.PublicationLocatorFor(capability.PackageIndex(), capability.PackageDigest())
+		if err != nil {
+			return nil, fmt.Errorf("Core %s publication locator for %s: %w", CoreVersion, candidate.Kind, err)
+		}
+		key := packageIdentityKey(candidate.FormRef, candidate.PackageDigest, locator)
+		if _, duplicate := seen[key]; duplicate {
+			return nil, fmt.Errorf("duplicate current package identity %s", candidate.Kind)
+		}
+		seen[key] = struct{}{}
+		indexRaw, err := readRegular(filepath.Join(candidateRoot, PackageIndexName), candidate.Kind+" candidate package index")
+		if err != nil {
+			return nil, err
+		}
+		canonical, err := formpackage.Canonicalize(indexRaw)
+		if err != nil {
+			return nil, fmt.Errorf("Core %s canonicalize %s candidate package index: %w", CoreVersion, candidate.Kind, err)
+		}
+		verified = append(verified, verifiedCandidate{candidate: candidate, locator: locator, releaseRoot: candidateRoot, canonicalIndex: canonical})
+	}
+	sort.Slice(verified, func(left, right int) bool { return verified[left].locator.Tag < verified[right].locator.Tag })
+	return verified, nil
+}
+
+func readRetainedPackageEntries(repositoryRoot string) ([]retainedPackageEntry, error) {
+	raw, err := readRegular(filepath.Join(repositoryRoot, filepath.FromSlash(retainedPackageInventorySource)), "retained package inventory")
+	if err != nil {
+		return nil, err
+	}
+	var inventory retainedPackageInventory
+	if err := decodeStrict(raw, &inventory); err != nil {
+		return nil, fmt.Errorf("decode retained package inventory: %w", err)
+	}
+	return inventory.Packages, nil
+}
+
+func packageIdentityKey(formRef formpackage.FormRef, packageDigest string, locator formpackage.PublicationLocator) string {
+	raw, _ := json.Marshal(struct {
+		FormRef       formpackage.FormRef            `json:"formRef"`
+		PackageDigest string                         `json:"packageDigest"`
+		Locator       formpackage.PublicationLocator `json:"locator"`
+	}{FormRef: formRef, PackageDigest: packageDigest, Locator: locator})
+	return string(raw)
 }
 
 func discoverPackages(repositoryRoot string) ([]verifiedCandidate, error) {

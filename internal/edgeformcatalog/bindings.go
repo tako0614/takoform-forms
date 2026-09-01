@@ -88,8 +88,8 @@ var bindingSpecs = []bindingSpec{
 		name:    "module-worker.object-bucket",
 		title:   "Module Worker object bucket binding",
 		version: "1.1.0",
-		description: "Projects the complete edge.objects runtime API into a Worker Version under one " +
-			"JavaScript-identifier binding name, without exposing credentials or endpoints. The exact methods " +
+		description: "Projects edge.objects into one Worker Version JavaScript binding without exposing credentials or endpoints. " +
+			"The exact methods " +
 			"are head(key), get(key, options?), put(key, body, options?), delete(key), list(options?), " +
 			"createMultipartUpload(key, options?), uploadPart(key, uploadId, partNumber, body, options?), " +
 			"completeMultipartUpload(key, uploadId, parts), and abortMultipartUpload(key, uploadId); each " +
@@ -110,7 +110,9 @@ var bindingSpecs = []bindingSpec{
 			"error name declared by that operation. A key outside the Interface UTF-8 byte budget is invalid_key; " +
 			"a schema-valid cursor the host does not recognize is invalid_cursor; an object-relative range that cannot " +
 			"be served is range_not_satisfiable; an unmet validator is precondition_failed; a completion with unordered, " +
-			"duplicate, non-uploaded, stale-etag, or undersized non-final parts is invalid_part; and an unknown upload is " +
+			"duplicate, non-uploaded, stale-etag, or undersized non-final parts is invalid_part; a completion with unequal-sized " +
+			"non-final parts is invalid_part; " +
+			"and an unknown upload is " +
 			"upload_not_found. Bodies are exactly a string " +
 			"(encoded as UTF-8), an ArrayBuffer, or a ReadableStream<Uint8Array>. For a string or ArrayBuffer, " +
 			"contentLength may be omitted and, when present, MUST equal the intrinsic byte length. For a " +

@@ -10,9 +10,12 @@ implement without changing its meaning.
 Interfaces, and 7 Bindings.
 
 The publisher signs 17 current package subjects. The append-only release tree
-contains those 17 current roots plus the two explicitly retained historical
-roots listed in [`forms/retained-packages.json`](forms/retained-packages.json),
-for 19 release roots and immutable tags in total.
+contains those 17 current roots, the two explicitly retained historical roots
+listed in [`forms/retained-packages.json`](forms/retained-packages.json), and
+three old roots listed in the one-time abandoned prepublication recovery
+manifest. That is 22 local release roots; only the 17 current and two retained
+roots have publishable package tags (19 tags total). The three abandoned roots
+are evidence-only and never receive tags.
 
 The current `module-worker.object-bucket@1.1.0` Binding projects the
 `edge.objects@1.0.0` API with length-aware streaming: `put` and `uploadPart`
@@ -88,8 +91,9 @@ forms/releases/<releaseId>/sha256-<digest>/
 forms/<releaseId>/sha256-<digest>
 ```
 
-`bun run write:publication` materializes missing release directories. It does
-not sign or publish them, and never rewrites the two retained roots. An exact
+`bun run write:publication` materializes missing current release directories.
+It does not sign or publish them, and never rewrites the two retained or three
+abandoned evidence-only roots. An exact
 protected-main commit is prepared for
 external keyless signing with:
 
@@ -125,7 +129,9 @@ bun run deploy -- form-packages-edge --trust-set <source-commit> --verify
 readback. Existing immutable package tags may point to an older commit only
 when their package paths are byte-identical to the signed source. Anonymous
 readback fetches every tag, compares those bytes, and reruns Core v1.1.0 over
-all 19 release roots (17 current plus two retained), bundles, the pinned publisher policy and trusted root, the signed
+all 22 local release roots (17 current, two retained, and three abandoned
+evidence-only roots), while the 19 publishable current/retained package tags,
+bundles, the pinned publisher policy and trusted root, the signed
 checkpoint, and every not-revoked decision. Changing package bytes creates a
 new digest, path, and package tag; changing publisher evidence creates a new
 `forms/sets/<source-commit>` identity.
@@ -139,9 +145,12 @@ retagging, update, and deletion all fail closed. See the
 [revocation advancement runbook](docs/revocation-advancement.md), including
 the safe partial-install recovery procedure.
 
-No signed set is checked in yet. Until an authorized OIDC signing run is
-verified and imported, `bun run check` verifies the empty pre-signing state and
-the deploy surface refuses every publication request.
+The checked-in `cdd30b711e2c6857b1b4d247b1471f5676904933` signed set is
+cryptographically verified but explicitly abandoned as evidence-only because
+three package identities were superseded before publication. Its set tag and
+the three old package tags must remain absent, and the deploy surface refuses
+that set. A future authorized OIDC signing run must produce and import a new
+set before publication.
 
 Core defines verification; this repo defines Edge contracts; providers map them;
 hosts implement them. Publication proves package bytes and identity, not Host
