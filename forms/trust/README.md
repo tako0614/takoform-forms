@@ -1,7 +1,10 @@
 # Signed publisher evidence
 
 This directory owns public publisher inputs and immutable signed evidence for
-the 16 Edge Form Packages. It does not grant Host support or admission.
+the 17 current Edge Form Packages. It does not grant Host support or
+admission. Publication separately retains two exact historical package roots,
+so the release tree and tag readback contain 19 roots without adding them as
+signed subjects.
 
 `publisher-policy.json` pins the exact GitHub Actions OIDC issuer, repository,
 workflow, and `refs/heads/main` identity accepted for this publisher.
@@ -21,7 +24,7 @@ version. That command accepts no caller checkpoint pin or evidence directory:
 it clones public `main` without credentials, verifies the exact public set and
 tag prefixes, replays the bounded signed checkpoint history, and copies the
 retained statements and signed checkpoints into the new request. The workflow
-adds one new checkpoint Sigstore v0.3 message-signature bundle and 16 current
+adds one new checkpoint Sigstore v0.3 message-signature bundle and 17 current
 package bundles. There is no separate statement bundle: the signed canonical
 checkpoint entry binds the exact canonical statement digest and identity. The
 workflow uploads a short-lived candidate and does not publish, tag, or write
@@ -34,7 +37,7 @@ bun run verify:trust -- --evidence <candidate> --expected-source-commit <commit>
 bun run install:trust -- --evidence <candidate> --expected-source-commit <commit>
 ```
 
-Install first reruns Core verification for all 16 exact package subjects and
+Install first reruns Core verification for all 17 exact package subjects and
 the complete signed checkpoint chain from genesis, checks every package is not
 revoked, requires one identical current publisher/root/source provenance, and
 only then creates
@@ -57,7 +60,9 @@ commit and set. See the
 [operator runbook](../../docs/revocation-advancement.md#recover-an-interrupted-local-install).
 
 The deploy surface requires one installed set and performs the same
-credential-free verification after public readback. The package tags remain
+credential-free verification after public readback. It verifies the 17 current
+signed package subjects plus the two retained release roots (19 immutable
+roots/tags total). The package tags remain
 the Core-derived content identities and may retain their older immutable Git
 commit when the tagged package bytes exactly match the signed source.
 `forms/sets/<source-commit>` identifies the signed publisher evidence closure.

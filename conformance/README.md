@@ -2,8 +2,12 @@
 
 This directory is the checked-in conformance corpus for the provider-neutral
 Form source. The active corpus is `takoform-v1/families/`: one fixture set for
-the current Edge-first versionless Form family and all 16 current Forms.
+the current Edge-first versionless Form family and all 17 current Forms.
 Fixtures are data, not a provider or Host implementation.
+
+This corpus describes the 17 current signed package subjects. The publisher's
+append-only release tree also retains two historical roots, which are tracked
+outside the conformance corpus in `forms/retained-packages.json`.
 
 Container, Function, Table, PullQueue, Topic, Schedule, and Vector Forms were
 unpublished candidates. They are deferred rather than released or deprecated

@@ -27,12 +27,13 @@ for the shared rules.
 | [ModuleWorker](candidates/edge.forms.takoform.com/module-worker/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/module-worker/package-index.json) | identity | `0.1.0` | Worker application identity and handler ABI. |
 | [WorkerBundle](candidates/edge.forms.takoform.com/worker-bundle/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/worker-bundle/package-index.json) | revision | `0.1.0` | Points to a module manifest by `manifestDigest`; the manifest inventories bytes. |
 | [StaticAssetBundle](candidates/edge.forms.takoform.com/static-asset-bundle/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/static-asset-bundle/package-index.json) | revision | `0.1.0` | Points to an asset manifest by `manifestDigest`; the manifest inventories bytes. |
-| [WorkerVersion](candidates/edge.forms.takoform.com/worker-version/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/worker-version/package-index.json) | revision | `0.2.0` | Executable worker snapshot and bindings. |
-| [WorkerDeployment](candidates/edge.forms.takoform.com/worker-deployment/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/worker-deployment/package-index.json) | deployment | `0.1.0` | Traffic weights across worker versions. |
+| [WorkerVersion](candidates/edge.forms.takoform.com/worker-version/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/worker-version/package-index.json) | revision | `0.3.0` | Executable worker snapshot and bindings. |
+| [WorkerDeployment](candidates/edge.forms.takoform.com/worker-deployment/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/worker-deployment/package-index.json) | deployment | `0.2.0` | Traffic weights across worker versions. |
 | [WorkerCustomDomain](candidates/edge.forms.takoform.com/worker-custom-domain/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/worker-custom-domain/package-index.json) | attachment | `0.1.0` | Attach a custom hostname to a worker. |
 | [WorkerEndpoint](candidates/edge.forms.takoform.com/worker-endpoint/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/worker-endpoint/package-index.json) | attachment | `0.1.0` | Give a worker a host-assigned HTTPS address. |
 | [WorkerCronTrigger](candidates/edge.forms.takoform.com/worker-cron-trigger/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/worker-cron-trigger/package-index.json) | attachment | `0.1.0` | Run a worker on a UTC cron schedule. |
 | [EdgeKVNamespace](candidates/edge.forms.takoform.com/edge-kv-namespace/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/edge-kv-namespace/package-index.json) | identity | `0.1.0` | Eventually consistent byte key/value store. |
+| [ObjectBucket](candidates/edge.forms.takoform.com/object-bucket/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/object-bucket/package-index.json) | identity | `0.1.0` | Strongly consistent streaming object store fixed by `edge.objects`. |
 | [SQLiteDatabase](candidates/edge.forms.takoform.com/sqlite-database/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/sqlite-database/package-index.json) | identity | `0.1.0` | SQLite database with Edge SQL semantics. |
 | [SQLiteMigrationSet](candidates/edge.forms.takoform.com/sqlite-migration-set/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/sqlite-migration-set/package-index.json) | revision | `0.1.0` | Ordered immutable migration files. |
 | [SQLiteMigrationApplication](candidates/edge.forms.takoform.com/sqlite-migration-application/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/sqlite-migration-application/package-index.json) | attachment | `0.1.0` | Apply one migration set to one database. |
@@ -52,6 +53,12 @@ content-addressed path and tag:
 forms/releases/<releaseId>/sha256-<digest>/
 forms/<releaseId>/sha256-<digest>
 ```
+
+The publisher signs 17 current package-index subjects. The append-only
+`forms/releases` tree and release-tag readback cover those 17 current roots
+plus the exact historical `WorkerVersion` 0.2.0 and `WorkerDeployment` 0.1.0
+roots recorded in [`retained-packages.json`](retained-packages.json), for 19
+release roots. The retained roots are immutable and are never rewritten.
 
 See the [root README](../README.md#preparing-and-publishing-packages) for
 generation, signing, verification, and publication commands. Package tags are

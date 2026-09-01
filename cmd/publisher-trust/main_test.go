@@ -28,7 +28,7 @@ func TestPrepareCommandEmitsSigningRequiredReport(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
 		t.Fatal(err)
 	}
-	if report.Status != publishertrust.SigningRequiredStatus || report.PackageCount != 16 {
+	if report.Status != publishertrust.SigningRequiredStatus || report.PackageCount != 17 {
 		t.Fatalf("unexpected report: %+v", report)
 	}
 }

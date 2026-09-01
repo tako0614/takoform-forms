@@ -6,12 +6,17 @@ one immutable revocation tag. It does not authorize signing or publication:
 the protected GitHub environment, an independent review, and the operator are
 separate authority boundaries.
 
-The workflow always signs 17 subjects: the new cumulative checkpoint and the
-current 16 canonical package indexes. It does not invent a statement
+The workflow always signs 18 subjects: the new cumulative checkpoint and the
+current 17 canonical package indexes. It does not invent a statement
 signature. Released Takoform Core v1.1.0 derives the checkpoint entry from the
 exact RFC 8785 canonical statement bytes; the signed checkpoint therefore
 binds its sequence, `statementVersion`, statement digest, package digest, and
 FormRef.
+
+The signed subject set remains 17 current packages. Publication and anonymous
+readback additionally require the two exact retained package roots recorded in
+`forms/retained-packages.json`, making 19 immutable release roots and tags; the
+retained roots are not extra signing subjects.
 
 `statementVersion` is an immutable trust-log identifier. It is not a third
 Takoform version axis and does not change API/Core SemVer or any Form's
@@ -90,7 +95,7 @@ bun run install:trust -- --evidence <candidate> --expected-source-commit <commit
 ```
 
 Verification must report the exact new sequence, new statement version,
-previous set ID, complete checkpoint history, 16 packages, and
+previous set ID, complete checkpoint history, 17 packages, and
 `forms/revocations/v<new-version>`. Commit the newly created
 `forms/trust/sets/<commit>/` directory normally. Never complete or overwrite a
 pre-existing directory in place.
@@ -107,7 +112,7 @@ bun run deploy -- form-packages-edge --trust-set <signed-source-commit> --dry-ru
 The dry-run must name:
 
 - the unique previous public set;
-- all 16 Core-derived package tags;
+- all 17 current Core-derived package tags and the two retained package tags;
 - the create-only `forms/sets/<signed-source-commit>` tag; and
 - exactly one new `forms/revocations/v<new-version>` tag.
 
@@ -127,15 +132,16 @@ bun run deploy -- form-packages-edge --trust-set <signed-source-commit> --verify
 The verifier clones public bytes without credentials, requires the exact set
 and revocation tag prefixes, pairs every sequence 1+ revocation tag with its
 atomic checkpoint-set publication, compares every tagged source path, replays
-the bounded Core checkpoint chain, and verifies all 16 packages are not
-revoked at the new head.
+the bounded Core checkpoint chain, verifies all 19 release roots and their
+tagged bytes, and verifies all 17 current packages are not revoked at the new
+head.
 
 ## 5. Settle a lost push acknowledgement
 
 If the atomic push command returns failure after mutation starts, its result is
 indeterminate. Do not delete, recreate, force, or manually move any ref. Rerun
 the exact same deploy command once. If public `main`, every set/revocation tag,
-all package tags, all bytes, and the signed Core report match exactly, the
+all 19 package tags and release root bytes, and the signed Core report match exactly, the
 command returns `PUBLISHED_SETTLED` without a second push. Any mismatch remains
 blocked for investigation and forward repair.
 

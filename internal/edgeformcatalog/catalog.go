@@ -26,12 +26,16 @@ var Family = model.Family{Group: "edge.forms.takoform.com"}
 const edgeDefinitionVersion = "0.1.0"
 
 // workerVersionDefinitionVersion is ahead of the rest of the generation
-// because Worker Version's contract GAINED a field in Beta 2 — the sealed
-// externalServices slot list (decisions 0043 and 0045) — rather than being the
-// v1beta1 contract re-identified under the new group. The identity says so
-// where a reader will see it: every other member carries 0.1.0, meaning "your
-// contract, re-addressed", and this one does not (decision 0046).
-const workerVersionDefinitionVersion = "0.2.0"
+// because Worker Version's contract gained the typed bucketBindings field.
+// The identity says so where a reader will see it: every other member carries
+// 0.1.0, meaning "your contract, re-addressed", and this one does not
+// (decision 0046).
+const workerVersionDefinitionVersion = "0.3.0"
+
+// workerDeploymentDefinitionVersion advances because its exact target FormRef
+// now points at WorkerVersion 0.3.0; keeping the old definition identity would
+// rewrite a published WorkerDeployment package in place.
+const workerDeploymentDefinitionVersion = "0.2.0"
 
 // stableHostLane is the exact Host lane for every current versionless Edge
 // Definition. The occupied beta4 lane remains retained history; current
@@ -47,7 +51,8 @@ func requiredLane(_ string) string { return stableHostLane }
 // must carry. A Form cannot drift off the line by accident, and one that is
 // meant to be off it cannot silently drift back on.
 var generationDefinitionVersions = map[string]string{
-	"WorkerVersion": workerVersionDefinitionVersion,
+	"WorkerVersion":    workerVersionDefinitionVersion,
+	"WorkerDeployment": workerDeploymentDefinitionVersion,
 }
 
 // ref renders one exact in-family cross-resource reference: the target group,
@@ -231,6 +236,7 @@ var Forms = []model.Form{
 			"(decision 0019).",
 		AcceptedBindings: []model.BindingRefSource{
 			{Name: "module-worker.edge-kv", Version: "1.0.0"},
+			{Name: "module-worker.object-bucket", Version: "1.1.0"},
 			{Name: "module-worker.sqlite", Version: "1.0.0"},
 			{Name: "module-worker.queue-producer", Version: "1.0.0"},
 			{Name: "module-worker.service", Version: "1.0.0"},
@@ -319,6 +325,12 @@ var Forms = []model.Form{
 				Default: []any{},
 				Doc:     "Typed module-worker.edge-kv bindings projecting the edge.kv API under JavaScript identifier names. Omitting it declares no such binding.",
 				Example: []any{bindingInstance("CACHE", "EdgeKVNamespace", "edge-kv-namespace")}},
+			{HCL: "bucket_bindings", Wire: "bucketBindings", Kind: model.KindBindingList,
+				TargetKind: "ObjectBucket", BindingType: "module-worker.object-bucket",
+				Target:  requiresInterface("edge.objects", "1.0.0"),
+				Default: []any{},
+				Doc:     "Typed module-worker.object-bucket bindings projecting the edge.objects API. Omitting it declares no such binding.",
+				Example: []any{bindingInstance("OBJECTS", "ObjectBucket", "object-bucket")}},
 			{HCL: "sqlite_bindings", Wire: "sqliteBindings", Kind: model.KindBindingList,
 				TargetKind: "SQLiteDatabase", BindingType: "module-worker.sqlite",
 				Target:  requiresInterface("edge.sql", "1.0.0"),
@@ -384,14 +396,13 @@ var Forms = []model.Form{
 					"version from becoming Ready. Omitting it declares no external service.",
 				Example: []any{
 					externalServiceSlot("PRIMARY_DB", "org.postgresql.wire"),
-					externalServiceSlot("MEDIA", "com.amazonaws.s3"),
 				}},
 		},
 	},
 	{
 		Family: Family,
 		Kind:   "WorkerDeployment", Slug: "worker-deployment",
-		Role: model.RoleDeployment, DefinitionVersion: edgeDefinitionVersion,
+		Role: model.RoleDeployment, DefinitionVersion: workerDeploymentDefinitionVersion,
 		Title: "Worker Deployment",
 		Description: "Selects which Worker Versions of one Module Worker serve traffic and in what " +
 			"proportion. Weights are basis points and must sum to exactly 10000 across entries; the sum " +
@@ -578,6 +589,19 @@ var Forms = []model.Form{
 			"encoded-bytes shape, so the declared byte limit and the structural string ceiling measure the same " +
 			"thing (decision 0020).",
 		ProvidedInterfaces: []model.InterfaceRefSource{{Name: "edge.kv", Version: "1.0.0"}},
+	},
+	{
+		Family: Family,
+		Kind:   "ObjectBucket", Slug: "object-bucket",
+		Role: model.RoleIdentity, DefinitionVersion: edgeDefinitionVersion,
+		Title: "Object Bucket",
+		Description: "Flat-namespace object store with strong read-after-write consistency, streaming bodies, " +
+			"ranged and conditional reads, and multipart upload, exactly as fixed by the edge.objects Interface. " +
+			"An object body is a byte stream, never a JSON string: the contract's 5 GiB ceiling is only " +
+			"meaningful because bodies never travel inside an operation document (decision 0020). Operating " +
+			"rules such as CORS, lifecycle, and lock are separate policy resources, never desired fields of the " +
+			"bucket identity.",
+		ProvidedInterfaces: []model.InterfaceRefSource{{Name: "edge.objects", Version: "1.0.0"}},
 	},
 	{
 		Family: Family,
@@ -821,7 +845,7 @@ var Forms = []model.Form{
 // Validate proves every structural catalog rule: per-form model rules, the
 // open-token guard, unique identities, and resolvable contract references.
 // Every member's lane requirement is filled from the one table above rather
-// than repeated on sixteen literals, so the set of members that need more
+// than repeated on seventeen literals, so the set of members that need more
 // than the first Beta lane is readable in one place and adding to it is an
 // edit somebody has to justify.
 func init() {

@@ -21,7 +21,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const ACTIVE_FAMILY = "edge.forms.takoform.com";
-export const EXPECTED_FORM_COUNT = 16;
+export const EXPECTED_FORM_COUNT = 17;
+export const EXPECTED_RETAINED_PACKAGE_COUNT = 2;
+export const RETAINED_PACKAGE_INVENTORY_RELATIVE =
+  "forms/retained-packages.json";
 export const FORM_PACKAGE_VERIFY = [
   "go",
   "run",
@@ -37,6 +40,44 @@ const currentFamilyIndexRelative = "forms/candidates/current-family-index.json";
 const expectedCandidateSetRelative = `forms/candidates/${ACTIVE_FAMILY}/candidate-set.json`;
 const publicationRootRelative = "forms/releases";
 const digestPattern = /^sha256:[0-9a-f]{64}$/u;
+const contentAddressedPackageFile = /^([^/]+)\/(sha256-[0-9a-f]{64})(?:\/.+)$/u;
+const releaseIdPattern = /^[a-z0-9-]+$/u;
+const artifactIdPattern = /^sha256-[0-9a-f]{64}$/u;
+
+// These are the only two pre-current package identities that this publisher
+// is authorized to retain. The inventory is an append-only locator manifest,
+// not a wildcard permit for arbitrary content-addressed roots.
+const expectedRetainedPackages = Object.freeze([
+  Object.freeze({
+    formRef: Object.freeze({
+      apiVersion: ACTIVE_FAMILY,
+      kind: "WorkerDeployment",
+      definitionVersion: "0.1.0",
+      schemaDigest:
+        "sha256:0d2bca351b8ecade0a1ebbddf2463bba22910313ff916414112ec8762204e769",
+    }),
+    packageDigest:
+      "sha256:535133f0a79c2091162f2dc237d177702e5e5db5c558c6c2e5bf5bcd76d6ff17",
+    releaseId:
+      "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlsirsxa3dppfwwk3tu",
+    artifactId:
+      "sha256-535133f0a79c2091162f2dc237d177702e5e5db5c558c6c2e5bf5bcd76d6ff17",
+  }),
+  Object.freeze({
+    formRef: Object.freeze({
+      apiVersion: ACTIVE_FAMILY,
+      kind: "WorkerVersion",
+      definitionVersion: "0.2.0",
+      schemaDigest:
+        "sha256:3d4eeed966867a1ef8d7ce629a77c4b9687c6d48d3e496d22314b29aff0a42ed",
+    }),
+    packageDigest:
+      "sha256:63cf4dd3e96f575d1d1631c87d2e0ff0410ca820e142b8d4fa73e30aaa651025",
+    releaseId: "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlskzsxe43jn5xa",
+    artifactId:
+      "sha256-63cf4dd3e96f575d1d1631c87d2e0ff0410ca820e142b8d4fa73e30aaa651025",
+  }),
+]);
 
 if (import.meta.main) {
   try {
@@ -68,6 +109,7 @@ export function derivePublicationPlan({
   root = repositoryRoot,
   verifyPackage = verifyWithCore,
 } = {}) {
+  const retainedPackages = readRetainedPackageInventory(root);
   const familyIndexPath = resolveRepositoryPath(
     root,
     currentFamilyIndexRelative,
@@ -202,8 +244,107 @@ export function derivePublicationPlan({
     publicationRoot: resolveRepositoryPath(root, publicationRootRelative),
     family: ACTIVE_FAMILY,
     formCount: forms.length,
+    currentPackageCount: forms.length,
+    retainedPackageCount: retainedPackages.length,
+    releaseRootCount: forms.length + retainedPackages.length,
     forms,
+    retainedPackages,
   };
+}
+
+/**
+ * Read the publisher-owned allowlist of immutable pre-current package roots.
+ * Every field is checked against the exact retained identity; a valid Core
+ * package at another path is not sufficient authority to enter this set.
+ */
+export function readRetainedPackageInventory(root = repositoryRoot) {
+  const inventoryPath = resolveRepositoryPath(
+    root,
+    RETAINED_PACKAGE_INVENTORY_RELATIVE,
+  );
+  const inventory = readJSON(inventoryPath, "retained package inventory");
+  if (
+    inventory?.format !== "takoform.retained-package-inventory@v1" ||
+    inventory.family !== ACTIVE_FAMILY ||
+    !Array.isArray(inventory.packages) ||
+    inventory.packages.length !== EXPECTED_RETAINED_PACKAGE_COUNT
+  ) {
+    throw new Error(
+      `retained package inventory must contain exactly ${EXPECTED_RETAINED_PACKAGE_COUNT} ${ACTIVE_FAMILY} roots`,
+    );
+  }
+  const expectedByKey = new Map(
+    expectedRetainedPackages.map((entry) => [
+      `${entry.formRef.kind}@${entry.formRef.definitionVersion}`,
+      entry,
+    ]),
+  );
+  const seen = new Set();
+  return inventory.packages.map((entry, index) => {
+    if (entry === null || typeof entry !== "object") {
+      throw new Error(`retained package inventory entry[${index}] is invalid`);
+    }
+    const keys = Object.keys(entry).sort().join(",");
+    if (keys !== "artifactId,formRef,packageDigest,releaseId,sourcePath,tag") {
+      throw new Error(
+        `retained package inventory entry[${index}] has unexpected fields`,
+      );
+    }
+    const formRef = entry.formRef;
+    if (
+      formRef === null ||
+      typeof formRef !== "object" ||
+      Object.keys(formRef).sort().join(",") !==
+        "apiVersion,definitionVersion,kind,schemaDigest" ||
+      formRef.apiVersion !== ACTIVE_FAMILY ||
+      typeof formRef.kind !== "string" ||
+      typeof formRef.definitionVersion !== "string" ||
+      !digestPattern.test(formRef.schemaDigest) ||
+      !digestPattern.test(entry.packageDigest) ||
+      typeof entry.releaseId !== "string" ||
+      !releaseIdPattern.test(entry.releaseId) ||
+      typeof entry.artifactId !== "string" ||
+      !artifactIdPattern.test(entry.artifactId) ||
+      typeof entry.tag !== "string" ||
+      typeof entry.sourcePath !== "string"
+    ) {
+      throw new Error(`retained package inventory entry[${index}] is invalid`);
+    }
+    const key = `${formRef.kind}@${formRef.definitionVersion}`;
+    const expected = expectedByKey.get(key);
+    if (!expected || seen.has(key)) {
+      throw new Error(
+        `retained package inventory entry[${index}] is not one of the exact retained identities`,
+      );
+    }
+    seen.add(key);
+    const expectedArtifact = entry.packageDigest.replace(":", "-");
+    const expectedTag = `forms/${entry.releaseId}/${entry.artifactId}`;
+    const expectedSourcePath = `${publicationRootRelative}/${entry.releaseId}/${entry.artifactId}`;
+    if (
+      entry.artifactId !== expectedArtifact ||
+      entry.tag !== expectedTag ||
+      entry.sourcePath !== expectedSourcePath ||
+      JSON.stringify(formRef) !== JSON.stringify(expected.formRef) ||
+      entry.packageDigest !== expected.packageDigest ||
+      entry.releaseId !== expected.releaseId ||
+      entry.artifactId !== expected.artifactId
+    ) {
+      throw new Error(
+        `retained package inventory entry[${index}] differs from the exact published identity`,
+      );
+    }
+    const releasePath = resolveRepositoryPath(root, entry.sourcePath);
+    return {
+      formRef,
+      packageDigest: entry.packageDigest,
+      releaseId: entry.releaseId,
+      artifactId: entry.artifactId,
+      tag: entry.tag,
+      sourcePath: entry.sourcePath,
+      releasePath,
+    };
+  });
 }
 
 /** Verify one complete package with the checked-in public Core CLI. */
@@ -242,14 +383,20 @@ export function verifyWithCore(packageRoot, root = repositoryRoot) {
 }
 
 /**
- * Check the tracked release tree against the current candidate closures. This
- * is deliberately strict: missing, extra, changed, symlinked, and non-regular
- * release entries all fail closed.
+ * Check the tracked release tree against the current candidate closures and
+ * the exact retained-package inventory. Current roots are copied from the
+ * candidate closure; retained roots are admitted only by their explicit
+ * publisher-owned locator entries and are verified separately through Core.
  */
 export function inspectPublicationTree(plan, { root = repositoryRoot } = {}) {
   const expected = new Map();
+  const expectedPackageRoots = new Set();
+  const failures = [];
   for (const form of plan.forms) {
     const releaseRoot = resolveRepositoryPath(root, form.locator.sourcePath);
+    expectedPackageRoots.add(
+      `${form.locator.releaseId}/${form.locator.artifactId}`,
+    );
     const candidateFiles = inventoryFiles(form.candidatePath);
     for (const [relative, digest] of candidateFiles) {
       const releaseRelative = `${form.locator.sourcePath}/${relative}`;
@@ -269,6 +416,25 @@ export function inspectPublicationTree(plan, { root = repositoryRoot } = {}) {
     }
   }
 
+  const retainedPackages = plan.retainedPackages ?? [];
+  for (const retained of retainedPackages) {
+    const releaseRoot = resolveRepositoryPath(root, retained.sourcePath);
+    const packageRoot = `${retained.releaseId}/${retained.artifactId}`;
+    expectedPackageRoots.add(packageRoot);
+    if (!pathExists(releaseRoot)) {
+      failures.push(`${retained.sourcePath}: retained release root is missing`);
+    }
+    if (
+      !releaseRoot.startsWith(
+        resolveRepositoryPath(root, publicationRootRelative) + path.sep,
+      )
+    ) {
+      throw new Error(
+        `${retained.formRef.kind}: retained source path escapes forms/releases`,
+      );
+    }
+  }
+
   const actual = new Map();
   const releaseRoot = resolveRepositoryPath(root, publicationRootRelative);
   if (pathExists(releaseRoot)) {
@@ -276,7 +442,6 @@ export function inspectPublicationTree(plan, { root = repositoryRoot } = {}) {
       actual.set(`${publicationRootRelative}/${relative}`, digest);
     }
   }
-  const failures = [];
   for (const [relative, expectedEntry] of expected) {
     if (!actual.has(relative)) {
       failures.push(`${relative}: release file is missing`);
@@ -288,14 +453,35 @@ export function inspectPublicationTree(plan, { root = repositoryRoot } = {}) {
       );
     }
   }
+  const retainedRoots = new Set();
   for (const relative of actual.keys()) {
-    if (!expected.has(relative))
+    if (expected.has(relative)) continue;
+    const packageRoot = contentAddressedPackageRoot(
+      relative.startsWith(`${publicationRootRelative}/`)
+        ? relative.slice(publicationRootRelative.length + 1)
+        : relative,
+    );
+    if (packageRoot === null) {
       failures.push(`${relative}: extra release file`);
+      continue;
+    }
+    if (expectedPackageRoots.has(packageRoot)) {
+      if (
+        retainedPackages.some(
+          (entry) => `${entry.releaseId}/${entry.artifactId}` === packageRoot,
+        )
+      ) {
+        retainedRoots.add(packageRoot);
+      } else {
+        failures.push(`${relative}: extra release file`);
+      }
+    } else failures.push(`${relative}: unknown retained release root`);
   }
   return {
     expected,
     actual,
     failures,
+    retainedRoots,
   };
 }
 
@@ -313,6 +499,7 @@ export function verifyPublicationTree(
       `tracked Form Package release tree is not exact:\n${inspection.failures.join("\n")}`,
     );
   }
+  verifyRetainedPublicationRoots(plan, { root, verifyPackage });
   const checked = [];
   for (const form of plan.forms) {
     const releasePath = resolveRepositoryPath(root, form.locator.sourcePath);
@@ -360,6 +547,9 @@ export function writePublication({
       `refusing to rewrite an existing release tree:\n${blockingFailures.join("\n")}`,
     );
   }
+  // Validate retained package bytes before staging any new tree. Retained
+  // identities are never created, replaced, or removed by this writer.
+  verifyRetainedPublicationRoots(plan, { root, verifyPackage });
 
   const stagingParent = mkdtempSync(
     path.join(root, ".form-publication-build-"),
@@ -389,7 +579,7 @@ export function writePublication({
   }
   verifyPublicationTree(plan, { root, verifyPackage });
   process.stdout.write(
-    `wrote and verified ${plan.formCount} Edge Form Package release directories\n`,
+    `wrote and verified ${plan.formCount} current Edge Form Package release directories (${plan.releaseRootCount ?? plan.formCount} release roots)\n`,
   );
 }
 
@@ -400,7 +590,7 @@ export function checkPublication({
   const plan = derivePublicationPlan({ root, verifyPackage });
   verifyPublicationTree(plan, { root, verifyPackage });
   process.stdout.write(
-    `verified ${plan.formCount} Edge Form Package release directories and Core-derived locators\n`,
+    `verified ${plan.formCount} current Edge Form Package release directories and ${plan.releaseRootCount ?? plan.formCount} Core-derived release roots\n`,
   );
 }
 
@@ -427,6 +617,54 @@ function resolveRepositoryPath(root, relative) {
     throw new Error(`repository path escapes root ${JSON.stringify(relative)}`);
   }
   return resolved;
+}
+
+function contentAddressedPackageRoot(relative) {
+  const match = contentAddressedPackageFile.exec(relative);
+  return match ? `${match[1]}/${match[2]}` : null;
+}
+
+function verifyRetainedPublicationRoots(
+  plan,
+  { root = repositoryRoot, verifyPackage = verifyWithCore } = {},
+) {
+  for (const retained of plan.retainedPackages ?? []) {
+    const releasePath = resolveRepositoryPath(root, retained.sourcePath);
+    if (!pathExists(releasePath)) {
+      throw new Error(
+        `${retained.formRef.kind}: retained release root ${retained.sourcePath} is missing`,
+      );
+    }
+    const locator = verifyPackage(releasePath, root);
+    const expectedLocator = {
+      apiVersion: "packages.forms.takoform.com/v1alpha5",
+      releaseId: retained.releaseId,
+      artifactId: retained.artifactId,
+      tag: retained.tag,
+      sourcePath: retained.sourcePath,
+    };
+    if (!sameLocator(locator, expectedLocator)) {
+      throw new Error(
+        `retained release ${retained.sourcePath}: locator differs from the exact inventory entry`,
+      );
+    }
+    const packageIndex = readJSON(
+      path.join(releasePath, "package-index.json"),
+      `${retained.formRef.kind} retained release package index`,
+    );
+    if (
+      JSON.stringify(packageIndex.formRef) !== JSON.stringify(retained.formRef)
+    ) {
+      throw new Error(
+        `retained release ${retained.sourcePath}: FormRef differs from the exact inventory entry`,
+      );
+    }
+    if (locator.artifactId !== retained.packageDigest.replace(":", "-")) {
+      throw new Error(
+        `retained release ${retained.sourcePath}: Core package identity differs from the exact inventory digest`,
+      );
+    }
+  }
 }
 
 function sameLocator(left, right) {

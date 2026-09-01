@@ -51,7 +51,7 @@ func TestPrepareSigningRequestEmitsExactCoreSubjectsAndRefusesOverwrite(t *testi
 	if err != nil {
 		t.Fatalf("prepare signing request: %v", err)
 	}
-	if report.Status != SigningRequiredStatus || report.PackageCount != 16 {
+	if report.Status != SigningRequiredStatus || report.PackageCount != 17 {
 		t.Fatalf("unexpected preparation report: %+v", report)
 	}
 	if len(report.Subjects) != report.PackageCount+1 {

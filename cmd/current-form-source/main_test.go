@@ -12,7 +12,7 @@ func TestRenderSourceEmitsOnlyTheCurrentEdgeFamily(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantGroups := []string{"edge.forms.takoform.com"}
-	wantCounts := []int{16}
+	wantCounts := []int{17}
 	if len(document.Families) != len(wantGroups) {
 		t.Fatalf("families = %d, want %d", len(document.Families), len(wantGroups))
 	}
@@ -29,10 +29,15 @@ func TestRenderSourceEmitsOnlyTheCurrentEdgeFamily(t *testing.T) {
 		if len(forms) != wantCounts[index] {
 			t.Fatalf("%s Forms = %d, want %d", family.Group, len(forms), wantCounts[index])
 		}
+		foundObjectBucket := false
 		for _, form := range forms {
 			if form.Kind == "ObjectBucket" {
-				t.Fatal("current aggregate retains ObjectBucket")
+				foundObjectBucket = true
+				break
 			}
+		}
+		if !foundObjectBucket {
+			t.Fatal("current aggregate omits ObjectBucket")
 		}
 	}
 }
@@ -42,13 +47,15 @@ func TestRenderSourceBuildsGlobalProviderNeutralContracts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(document.Interfaces) != 7 {
-		t.Fatalf("interfaces = %d, want 7", len(document.Interfaces))
+	if len(document.Interfaces) != 8 {
+		t.Fatalf("interfaces = %d, want 8", len(document.Interfaces))
 	}
-	if len(document.Bindings) != 6 {
-		t.Fatalf("bindings = %d, want 6", len(document.Bindings))
+	if len(document.Bindings) != 7 {
+		t.Fatalf("bindings = %d, want 7", len(document.Bindings))
 	}
 	seen := map[string]struct{}{}
+	foundObjectInterface := false
+	foundObjectBinding := false
 	for _, contract := range append(append([]sourceContract(nil), document.Interfaces...), document.Bindings...) {
 		if _, duplicate := seen[contract.Name]; duplicate {
 			t.Fatalf("duplicate global contract %q", contract.Name)
@@ -57,9 +64,15 @@ func TestRenderSourceBuildsGlobalProviderNeutralContracts(t *testing.T) {
 		if contract.SchemaDigest == "" || contract.DefinitionJSON == "" {
 			t.Fatalf("contract %q has no exact identity", contract.Name)
 		}
-		if contract.Name == "edge.objects" || strings.Contains(contract.Name, "object-bucket") {
-			t.Fatalf("current aggregate retains removed contract %q", contract.Name)
+		if contract.Name == "edge.objects" {
+			foundObjectInterface = true
 		}
+		if strings.Contains(contract.Name, "object-bucket") {
+			foundObjectBinding = true
+		}
+	}
+	if !foundObjectInterface || !foundObjectBinding {
+		t.Fatalf("current aggregate omits ObjectBucket contracts: interface=%v binding=%v", foundObjectInterface, foundObjectBinding)
 	}
 }
 

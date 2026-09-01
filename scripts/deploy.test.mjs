@@ -193,6 +193,70 @@ describe("Edge Form Package deploy surface", () => {
     );
   });
 
+  test("preflights the exact retained package inventory before the owner gate or any push", () => {
+    const plan = makePlan();
+    const retained = plan.retainedPackages;
+
+    const missing = makeCommandDependencies(plan, {
+      retainedTagMode: "missing",
+    });
+    expect(
+      runDeploy(
+        [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT, "--dry-run"],
+        missing.dependencies,
+      ),
+    ).toBe(1);
+    expect(missing.stderr).toContain(
+      `retained package tag ${retained[0].tag} is missing from the preflight inventory`,
+    );
+    expect(
+      missing.calls.some(
+        (call) => call.command === "bun" && call.args.join(" ") === "run check",
+      ),
+    ).toBe(false);
+    expect(
+      missing.calls.some(
+        (call) => call.command === "git" && call.args[0] === "push",
+      ),
+    ).toBe(false);
+
+    const divergent = makeCommandDependencies(plan, {
+      retainedTagMode: "divergent",
+    });
+    expect(
+      runDeploy(
+        [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT, "--dry-run"],
+        divergent.dependencies,
+      ),
+    ).toBe(1);
+    expect(divergent.stderr).toContain(
+      `retained package tag ${retained[0].tag} does not contain the exact Core-verified package bytes`,
+    );
+    expect(
+      divergent.calls.some(
+        (call) => call.command === "git" && call.args[0] === "push",
+      ),
+    ).toBe(false);
+
+    const unknown = makeCommandDependencies(plan, {
+      retainedTagMode: "extra",
+    });
+    expect(
+      runDeploy(
+        [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT, "--dry-run"],
+        unknown.dependencies,
+      ),
+    ).toBe(1);
+    expect(unknown.stderr).toContain(
+      "public Form Package release inventory contains an unknown pre-existing tag",
+    );
+    expect(
+      unknown.calls.some(
+        (call) => call.command === "git" && call.args[0] === "push",
+      ),
+    ).toBe(false);
+  });
+
   test("uses one atomic first push with direct tag refspecs and no local tag creation", () => {
     const plan = makePlan();
     const fixture = makeCommandDependencies(plan, {
@@ -382,6 +446,8 @@ describe("Edge Form Package deploy surface", () => {
     const trust = makeAdvancementTrustReport(plan);
     writePublicFixture(plan);
     const calls = [];
+    let extraReleaseTag = false;
+    let missingRetainedTag = false;
     const dependencies = {
       run() {
         throw new Error("credentialed command used by --verify");
@@ -403,6 +469,29 @@ describe("Edge Form Package deploy surface", () => {
         ) {
           const refs = args.slice(3);
           if (refs.some((ref) => ref.endsWith("*"))) {
+            if (refs.includes("refs/tags/forms/*")) {
+              const packageLines = [
+                ...plan.forms.map(
+                  (form) =>
+                    `${EXISTING_TAG_COMMIT}\trefs/tags/${form.locator.tag}`,
+                ),
+                ...(plan.retainedPackages ?? [])
+                  .map((retained) => {
+                    if (
+                      missingRetainedTag &&
+                      retained === plan.retainedPackages[0]
+                    )
+                      return null;
+                    return `${EXISTING_TAG_COMMIT}\trefs/tags/${retained.tag}`;
+                  })
+                  .filter(Boolean),
+              ];
+              if (extraReleaseTag)
+                packageLines.push(
+                  `${EXISTING_TAG_COMMIT}\trefs/tags/forms/unlisted/sha256-${"e".repeat(64)}`,
+                );
+              return ok(`${packageLines.join("\n")}\n`);
+            }
             if (refs.includes("refs/tags/forms/sets/*")) {
               return ok(
                 `${EXISTING_TAG_COMMIT}\trefs/tags/forms/sets/${PREVIOUS_SET}\n${COMMIT}\trefs/tags/${trust.setTag}\n`,
@@ -445,8 +534,20 @@ describe("Edge Form Package deploy surface", () => {
           const form = plan.forms.find((candidate) =>
             packageRoot.endsWith(candidate.locator.sourcePath),
           );
-          return form
-            ? ok(`${JSON.stringify(form.locator)}\n`)
+          if (form) return ok(`${JSON.stringify(form.locator)}\n`);
+          const retained = (plan.retainedPackages ?? []).find((candidate) =>
+            packageRoot.endsWith(candidate.sourcePath),
+          );
+          return retained
+            ? ok(
+                `${JSON.stringify({
+                  apiVersion: "packages.forms.takoform.com/v1alpha5",
+                  releaseId: retained.releaseId,
+                  artifactId: retained.artifactId,
+                  tag: retained.tag,
+                  sourcePath: retained.sourcePath,
+                })}\n`,
+              )
             : fail("unknown package");
         }
         return fail(
@@ -459,7 +560,10 @@ describe("Edge Form Package deploy surface", () => {
       expectedCommit: COMMIT,
     });
     expect(evidence.status).toBe("VERIFIED");
-    expect(evidence.tagCount).toBe(16);
+    expect(evidence.currentPackageCount).toBe(17);
+    expect(evidence.releaseRootCount).toBe(19);
+    expect(evidence.releaseTagCount).toBe(19);
+    expect(evidence.tagCount).toBe(17);
     expect(evidence.revocationTagCount).toBe(1);
     expect(evidence.revocationTags).toEqual([
       {
@@ -475,6 +579,23 @@ describe("Edge Form Package deploy surface", () => {
     expect(
       evidence.tags.every((tag) => tag.commit === EXISTING_TAG_COMMIT),
     ).toBe(true);
+    expect(evidence.retainedTags).toHaveLength(2);
+    expect(
+      evidence.retainedTags.every((tag) => tag.commit === EXISTING_TAG_COMMIT),
+    ).toBe(true);
+    extraReleaseTag = true;
+    expect(() =>
+      verifyPublicPublication(plan, trust, dependencies, {
+        expectedCommit: COMMIT,
+      }),
+    ).toThrow(/public Form Package release refs are/);
+    extraReleaseTag = false;
+    missingRetainedTag = true;
+    expect(() =>
+      verifyPublicPublication(plan, trust, dependencies, {
+        expectedCommit: COMMIT,
+      }),
+    ).toThrow(/public Form Package release refs are/);
     expect(
       calls.every((call) => call.command !== "git" || call.args[0] !== "push"),
     ).toBe(true);
@@ -563,7 +684,7 @@ describe("Edge Form Package deploy surface", () => {
 function makePlan(
   repositoryRoot = mkdtempSync(path.join(tmpdir(), "takoform-deploy-plan-")),
 ) {
-  const forms = Array.from({ length: 16 }, (_, index) => {
+  const forms = Array.from({ length: 17 }, (_, index) => {
     const hex = `${(index + 1).toString(16).padStart(2, "0")}`.repeat(32);
     const releaseId = `k-${String.fromCharCode(97 + index)}`;
     const artifactId = `sha256-${hex}`;
@@ -579,11 +700,43 @@ function makePlan(
       },
     };
   });
+  const retainedPackages = [
+    {
+      formRef: {
+        apiVersion: "edge.forms.takoform.com",
+        kind: "WorkerVersion",
+        definitionVersion: "0.2.0",
+        schemaDigest: `sha256:${"a".repeat(64)}`,
+      },
+      packageDigest: `sha256:${"b".repeat(64)}`,
+      releaseId: "retained-worker-version",
+      artifactId: `sha256-${"b".repeat(64)}`,
+      tag: `forms/retained-worker-version/sha256-${"b".repeat(64)}`,
+      sourcePath: `forms/releases/retained-worker-version/sha256-${"b".repeat(64)}`,
+    },
+    {
+      formRef: {
+        apiVersion: "edge.forms.takoform.com",
+        kind: "WorkerDeployment",
+        definitionVersion: "0.1.0",
+        schemaDigest: `sha256:${"c".repeat(64)}`,
+      },
+      packageDigest: `sha256:${"d".repeat(64)}`,
+      releaseId: "retained-worker-deployment",
+      artifactId: `sha256-${"d".repeat(64)}`,
+      tag: `forms/retained-worker-deployment/sha256-${"d".repeat(64)}`,
+      sourcePath: `forms/releases/retained-worker-deployment/sha256-${"d".repeat(64)}`,
+    },
+  ];
   return {
     repositoryRoot,
     family: "edge.forms.takoform.com",
     formCount: forms.length,
+    currentPackageCount: forms.length,
+    retainedPackageCount: retainedPackages.length,
+    releaseRootCount: forms.length + retainedPackages.length,
     forms,
+    retainedPackages,
   };
 }
 
@@ -595,6 +748,7 @@ function makeCommandDependencies(
     pushExitCode = 0,
     remoteMainCommit = SOURCE_COMMIT,
     remoteTags = new Map(),
+    retainedTagMode = "all",
     signedVerifierDiverges = false,
     trustReport = makeTrustReport(plan),
     previousTrustReport = undefined,
@@ -602,12 +756,45 @@ function makeCommandDependencies(
     verifyPublicPublication = undefined,
   } = {},
 ) {
+  if (retainedTagMode !== "missing") {
+    for (const retained of plan.retainedPackages ?? []) {
+      if (!remoteTags.has(retained.tag)) {
+        remoteTags.set(retained.tag, EXISTING_TAG_COMMIT);
+      }
+    }
+  }
+  if (retainedTagMode === "divergent" && plan.retainedPackages?.[0]) {
+    remoteTags.set(plan.retainedPackages[0].tag, COMMIT);
+  }
+  if (retainedTagMode === "extra") {
+    remoteTags.set(
+      `forms/unlisted/sha256-${"e".repeat(64)}`,
+      EXISTING_TAG_COMMIT,
+    );
+  }
   const calls = [];
   let stdout = "";
   let stderr = "";
   const run = (command, args) => {
     calls.push({ command, args });
     if (command === "bun" && args[0] === "run") return ok();
+    if (command === "go" && args.includes("./cmd/form-package")) {
+      const packageRoot = args.at(-1);
+      const retained = (plan.retainedPackages ?? []).find((entry) =>
+        packageRoot.endsWith(entry.sourcePath),
+      );
+      return retained
+        ? ok(
+            `${JSON.stringify({
+              apiVersion: "packages.forms.takoform.com/v1alpha5",
+              releaseId: retained.releaseId,
+              artifactId: retained.artifactId,
+              tag: retained.tag,
+              sourcePath: retained.sourcePath,
+            })}\n`,
+          )
+        : fail("unknown package");
+    }
     if (command !== "git") return ok();
     if (args[0] === "status") return ok();
     if (args[0] === "symbolic-ref") return ok("main\n");
@@ -659,7 +846,21 @@ function makeCommandDependencies(
       args[0] === "diff" &&
       args[2] === EXISTING_TAG_COMMIT &&
       args[3] === SOURCE_COMMIT &&
-      existingRemoteTagDiverges
+      existingRemoteTagDiverges &&
+      args.includes(
+        plan.forms.find((form) => form.locator.tag === existingRemoteTag)
+          ?.locator.sourcePath,
+      )
+    ) {
+      return fail("package bytes differ");
+    }
+    if (
+      args[0] === "diff" &&
+      args[1] === "--quiet" &&
+      retainedTagMode === "divergent" &&
+      args[2] === COMMIT &&
+      args[3] === SOURCE_COMMIT &&
+      args.includes(plan.retainedPackages?.[0]?.sourcePath)
     ) {
       return fail("package bytes differ");
     }
@@ -926,6 +1127,17 @@ function writePublicFixture(plan) {
     writeFileSync(
       path.join(directory, "package-index.json"),
       `${JSON.stringify({ kind: form.kind })}\n`,
+    );
+  }
+  for (const retained of plan.retainedPackages ?? []) {
+    const directory = path.join(
+      plan.repositoryRoot,
+      ...retained.sourcePath.split("/"),
+    );
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(
+      path.join(directory, "package-index.json"),
+      `${JSON.stringify({ formRef: retained.formRef })}\n`,
     );
   }
 }

@@ -94,6 +94,7 @@ const trackedRoots = [
 ];
 const actualPaths = trackedRoots
   .flatMap((relative) => walk(path.join(root, relative), relative))
+  .concat("forms/retained-packages.json")
   .sort();
 if (actualPaths.join("\n") !== expectedPaths.join("\n")) {
   const expected = new Set(expectedPaths);
@@ -208,6 +209,67 @@ if (formCount !== baseline.counts.forms)
   );
 if (familyGroups.has("edge.forms.takoform.com/v1beta1"))
   failures.push("retained edge/v1beta1 family is not a current candidate");
+
+const retainedInventoryPath = path.join(root, "forms/retained-packages.json");
+if (!existsSync(retainedInventoryPath)) {
+  failures.push("retained package inventory is missing");
+} else {
+  const retainedInventory = JSON.parse(
+    readFileSync(retainedInventoryPath, "utf8"),
+  );
+  if (
+    retainedInventory.format !== "takoform.retained-package-inventory@v1" ||
+    retainedInventory.family !== "edge.forms.takoform.com" ||
+    !Array.isArray(retainedInventory.packages) ||
+    retainedInventory.packages.length !== 2
+  ) {
+    failures.push("retained package inventory format/count drift");
+  }
+  const retainedKeys = new Set();
+  for (const entry of retainedInventory.packages ?? []) {
+    const key = `${entry.formRef?.kind}@${entry.formRef?.definitionVersion}`;
+    if (retainedKeys.has(key))
+      failures.push(`duplicate retained package ${key}`);
+    retainedKeys.add(key);
+    const expectedArtifact = String(entry.packageDigest ?? "").replace(
+      ":",
+      "-",
+    );
+    const expectedTag = `forms/${entry.releaseId}/${entry.artifactId}`;
+    const expectedSourcePath = `forms/releases/${entry.releaseId}/${entry.artifactId}`;
+    if (
+      !/^sha256:[0-9a-f]{64}$/u.test(entry.packageDigest ?? "") ||
+      entry.artifactId !== expectedArtifact ||
+      entry.tag !== expectedTag ||
+      entry.sourcePath !== expectedSourcePath ||
+      !isSafeRelative(entry.sourcePath)
+    ) {
+      failures.push(`retained package ${key}: locator drift`);
+      continue;
+    }
+    const packageIndexPath = path.join(
+      root,
+      entry.sourcePath,
+      "package-index.json",
+    );
+    if (!existsSync(packageIndexPath)) {
+      failures.push(`retained package ${key}: package index is missing`);
+      continue;
+    }
+    const packageIndex = JSON.parse(readFileSync(packageIndexPath, "utf8"));
+    if (
+      JSON.stringify(packageIndex.formRef) !== JSON.stringify(entry.formRef)
+    ) {
+      failures.push(`retained package ${key}: FormRef drift`);
+    }
+  }
+  if (
+    !retainedKeys.has("WorkerVersion@0.2.0") ||
+    !retainedKeys.has("WorkerDeployment@0.1.0")
+  ) {
+    failures.push("retained package inventory identities drift");
+  }
+}
 
 const interfaceSet = JSON.parse(
   readFileSync(

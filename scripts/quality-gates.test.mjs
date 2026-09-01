@@ -91,7 +91,7 @@ describe("portable quality gates and Form version documentation", () => {
     expect(signingWorkflow).toContain("statement_version:");
     expect(signingWorkflow).toContain("prepare-advancement");
     expect(signingWorkflow).toContain("genesis signing is first-set-only");
-    expect(signingWorkflow).toContain("(.subjects | length == 17)");
+    expect(signingWorkflow).toContain("(.subjects | length == 18)");
     expect(signingWorkflow).not.toContain("statement.sigstore.json");
     expect(signingWorkflow).toContain("retention-days: 1");
     expect(signingWorkflow).not.toContain("contents: write");

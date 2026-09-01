@@ -6,8 +6,21 @@ traffic and endpoint attachments, KV, SQLite, queues, durable workflows, and
 actors. A Form is a machine-readable desired-state contract that a host can
 implement without changing its meaning.
 
-**Current roster:** one family (`edge.forms.takoform.com`), 16 Forms, 7
-Interfaces, and 6 Bindings.
+**Current roster:** one family (`edge.forms.takoform.com`), 17 Forms, 8
+Interfaces, and 7 Bindings.
+
+The publisher signs 17 current package subjects. The append-only release tree
+contains those 17 current roots plus the two explicitly retained historical
+roots listed in [`forms/retained-packages.json`](forms/retained-packages.json),
+for 19 release roots and immutable tags in total.
+
+The current `module-worker.object-bucket@1.1.0` Binding projects the
+`edge.objects@1.0.0` API with length-aware streaming: `put` and `uploadPart`
+require an exact `contentLength` for `ReadableStream` bodies, while intrinsic
+string and `ArrayBuffer` lengths may be checked automatically. The prior
+1.0.0 candidate bytes remain recoverable from immutable repository and
+Provider history; no retained Form Package contains that Binding, and no
+published bytes are rewritten or reidentified.
 
 ## The four pieces
 
@@ -76,7 +89,8 @@ forms/<releaseId>/sha256-<digest>
 ```
 
 `bun run write:publication` materializes missing release directories. It does
-not sign or publish them. An exact protected-main commit is prepared for
+not sign or publish them, and never rewrites the two retained roots. An exact
+protected-main commit is prepared for
 external keyless signing with:
 
 ```console
@@ -84,7 +98,7 @@ bun run prepare:trust -- --output <empty-external-directory>
 ```
 
 The manual `form-package-signing.yml` workflow is the publisher authority. It
-uses GitHub Actions OIDC to produce 16 exact package-index Sigstore bundles and
+uses GitHub Actions OIDC to produce 17 exact current package-index Sigstore bundles and
 one signed Core API v1 revocation checkpoint, reruns the complete bounded
 checkpoint chain, and uploads a one-day candidate. With blank revocation
 inputs it permits only the first genesis set. With `previous_set` and
@@ -111,7 +125,7 @@ bun run deploy -- form-packages-edge --trust-set <source-commit> --verify
 readback. Existing immutable package tags may point to an older commit only
 when their package paths are byte-identical to the signed source. Anonymous
 readback fetches every tag, compares those bytes, and reruns Core v1.1.0 over
-all packages, bundles, the pinned publisher policy and trusted root, the signed
+all 19 release roots (17 current plus two retained), bundles, the pinned publisher policy and trusted root, the signed
 checkpoint, and every not-revoked decision. Changing package bytes creates a
 new digest, path, and package tag; changing publisher evidence creates a new
 `forms/sets/<source-commit>` identity.

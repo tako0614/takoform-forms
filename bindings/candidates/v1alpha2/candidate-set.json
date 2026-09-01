@@ -14,6 +14,11 @@
       "schemaDigest": "sha256:ca7ea8945f6f0f51949a152bee2a340e5926709f2238bb0cfc8b4d84cb006471"
     },
     {
+      "name": "module-worker.object-bucket",
+      "version": "1.1.0",
+      "schemaDigest": "sha256:3c7f854be967e19699fb89273b6d43a96cd7493c1d9313d06a98ea1115310fa1"
+    },
+    {
       "name": "module-worker.queue-producer",
       "version": "1.0.0",
       "schemaDigest": "sha256:141f7413ff4dced8e379d9726100f66b584e76135156fb5a74a54e7b83edba1d"

@@ -4,7 +4,7 @@
   "group": "edge.forms.takoform.com",
   "candidateSet": {
     "path": "forms/candidates/edge.forms.takoform.com/candidate-set.json",
-    "sha256": "8e8599ca3896946dc5ac4e609ce7652f21631bd5e38dddc026db7a3febadf2f8"
+    "sha256": "d243252065495e2530101e4890d060bcf7205a55c16a88b0bbf93ab8b1266b47"
   },
   "requiredChecks": [
     "candidate-desired-schema-validated",
@@ -39,14 +39,14 @@
           {
             "apiVersion": "edge.forms.takoform.com",
             "kind": "WorkerVersion",
-            "definitionVersion": "0.2.0",
-            "schemaDigest": "sha256:3d4eeed966867a1ef8d7ce629a77c4b9687c6d48d3e496d22314b29aff0a42ed"
+            "definitionVersion": "0.3.0",
+            "schemaDigest": "sha256:0d0c9c8066ae1db880303647ea4c031f79f725e8137a49edac4b410db691571f"
           },
           {
             "apiVersion": "edge.forms.takoform.com",
             "kind": "WorkerDeployment",
-            "definitionVersion": "0.1.0",
-            "schemaDigest": "sha256:0d2bca351b8ecade0a1ebbddf2463bba22910313ff916414112ec8762204e769"
+            "definitionVersion": "0.2.0",
+            "schemaDigest": "sha256:80f91df89c8d93c88f1d16339b046e584655a6d0a5ba165ffc6dbd8d5ea69740"
           },
           {
             "apiVersion": "edge.forms.takoform.com",
@@ -71,6 +71,12 @@
             "kind": "EdgeKVNamespace",
             "definitionVersion": "0.1.0",
             "schemaDigest": "sha256:1a3f5d50bde53b4f743334dba3b0d0d28c1516727ca76d266beb61c5ee210022"
+          },
+          {
+            "apiVersion": "edge.forms.takoform.com",
+            "kind": "ObjectBucket",
+            "definitionVersion": "0.1.0",
+            "schemaDigest": "sha256:a2efad44a253a8bdeb767a3540ca33a533ab57d45dbe195bfd19590b35816d68"
           },
           {
             "apiVersion": "edge.forms.takoform.com",
@@ -115,11 +121,11 @@
             "schemaDigest": "sha256:3669f3bebf7b4c6169d5a3cdf7e7ca4e8d1851516702a437be6ef69c2b9b98d7"
           }
         ],
-        "candidateCount": 16
+        "candidateCount": 17
       },
       "expected": {
         "status": "passed",
-        "exactCandidateCount": 16
+        "exactCandidateCount": 17
       }
     },
     {
@@ -148,14 +154,14 @@
           {
             "apiVersion": "edge.forms.takoform.com",
             "kind": "WorkerVersion",
-            "definitionVersion": "0.2.0",
-            "schemaDigest": "sha256:3d4eeed966867a1ef8d7ce629a77c4b9687c6d48d3e496d22314b29aff0a42ed"
+            "definitionVersion": "0.3.0",
+            "schemaDigest": "sha256:0d0c9c8066ae1db880303647ea4c031f79f725e8137a49edac4b410db691571f"
           },
           {
             "apiVersion": "edge.forms.takoform.com",
             "kind": "WorkerDeployment",
-            "definitionVersion": "0.1.0",
-            "schemaDigest": "sha256:0d2bca351b8ecade0a1ebbddf2463bba22910313ff916414112ec8762204e769"
+            "definitionVersion": "0.2.0",
+            "schemaDigest": "sha256:80f91df89c8d93c88f1d16339b046e584655a6d0a5ba165ffc6dbd8d5ea69740"
           },
           {
             "apiVersion": "edge.forms.takoform.com",
@@ -180,6 +186,12 @@
             "kind": "EdgeKVNamespace",
             "definitionVersion": "0.1.0",
             "schemaDigest": "sha256:1a3f5d50bde53b4f743334dba3b0d0d28c1516727ca76d266beb61c5ee210022"
+          },
+          {
+            "apiVersion": "edge.forms.takoform.com",
+            "kind": "ObjectBucket",
+            "definitionVersion": "0.1.0",
+            "schemaDigest": "sha256:a2efad44a253a8bdeb767a3540ca33a533ab57d45dbe195bfd19590b35816d68"
           },
           {
             "apiVersion": "edge.forms.takoform.com",
@@ -224,11 +236,11 @@
             "schemaDigest": "sha256:3669f3bebf7b4c6169d5a3cdf7e7ca4e8d1851516702a437be6ef69c2b9b98d7"
           }
         ],
-        "candidateCount": 16
+        "candidateCount": 17
       },
       "expected": {
         "status": "passed",
-        "exactCandidateCount": 16
+        "exactCandidateCount": 17
       }
     },
     {
@@ -257,14 +269,14 @@
           {
             "apiVersion": "edge.forms.takoform.com",
             "kind": "WorkerVersion",
-            "definitionVersion": "0.2.0",
-            "schemaDigest": "sha256:3d4eeed966867a1ef8d7ce629a77c4b9687c6d48d3e496d22314b29aff0a42ed"
+            "definitionVersion": "0.3.0",
+            "schemaDigest": "sha256:0d0c9c8066ae1db880303647ea4c031f79f725e8137a49edac4b410db691571f"
           },
           {
             "apiVersion": "edge.forms.takoform.com",
             "kind": "WorkerDeployment",
-            "definitionVersion": "0.1.0",
-            "schemaDigest": "sha256:0d2bca351b8ecade0a1ebbddf2463bba22910313ff916414112ec8762204e769"
+            "definitionVersion": "0.2.0",
+            "schemaDigest": "sha256:80f91df89c8d93c88f1d16339b046e584655a6d0a5ba165ffc6dbd8d5ea69740"
           },
           {
             "apiVersion": "edge.forms.takoform.com",
@@ -289,6 +301,12 @@
             "kind": "EdgeKVNamespace",
             "definitionVersion": "0.1.0",
             "schemaDigest": "sha256:1a3f5d50bde53b4f743334dba3b0d0d28c1516727ca76d266beb61c5ee210022"
+          },
+          {
+            "apiVersion": "edge.forms.takoform.com",
+            "kind": "ObjectBucket",
+            "definitionVersion": "0.1.0",
+            "schemaDigest": "sha256:a2efad44a253a8bdeb767a3540ca33a533ab57d45dbe195bfd19590b35816d68"
           },
           {
             "apiVersion": "edge.forms.takoform.com",
@@ -333,11 +351,11 @@
             "schemaDigest": "sha256:3669f3bebf7b4c6169d5a3cdf7e7ca4e8d1851516702a437be6ef69c2b9b98d7"
           }
         ],
-        "candidateCount": 16
+        "candidateCount": 17
       },
       "expected": {
         "status": "passed",
-        "exactCandidateCount": 16
+        "exactCandidateCount": 17
       }
     },
     {
@@ -366,14 +384,14 @@
           {
             "apiVersion": "edge.forms.takoform.com",
             "kind": "WorkerVersion",
-            "definitionVersion": "0.2.0",
-            "schemaDigest": "sha256:3d4eeed966867a1ef8d7ce629a77c4b9687c6d48d3e496d22314b29aff0a42ed"
+            "definitionVersion": "0.3.0",
+            "schemaDigest": "sha256:0d0c9c8066ae1db880303647ea4c031f79f725e8137a49edac4b410db691571f"
           },
           {
             "apiVersion": "edge.forms.takoform.com",
             "kind": "WorkerDeployment",
-            "definitionVersion": "0.1.0",
-            "schemaDigest": "sha256:0d2bca351b8ecade0a1ebbddf2463bba22910313ff916414112ec8762204e769"
+            "definitionVersion": "0.2.0",
+            "schemaDigest": "sha256:80f91df89c8d93c88f1d16339b046e584655a6d0a5ba165ffc6dbd8d5ea69740"
           },
           {
             "apiVersion": "edge.forms.takoform.com",
@@ -398,6 +416,12 @@
             "kind": "EdgeKVNamespace",
             "definitionVersion": "0.1.0",
             "schemaDigest": "sha256:1a3f5d50bde53b4f743334dba3b0d0d28c1516727ca76d266beb61c5ee210022"
+          },
+          {
+            "apiVersion": "edge.forms.takoform.com",
+            "kind": "ObjectBucket",
+            "definitionVersion": "0.1.0",
+            "schemaDigest": "sha256:a2efad44a253a8bdeb767a3540ca33a533ab57d45dbe195bfd19590b35816d68"
           },
           {
             "apiVersion": "edge.forms.takoform.com",
@@ -442,11 +466,11 @@
             "schemaDigest": "sha256:3669f3bebf7b4c6169d5a3cdf7e7ca4e8d1851516702a437be6ef69c2b9b98d7"
           }
         ],
-        "candidateCount": 16
+        "candidateCount": 17
       },
       "expected": {
         "status": "passed",
-        "exactCandidateCount": 16
+        "exactCandidateCount": 17
       }
     }
   ],
@@ -533,10 +557,10 @@
         "formRef": {
           "apiVersion": "edge.forms.takoform.com",
           "kind": "WorkerVersion",
-          "definitionVersion": "0.2.0",
-          "schemaDigest": "sha256:3d4eeed966867a1ef8d7ce629a77c4b9687c6d48d3e496d22314b29aff0a42ed"
+          "definitionVersion": "0.3.0",
+          "schemaDigest": "sha256:0d0c9c8066ae1db880303647ea4c031f79f725e8137a49edac4b410db691571f"
         },
-        "packageDigest": "sha256:63cf4dd3e96f575d1d1631c87d2e0ff0410ca820e142b8d4fa73e30aaa651025"
+        "packageDigest": "sha256:5965f6135a4879b1ba0bf9a2f9b20805369f2af37d73ca67aa2f4f2ad14863e0"
       },
       "lifecycleCapabilities": [
         "create",
@@ -565,6 +589,16 @@
           "notFoundHandling": "single_page_application",
           "runWorkerFirst": true
         },
+        "bucketBindings": [
+          {
+            "name": "OBJECTS",
+            "resource": {
+              "apiVersion": "edge.forms.takoform.com",
+              "kind": "ObjectBucket",
+              "name": "object-bucket"
+            }
+          }
+        ],
         "bundle": {
           "apiVersion": "edge.forms.takoform.com",
           "kind": "WorkerBundle",
@@ -576,13 +610,6 @@
             "service": {
               "apiVersion": "standards.takoform.com/v1",
               "protocol": "org.postgresql.wire"
-            }
-          },
-          {
-            "name": "MEDIA",
-            "service": {
-              "apiVersion": "standards.takoform.com/v1",
-              "protocol": "com.amazonaws.s3"
             }
           }
         ],
@@ -662,10 +689,10 @@
         "formRef": {
           "apiVersion": "edge.forms.takoform.com",
           "kind": "WorkerDeployment",
-          "definitionVersion": "0.1.0",
-          "schemaDigest": "sha256:0d2bca351b8ecade0a1ebbddf2463bba22910313ff916414112ec8762204e769"
+          "definitionVersion": "0.2.0",
+          "schemaDigest": "sha256:80f91df89c8d93c88f1d16339b046e584655a6d0a5ba165ffc6dbd8d5ea69740"
         },
-        "packageDigest": "sha256:535133f0a79c2091162f2dc237d177702e5e5db5c558c6c2e5bf5bcd76d6ff17"
+        "packageDigest": "sha256:7339f10ae8ca24d3b96fa9be305be0f5ad7927ddf3b955d7c835c2c8898714a0"
       },
       "lifecycleCapabilities": [
         "create",
@@ -812,6 +839,30 @@
       "desiredSchema": {
         "path": "fixtures/edge-kvnamespace-desired-schema.json",
         "sha256": "sha256:6ae4b4cc712dbd445a131e0d3a8c464ef48070375ec3432dea599944c4c1bb5e"
+      }
+    },
+    "objectBucket": {
+      "name": "object-bucket-probe",
+      "identity": {
+        "formRef": {
+          "apiVersion": "edge.forms.takoform.com",
+          "kind": "ObjectBucket",
+          "definitionVersion": "0.1.0",
+          "schemaDigest": "sha256:a2efad44a253a8bdeb767a3540ca33a533ab57d45dbe195bfd19590b35816d68"
+        },
+        "packageDigest": "sha256:5277d10da8ca9531cd98ac098266bfe709757cdec444648b748defd9f4a28e45"
+      },
+      "lifecycleCapabilities": [
+        "create",
+        "read",
+        "delete",
+        "import",
+        "observe"
+      ],
+      "desired": {},
+      "desiredSchema": {
+        "path": "fixtures/object-bucket-desired-schema.json",
+        "sha256": "sha256:def78c253b5d910d54926f054a1c2dd42c9d7cb83e0adc0d13e67fe1808dfd65"
       }
     },
     "sQLiteDatabase": {

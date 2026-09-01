@@ -24,7 +24,7 @@ import (
 
 const (
 	Family                    = "edge.forms.takoform.com"
-	ExpectedPackageCount      = 16
+	ExpectedPackageCount      = 17
 	CoreVersion               = "v1.1.0"
 	SigningRequiredStatus     = "signing-required"
 	VerifiedPublicationStatus = "verified"
@@ -48,12 +48,30 @@ const (
 )
 
 const (
-	publisherPolicySource       = "forms/trust/publisher-policy.json"
-	trustedRootSource           = "forms/trust/trusted-root.json"
-	candidateSetSource          = "forms/candidates/edge.forms.takoform.com/candidate-set.json"
-	revocationSourceRoot        = "forms/revocations"
-	revocationSourceCheckpoints = "forms/revocations/checkpoints"
+	publisherPolicySource          = "forms/trust/publisher-policy.json"
+	trustedRootSource              = "forms/trust/trusted-root.json"
+	candidateSetSource             = "forms/candidates/edge.forms.takoform.com/candidate-set.json"
+	retainedPackageInventorySource = "forms/retained-packages.json"
+	revocationSourceRoot           = "forms/revocations"
+	revocationSourceCheckpoints    = "forms/revocations/checkpoints"
 )
+
+const expectedRetainedPackageCount = 2
+
+type retainedPackageInventory struct {
+	Format   string                 `json:"format"`
+	Family   string                 `json:"family"`
+	Packages []retainedPackageEntry `json:"packages"`
+}
+
+type retainedPackageEntry struct {
+	FormRef       formpackage.FormRef `json:"formRef"`
+	PackageDigest string              `json:"packageDigest"`
+	ReleaseID     string              `json:"releaseId"`
+	ArtifactID    string              `json:"artifactId"`
+	Tag           string              `json:"tag"`
+	SourcePath    string              `json:"sourcePath"`
+}
 
 type SigningSubject struct {
 	Role   string `json:"role"`
@@ -867,7 +885,93 @@ func discoverPackages(repositoryRoot string) ([]verifiedCandidate, error) {
 		verified = append(verified, verifiedCandidate{candidate: candidate, locator: locator, releaseRoot: releaseRoot, canonicalIndex: canonical})
 	}
 	sort.Slice(verified, func(left, right int) bool { return verified[left].locator.Tag < verified[right].locator.Tag })
+	if err := verifyRetainedPackageInventory(repositoryRoot); err != nil {
+		return nil, err
+	}
 	return verified, nil
+}
+
+// verifyRetainedPackageInventory authenticates the publisher-owned allowlist
+// of pre-current package roots. A Core-valid package is not admitted merely
+// because its content-addressed path looks plausible: every locator, FormRef,
+// package digest, and complete package closure must equal one exact entry.
+func verifyRetainedPackageInventory(repositoryRoot string) error {
+	raw, err := readRegular(filepath.Join(repositoryRoot, filepath.FromSlash(retainedPackageInventorySource)), "retained package inventory")
+	if err != nil {
+		return err
+	}
+	var inventory retainedPackageInventory
+	if err := decodeStrict(raw, &inventory); err != nil {
+		return fmt.Errorf("decode retained package inventory: %w", err)
+	}
+	if inventory.Format != "takoform.retained-package-inventory@v1" || inventory.Family != Family || len(inventory.Packages) != expectedRetainedPackageCount {
+		return fmt.Errorf("retained package inventory must contain exactly %d %s roots", expectedRetainedPackageCount, Family)
+	}
+	expected := map[string]retainedPackageEntry{
+		"WorkerDeployment@0.1.0": {
+			FormRef: formpackage.FormRef{
+				APIVersion: Family, Kind: "WorkerDeployment", DefinitionVersion: "0.1.0",
+				SchemaDigest: "sha256:0d2bca351b8ecade0a1ebbddf2463bba22910313ff916414112ec8762204e769",
+			},
+			PackageDigest: "sha256:535133f0a79c2091162f2dc237d177702e5e5db5c558c6c2e5bf5bcd76d6ff17",
+			ReleaseID:     "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlsirsxa3dppfwwk3tu",
+			ArtifactID:    "sha256-535133f0a79c2091162f2dc237d177702e5e5db5c558c6c2e5bf5bcd76d6ff17",
+			Tag:           "forms/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlsirsxa3dppfwwk3tu/sha256-535133f0a79c2091162f2dc237d177702e5e5db5c558c6c2e5bf5bcd76d6ff17",
+			SourcePath:    "forms/releases/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlsirsxa3dppfwwk3tu/sha256-535133f0a79c2091162f2dc237d177702e5e5db5c558c6c2e5bf5bcd76d6ff17",
+		},
+		"WorkerVersion@0.2.0": {
+			FormRef: formpackage.FormRef{
+				APIVersion: Family, Kind: "WorkerVersion", DefinitionVersion: "0.2.0",
+				SchemaDigest: "sha256:3d4eeed966867a1ef8d7ce629a77c4b9687c6d48d3e496d22314b29aff0a42ed",
+			},
+			PackageDigest: "sha256:63cf4dd3e96f575d1d1631c87d2e0ff0410ca820e142b8d4fa73e30aaa651025",
+			ReleaseID:     "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlskzsxe43jn5xa",
+			ArtifactID:    "sha256-63cf4dd3e96f575d1d1631c87d2e0ff0410ca820e142b8d4fa73e30aaa651025",
+			Tag:           "forms/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlskzsxe43jn5xa/sha256-63cf4dd3e96f575d1d1631c87d2e0ff0410ca820e142b8d4fa73e30aaa651025",
+			SourcePath:    "forms/releases/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlskzsxe43jn5xa/sha256-63cf4dd3e96f575d1d1631c87d2e0ff0410ca820e142b8d4fa73e30aaa651025",
+		},
+	}
+	seen := make(map[string]struct{}, len(inventory.Packages))
+	for _, entry := range inventory.Packages {
+		key := entry.FormRef.Kind + "@" + entry.FormRef.DefinitionVersion
+		want, ok := expected[key]
+		if !ok {
+			return fmt.Errorf("retained package inventory entry %s is not an exact retained identity", key)
+		}
+		if _, duplicate := seen[key]; duplicate {
+			return fmt.Errorf("retained package inventory repeats %s", key)
+		}
+		seen[key] = struct{}{}
+		if entry != want {
+			return fmt.Errorf("retained package inventory entry %s differs from the exact published identity", key)
+		}
+		if !formpackage.ValidDigest(entry.PackageDigest) || !safeRelative(entry.ReleaseID) || !safeRelative(entry.ArtifactID) || !safeRelative(entry.Tag) || !safeRelative(entry.SourcePath) {
+			return fmt.Errorf("retained package inventory entry %s has an unsafe locator", key)
+		}
+		releaseRoot := filepath.Join(repositoryRoot, filepath.FromSlash(entry.SourcePath))
+		report, err := formpackage.VerifyDirectory(releaseRoot)
+		if err != nil {
+			return fmt.Errorf("Core %s retained release verification for %s: %w", CoreVersion, key, err)
+		}
+		if report.FormRef != entry.FormRef || report.PackageDigest != entry.PackageDigest {
+			return fmt.Errorf("%s retained release identity differs from its inventory entry", key)
+		}
+		capability, ok := report.VerifiedPackage()
+		if !ok {
+			return fmt.Errorf("Core %s did not issue a retained package capability for %s", CoreVersion, key)
+		}
+		locator, err := formpackage.PublicationLocatorFor(capability.PackageIndex(), capability.PackageDigest())
+		if err != nil {
+			return fmt.Errorf("Core %s retained publication locator for %s: %w", CoreVersion, key, err)
+		}
+		if locator.APIVersion != "packages.forms.takoform.com/v1alpha5" || locator.ReleaseID != entry.ReleaseID || locator.ArtifactID != entry.ArtifactID || locator.Tag != entry.Tag || locator.SourcePath != entry.SourcePath {
+			return fmt.Errorf("%s retained locator differs from its exact inventory entry", key)
+		}
+	}
+	if len(seen) != len(expected) {
+		return fmt.Errorf("retained package inventory is missing one or more exact identities")
+	}
+	return nil
 }
 
 func readPublisherPolicy(repositoryRoot string) ([]byte, trust.PublisherPolicy, error) {

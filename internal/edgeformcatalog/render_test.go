@@ -374,8 +374,8 @@ func TestContractDefinitionsSatisfyNormativeSchemas(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(interfaces) != 7 {
-		t.Fatalf("interface catalog has %d entries, want 7", len(interfaces))
+	if len(interfaces) != 8 {
+		t.Fatalf("interface catalog has %d entries, want 8", len(interfaces))
 	}
 	for _, contract := range interfaces {
 		if err := formpackage.ValidateInterfaceDefinition([]byte(contract.DefinitionJSON)); err != nil {
@@ -394,8 +394,8 @@ func TestContractDefinitionsSatisfyNormativeSchemas(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(bindings) != 6 {
-		t.Fatalf("binding catalog has %d entries, want 6", len(bindings))
+	if len(bindings) != 7 {
+		t.Fatalf("binding catalog has %d entries, want 7", len(bindings))
 	}
 	interfaceDigests := map[string]string{}
 	for _, contract := range interfaces {
@@ -433,6 +433,170 @@ func TestQueueProducerProjectsOnlySubmission(t *testing.T) {
 		return
 	}
 	t.Fatal("module-worker.queue-producer is not in the catalog")
+}
+
+func TestObjectBucketBindingUsesLengthAwareStreamingABI(t *testing.T) {
+	t.Parallel()
+	definitions, err := BindingDefinitions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, definition := range definitions {
+		if definition.Name != "module-worker.object-bucket" {
+			continue
+		}
+		if definition.Version != "1.1.0" {
+			t.Fatalf("object bucket binding version = %s, want 1.1.0", definition.Version)
+		}
+		description := definition.Description
+		positive := []string{
+			"put(key, body, options?)",
+			"uploadPart(key, uploadId, partNumber, body, options?)",
+			"body is a ReadableStream<Uint8Array>",
+			"contentLength may be omitted",
+			"MUST equal the intrinsic byte length",
+			"ReadableStream, options is required and contentLength is required",
+			"streams bytes with backpressure",
+			"MUST NOT buffer the body merely to discover its length",
+			"list accepts prefix, cursor, and delimiter strings plus integer limit from 1 through 1000",
+			"`maxLength` counts Unicode code points",
+			"only key/prefix count UTF-8 bytes",
+			"createMultipartUpload accepts only contentType",
+			"completeMultipartUpload parts is an ordered array of 1 through 10000 closed {partNumber, etag} objects",
+			"A list resolves to {objects, prefixes, truncated, cursor?}",
+			"values that cannot form a valid Interface input document reject with TypeError",
+			"once the caller supplies structurally valid input, a schema-valid Interface operation fails with the exact error name declared by that operation",
+			"key outside the Interface UTF-8 byte budget is invalid_key",
+			"schema-valid cursor the host does not recognize is invalid_cursor",
+			"object-relative range that cannot be served is range_not_satisfiable",
+			"unmet validator is precondition_failed",
+			"undersized non-final parts is invalid_part",
+			"unknown upload is upload_not_found",
+			"Absent ReadableStream contentLength",
+			"numeric contentLength that is non-finite, non-integral, negative, unsafe, over the Interface limit, or mismatched",
+			"Present non-number contentLength",
+		}
+		for _, phrase := range positive {
+			if !strings.Contains(description, phrase) {
+				t.Errorf("object bucket ABI description omits positive rule %q", phrase)
+			}
+		}
+		negative := []string{
+			"Extra positional arguments, non-plain-object options, unknown option members, and invalid input types reject with TypeError",
+			"reject pre-consumption with invalid_body",
+			"other invalid body/option types, and unknown option members reject with TypeError",
+			"stream delivering a different count rejects with invalid_body and stores nothing",
+			"`bodyStream` is host-internal wire framing and is never exposed in or accepted by this JavaScript result",
+		}
+		for _, phrase := range negative {
+			if !strings.Contains(description, phrase) {
+				t.Errorf("object bucket ABI description omits negative rule %q", phrase)
+			}
+		}
+		if strings.Contains(description, "{body, bodyStream") {
+			t.Error("object bucket ABI must not expose host-internal bodyStream in the JavaScript get result")
+		}
+		if strings.Contains(description, "Well-typed values outside those semantic bounds reject with the exact Interface error name") {
+			t.Error("object bucket ABI must not promise an Interface error for a bound that has no declared operation error")
+		}
+		if strings.Contains(description, "prefixes?") {
+			t.Error("object bucket ABI must normalize an absent prefix set to a required empty array")
+		}
+		return
+	}
+	t.Fatal("module-worker.object-bucket is not in the catalog")
+}
+
+func TestEdgeObjectsDefersMultipartMinimumSizeValidationUntilCompletion(t *testing.T) {
+	t.Parallel()
+	definitions := InterfaceDefinitions()
+	for _, definition := range definitions {
+		if definition.Name != "edge.objects" {
+			continue
+		}
+		var put, uploadPart, completeMultipartUpload *InterfaceOperation
+		for index := range definition.Operations {
+			operation := &definition.Operations[index]
+			switch operation.Name {
+			case "put":
+				put = operation
+			case "uploadPart":
+				uploadPart = operation
+			case "completeMultipartUpload":
+				completeMultipartUpload = operation
+			}
+		}
+		if put == nil || uploadPart == nil || completeMultipartUpload == nil {
+			t.Fatal("edge.objects omits put or multipart operations")
+		}
+		if !strings.Contains(put.Description, "above maxSinglePutBytes fails with value_too_large") ||
+			!slices.Contains(put.Errors, "value_too_large") {
+			t.Error("put must route a schema-valid object above maxSinglePutBytes to value_too_large")
+		}
+		if strings.Contains(uploadPart.Description, "except the highest-numbered one") {
+			t.Error("uploadPart cannot know which part will be highest in the later completion set")
+		}
+		if !strings.Contains(uploadPart.Description, "A part may be shorter than 5242880 bytes here") {
+			t.Error("uploadPart must explicitly allow a short part until the later completion request identifies the final part")
+		}
+		if slices.Contains(uploadPart.Errors, "invalid_part") {
+			t.Error("uploadPart declares invalid_part without a schema-valid trigger")
+		}
+		if slices.Contains(uploadPart.Errors, "value_too_large") {
+			t.Error("uploadPart declares value_too_large even though contentLength is schema-bounded by maxObjectBytes")
+		}
+		for _, phrase := range []string{
+			"Every part except the highest-numbered part in this completion request MUST be at least 5242880 bytes",
+			"fails with invalid_part and assembles nothing",
+		} {
+			if !strings.Contains(completeMultipartUpload.Description, phrase) {
+				t.Errorf("completeMultipartUpload omits enforceable multipart rule %q", phrase)
+			}
+		}
+		if !slices.Contains(completeMultipartUpload.Errors, "invalid_part") {
+			t.Error("completeMultipartUpload does not declare invalid_part")
+		}
+		if slices.Contains(completeMultipartUpload.Errors, "precondition_failed") {
+			t.Error("completeMultipartUpload declares precondition_failed without a conditional input")
+		}
+		return
+	}
+	t.Fatal("edge.objects is not in the catalog")
+}
+
+func TestEdgeObjectsOperationErrorsAreExact(t *testing.T) {
+	t.Parallel()
+	want := map[string][]string{
+		"head":                    {"invalid_key", "not_found", "backend_unavailable"},
+		"get":                     {"invalid_key", "not_found", "precondition_failed", "range_not_satisfiable", "backend_unavailable"},
+		"put":                     {"invalid_key", "invalid_body", "value_too_large", "precondition_failed", "backend_unavailable"},
+		"delete":                  {"invalid_key", "backend_unavailable"},
+		"list":                    {"invalid_cursor", "backend_unavailable"},
+		"createMultipartUpload":   {"invalid_key", "backend_unavailable"},
+		"uploadPart":              {"invalid_key", "invalid_body", "upload_not_found", "backend_unavailable"},
+		"completeMultipartUpload": {"invalid_key", "invalid_part", "upload_not_found", "value_too_large", "backend_unavailable"},
+		"abortMultipartUpload":    {"invalid_key", "upload_not_found", "backend_unavailable"},
+	}
+	for _, definition := range InterfaceDefinitions() {
+		if definition.Name != "edge.objects" {
+			continue
+		}
+		if len(definition.Operations) != len(want) {
+			t.Fatalf("edge.objects operations = %d, want %d", len(definition.Operations), len(want))
+		}
+		for _, operation := range definition.Operations {
+			errors, ok := want[operation.Name]
+			if !ok {
+				t.Errorf("unexpected edge.objects operation %q", operation.Name)
+				continue
+			}
+			if !slices.Equal(operation.Errors, errors) {
+				t.Errorf("%s errors = %v, want %v", operation.Name, operation.Errors, errors)
+			}
+		}
+		return
+	}
+	t.Fatal("edge.objects is not in the catalog")
 }
 
 func writeFile(t *testing.T, path string, raw []byte) {

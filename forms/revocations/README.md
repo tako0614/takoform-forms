@@ -55,7 +55,8 @@ For sequence 1 and later, follow the exact
 [revocation advancement runbook](../../docs/revocation-advancement.md). Each
 successful advancement creates one new set tag and one
 `forms/revocations/v<statementVersion>` tag in one atomic non-force push while
-preserving all 16 package tags. `statementVersion` orders trust-log evidence;
+preserving the 17 current package tags and the two retained immutable package
+tags (19 release roots in total). `statementVersion` orders trust-log evidence;
 it is pinned metadata, not a third version axis. It never changes the two
 Takoform axes: API/Core SemVer and the referenced Form's `definitionVersion`.
 

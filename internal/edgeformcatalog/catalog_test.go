@@ -18,6 +18,7 @@ var orderedKinds = []string{
 	"WorkerEndpoint",
 	"WorkerCronTrigger",
 	"EdgeKVNamespace",
+	"ObjectBucket",
 	"SQLiteDatabase",
 	"SQLiteMigrationSet",
 	"SQLiteMigrationApplication",
@@ -34,16 +35,19 @@ func TestCatalogValidates(t *testing.T) {
 	}
 }
 
-func TestCatalogIsExactSixteenFormFamily(t *testing.T) {
+func TestCatalogIsExactSeventeenFormFamily(t *testing.T) {
 	t.Parallel()
 	if len(Forms) != len(orderedKinds) {
 		t.Fatalf("family has %d forms, want %d", len(Forms), len(orderedKinds))
 	}
 	// Worker Version alone is off the generation line: its contract gained
-	// the sealed externalServices slot list in Beta 2, so it is not the
+	// the typed bucketBindings field, so it is not the
 	// v1beta1 contract re-identified (decision 0046). Spelling the exception
 	// out here means a second Form drifting off the line fails this test.
-	wantVersions := map[string]string{"WorkerVersion": "0.2.0"}
+	wantVersions := map[string]string{
+		"WorkerVersion":    "0.3.0",
+		"WorkerDeployment": "0.2.0",
+	}
 	for index, form := range Forms {
 		want := wantVersions[form.Kind]
 		if want == "" {
@@ -72,7 +76,7 @@ func TestCatalogHasReviewedSemanticFields(t *testing.T) {
 		// not by a token this project has no behavior registry to interpret
 		// (decision 0019).
 		"WorkerVersion": {
-			"actorBindings", "assets", "bundle", "externalServices", "handlers", "kvBindings",
+			"actorBindings", "assets", "bucketBindings", "bundle", "externalServices", "handlers", "kvBindings",
 			"queueProducerBindings", "requiredSensitiveVars", "serviceBindings", "sqliteBindings", "vars",
 			"worker", "workflowBindings",
 		},
@@ -83,6 +87,7 @@ func TestCatalogHasReviewedSemanticFields(t *testing.T) {
 		"WorkerEndpoint":             {"worker"},
 		"WorkerCronTrigger":          {"cron", "worker"},
 		"EdgeKVNamespace":            {},
+		"ObjectBucket":               {},
 		"SQLiteDatabase":             {},
 		"SQLiteMigrationSet":         {"manifestDigest"},
 		"SQLiteMigrationApplication": {"database", "migrationSet"},
@@ -122,6 +127,7 @@ func TestRoleRules(t *testing.T) {
 		"WorkerEndpoint":             model.RoleAttachment,
 		"WorkerCronTrigger":          model.RoleAttachment,
 		"EdgeKVNamespace":            model.RoleIdentity,
+		"ObjectBucket":               model.RoleIdentity,
 		"SQLiteDatabase":             model.RoleIdentity,
 		"SQLiteMigrationSet":         model.RoleRevision,
 		"SQLiteMigrationApplication": model.RoleAttachment,
@@ -169,6 +175,7 @@ func TestLifecycleCapabilityTable(t *testing.T) {
 		"WorkerEndpoint":             base,
 		"WorkerCronTrigger":          withUpdate,
 		"EdgeKVNamespace":            base,
+		"ObjectBucket":               base,
 		"SQLiteDatabase":             base,
 		"SQLiteMigrationSet":         base,
 		"SQLiteMigrationApplication": base,
@@ -316,8 +323,8 @@ func TestOnlyWorkerVersionAcceptsBindings(t *testing.T) {
 	t.Parallel()
 	for _, form := range Forms {
 		if form.Kind == "WorkerVersion" {
-			if len(form.AcceptedBindings) != 6 {
-				t.Errorf("WorkerVersion accepts %d bindings, want 6", len(form.AcceptedBindings))
+			if len(form.AcceptedBindings) != 7 {
+				t.Errorf("WorkerVersion accepts %d bindings, want 7", len(form.AcceptedBindings))
 			}
 			continue
 		}
@@ -331,6 +338,7 @@ func TestProvidedInterfaceAssignments(t *testing.T) {
 	t.Parallel()
 	want := map[string][]string{
 		"EdgeKVNamespace":  {"edge.kv"},
+		"ObjectBucket":     {"edge.objects"},
 		"SQLiteDatabase":   {"edge.sql"},
 		"AtLeastOnceQueue": {"edge.queue"},
 		// The worker identity carries both directions of its exact contracts.
@@ -432,7 +440,7 @@ func TestNoRuntimeSelectorTokensRemain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rendered := make([]string, 0, len(forms)+16)
+	rendered := make([]string, 0, len(forms)+17)
 	for _, form := range forms {
 		rendered = append(rendered, form.DefinitionJSON)
 	}
@@ -484,6 +492,44 @@ func TestNoVendorNamesInRenderedOutputs(t *testing.T) {
 			if strings.Contains(lowered, token) {
 				t.Fatalf("rendered output names a vendor token %q", token)
 			}
+		}
+	}
+}
+
+func TestWorkerVersionExampleOmitsManagedObjectService(t *testing.T) {
+	t.Parallel()
+	version, ok := ByKind("WorkerVersion")
+	if !ok {
+		t.Fatal("WorkerVersion is missing from the catalog")
+	}
+	var externalServices *model.Field
+	for index := range version.Fields {
+		if version.Fields[index].Wire == "externalServices" {
+			externalServices = &version.Fields[index]
+			break
+		}
+	}
+	if externalServices == nil {
+		t.Fatal("WorkerVersion has no externalServices field")
+	}
+	example, ok := externalServices.Example.([]any)
+	if !ok || len(example) == 0 {
+		t.Fatalf("externalServices example = %#v, want a non-empty generic service example", externalServices.Example)
+	}
+	for _, item := range example {
+		slot, ok := item.(map[string]any)
+		if !ok {
+			t.Fatalf("externalServices example item = %#v, want object", item)
+		}
+		if slot["name"] == "MEDIA" {
+			t.Fatal("current WorkerVersion example must not advertise the managed MEDIA object-storage slot")
+		}
+		service, ok := slot["service"].(map[string]any)
+		if !ok {
+			t.Fatalf("externalServices example service = %#v, want object", slot["service"])
+		}
+		if service["protocol"] == "com.amazonaws.s3" {
+			t.Fatal("current WorkerVersion example must not advertise the S3 object-storage protocol")
 		}
 	}
 }

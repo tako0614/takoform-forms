@@ -9,6 +9,11 @@
       "schemaDigest": "sha256:231cfe2a7d8a6a9234f2ca84d4c4fc5b52857e5b632ab613ab2f9eca0116e082"
     },
     {
+      "name": "edge.objects",
+      "version": "1.0.0",
+      "schemaDigest": "sha256:2f72433d51ec09ba88a1b9209cbb9bd9a6bd0362c6c538bfcb6229298ef24c76"
+    },
+    {
       "name": "edge.queue",
       "version": "1.0.0",
       "schemaDigest": "sha256:d8ed5c673cb544f5b2bd61aa66ac1c1a716276cf072232b3a0d06471403c2ff7"

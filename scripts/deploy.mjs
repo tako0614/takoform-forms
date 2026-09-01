@@ -61,6 +61,7 @@ export const DEPLOY_CONTRACT = Object.freeze({
         "forms/candidates/current-family-index.json",
         "forms/candidates/edge.forms.takoform.com",
         "forms/releases",
+        "forms/retained-packages.json",
         "forms/revocations",
         "forms/trust",
         "cmd/form-package",
@@ -75,9 +76,9 @@ export const DEPLOY_CONTRACT = Object.freeze({
       triggers: ["authority", "published-identity"],
       obligations: {
         provenance:
-          "The one clean canonical main commit is gated once. Released Core v1.1.0 verifies all 16 exact canonical package-index subjects, the exact publisher policy and trusted root, every Sigstore v0.3 bundle, the bounded signed API v1 checkpoint chain from genesis, every canonical statement digest, and every not-revoked decision. All new evidence reports one protected-main publisher/source/workflow/build commit; package subjects, revocation source, and publisher verification code remain byte-exact from that signed commit through publication.",
+          "The one clean canonical main commit is gated once. Released Core v1.1.0 verifies all 17 exact canonical package-index subjects, the exact publisher policy and trusted root, every Sigstore v0.3 bundle, the bounded signed API v1 checkpoint chain from genesis, every canonical statement digest, and every not-revoked decision. Publication separately verifies the exact 19-root release inventory (17 current roots plus two retained immutable roots). All new evidence reports one protected-main publisher/source/workflow/build commit; package subjects, revocation source, retained inventory, and publisher verification code remain byte-exact from that signed commit through publication.",
         "post-conditions":
-          "After one ordinary atomic non-force push, credential-free verification reads origin main, every Core-derived package tag, the create-only forms/sets/<source-commit> tag, and every immutable forms/revocations/v<statement-version> tag; fetches public commits into fresh storage; compares package and revocation bytes; and replays Core v1.1.0 package, publisher, signature, checkpoint, continuity, and revocation verification.",
+          "After one ordinary atomic non-force push, credential-free verification reads origin main, all 19 exact release-root tags (17 current package tags plus two retained tags), the create-only forms/sets/<source-commit> tag, and every immutable forms/revocations/v<statement-version> tag; fetches public commits into fresh storage; compares package and revocation bytes; and replays Core v1.1.0 package, publisher, signature, checkpoint, continuity, and revocation verification.",
         reversal:
           "Package tags, release paths, signed trust-set paths, set tags, revocation statements, checkpoints, and revocation tags are immutable and are never deleted, retagged, or overwritten. A bad publication cannot be rolled back in place; forward repair appends one new statement/checkpoint, signs a new source commit, and creates a new set, while changed package bytes also create a new Core-derived package identity.",
         "failure-handling":
@@ -225,6 +226,7 @@ export function runDeploy(args, dependencies = defaultDependencies()) {
       return 0;
     }
     requirePublicPredecessor(before, beforeTrust, dependencies);
+    preflightPackageTagInventory(dependencies, before, beforeTrust);
     runOwnerGate(dependencies);
     const commit = requireSourceIdentity(dependencies, {
       expectedRemoteCommit: beforeTrust.sourceCommit,
@@ -374,9 +376,9 @@ function validateTrustReport(
     report.workflowCommit !== trustSet ||
     report.buildConfigCommit !== trustSet ||
     report.publisherIdentity !== PUBLISHER_IDENTITY ||
-    report.packageCount !== 16 ||
+    report.packageCount !== 17 ||
     !Array.isArray(report.packages) ||
-    report.packages.length !== 16 ||
+    report.packages.length !== 17 ||
     report.checkpoint?.status !== "verified" ||
     !Number.isSafeInteger(report.checkpoint?.pin?.sequence) ||
     report.checkpoint.pin.sequence < 0 ||
@@ -394,9 +396,9 @@ function validateTrustReport(
       `trust set ${trustSet} did not return the exact Core v1.1.0 publisher/package/checkpoint report`,
     );
   }
-  if (validateCurrentPackages && plan.formCount !== 16) {
+  if (validateCurrentPackages && plan.formCount !== 17) {
     throw new DeployBlocked(
-      "publication plan must contain exactly 16 packages",
+      "publication plan must contain exactly 17 packages",
     );
   }
   const expectedTags = validateCurrentPackages
@@ -720,6 +722,7 @@ function requireSignedSourceClosure(dependencies, trust, currentCommit) {
       currentCommit,
       "--",
       "forms/releases",
+      "forms/retained-packages.json",
       "forms/revocations",
       "forms/candidates/current-family-index.json",
       "forms/candidates/edge.forms.takoform.com",
@@ -1052,6 +1055,118 @@ function readRemoteTagInventory(
   return found;
 }
 
+function readRemotePackageTagInventory(dependencies, mutationStarted = false) {
+  const output = requireSuccess(
+    dependencies,
+    "git",
+    ["ls-remote", "--tags", "origin", "refs/tags/forms/*"],
+    "cannot read public Form Package release tag inventory",
+    mutationStarted,
+    true,
+  );
+  const found = new Map();
+  for (const line of output.split(/\r?\n/u).filter(Boolean)) {
+    const [commit, ref, extra] = line.trim().split(/\s+/u);
+    if (ref?.endsWith("^{}")) continue;
+    if (extra !== undefined || !commitPattern.test(commit ?? "")) {
+      throw new DeployBlocked(
+        `public Form Package release tag inventory contains an invalid ref: ${line}`,
+        mutationStarted,
+      );
+    }
+    const tag = ref?.slice("refs/tags/".length) ?? "";
+    if (tag.startsWith("forms/sets/") || tag.startsWith("forms/revocations/")) {
+      continue;
+    }
+    if (!/^forms\/[^/]+\/sha256-[0-9a-f]{64}$/u.test(tag)) {
+      throw new DeployBlocked(
+        `public Form Package release tag inventory contains an unexpected ref: ${line}`,
+        mutationStarted,
+      );
+    }
+    if (found.has(tag)) {
+      throw new DeployBlocked(
+        `public Form Package release tag inventory repeats ${tag}`,
+        mutationStarted,
+      );
+    }
+    found.set(tag, commit);
+  }
+  return found;
+}
+
+/**
+ * Check the immutable package-tag surface before the owner gate and before
+ * any mutation. Current tags may be absent (the atomic push creates those
+ * roots), but every retained tag is an already-published identity and must
+ * exist, point at a commit whose package bytes equal the signed source, and
+ * resolve through Core to the exact publisher-owned locator. No unlisted
+ * package tag is accepted as an accidental third history root.
+ */
+function preflightPackageTagInventory(dependencies, plan, trust) {
+  const actual = readRemotePackageTagInventory(dependencies);
+  const currentTags = new Set(plan.forms.map((form) => form.locator.tag));
+  const retained = plan.retainedPackages ?? [];
+  const retainedByTag = new Map(retained.map((entry) => [entry.tag, entry]));
+  for (const tag of actual.keys()) {
+    if (!currentTags.has(tag) && !retainedByTag.has(tag)) {
+      throw new DeployBlocked(
+        `public Form Package release inventory contains an unknown pre-existing tag ${tag}`,
+      );
+    }
+  }
+  for (const entry of retained) {
+    const tagCommit = actual.get(entry.tag);
+    if (!tagCommit) {
+      throw new DeployBlocked(
+        `retained package tag ${entry.tag} is missing from the preflight inventory`,
+      );
+    }
+    requireSuccess(
+      dependencies,
+      "git",
+      ["cat-file", "-e", `${tagCommit}^{commit}`],
+      `cannot resolve retained package tag ${entry.tag} commit ${tagCommit} locally`,
+    );
+    requireSuccess(
+      dependencies,
+      "git",
+      [
+        "diff",
+        "--quiet",
+        tagCommit,
+        trust.sourceCommit,
+        "--",
+        entry.sourcePath,
+      ],
+      `retained package tag ${entry.tag} does not contain the exact Core-verified package bytes`,
+    );
+
+    const localRoot = path.resolve(plan.repositoryRoot ?? root);
+    const releaseRoot = path.join(localRoot, ...entry.sourcePath.split("/"));
+    const locator = runCoreLocatorForFetched(dependencies, releaseRoot, false);
+    const expectedLocator = {
+      apiVersion: "packages.forms.takoform.com/v1alpha5",
+      releaseId: entry.releaseId,
+      artifactId: entry.artifactId,
+      tag: entry.tag,
+      sourcePath: entry.sourcePath,
+    };
+    if (
+      locator.apiVersion !== expectedLocator.apiVersion ||
+      locator.releaseId !== expectedLocator.releaseId ||
+      locator.artifactId !== expectedLocator.artifactId ||
+      locator.tag !== expectedLocator.tag ||
+      locator.sourcePath !== expectedLocator.sourcePath ||
+      locator.artifactId !== entry.packageDigest.replace(":", "-")
+    ) {
+      throw new DeployBlocked(
+        `retained package tag ${entry.tag} Core locator differs from the exact inventory`,
+      );
+    }
+  }
+}
+
 function assertExactTagNames(actual, expected, label, mutationStarted = false) {
   if (
     actual.size !== expected.length ||
@@ -1351,6 +1466,21 @@ export function verifyPublicPublication(
     }
   }
 
+  const packageTagInventory = readRemotePackageTagInventory(
+    dependencies,
+    mutationStarted,
+  );
+  const expectedReleaseTags = [
+    ...plan.forms.map((form) => form.locator.tag),
+    ...(plan.retainedPackages ?? []).map((retained) => retained.tag),
+  ];
+  assertExactTagNames(
+    packageTagInventory,
+    expectedReleaseTags,
+    "public Form Package release",
+    mutationStarted,
+  );
+
   const packageTagCommits = new Map();
   for (const form of plan.forms) {
     const tagOutput = requireSuccess(
@@ -1380,6 +1510,33 @@ export function verifyPublicPublication(
       );
     }
     packageTagCommits.set(form.locator.tag, tagCommit);
+  }
+  const retainedTagCommits = new Map();
+  for (const retained of plan.retainedPackages ?? []) {
+    const tagOutput = requireSuccess(
+      dependencies,
+      "git",
+      [
+        "ls-remote",
+        "--tags",
+        "origin",
+        `refs/tags/${retained.tag}`,
+        `refs/tags/${retained.tag}^{}`,
+      ],
+      `cannot read public retained package tag ${retained.tag}`,
+      mutationStarted,
+      true,
+    );
+    const direct = parseRemoteRef(tagOutput, `refs/tags/${retained.tag}`);
+    const peeled = parseRemoteRef(tagOutput, `refs/tags/${retained.tag}^{}`);
+    const tagCommit = peeled || direct;
+    if (!commitPattern.test(tagCommit ?? "")) {
+      throw new DeployBlocked(
+        `public retained package tag ${retained.tag} did not resolve to a commit`,
+        mutationStarted,
+      );
+    }
+    retainedTagCommits.set(retained.tag, tagCommit);
   }
 
   let temporary;
@@ -1437,6 +1594,9 @@ export function verifyPublicPublication(
         ...plan.forms.map(
           (form) =>
             `refs/tags/${form.locator.tag}:refs/tags/${form.locator.tag}`,
+        ),
+        ...(plan.retainedPackages ?? []).map(
+          (retained) => `refs/tags/${retained.tag}:refs/tags/${retained.tag}`,
         ),
         ...expectedSetTags.map((tag) => `refs/tags/${tag}:refs/tags/${tag}`),
         ...trust.revocationTags.map(
@@ -1524,6 +1684,39 @@ export function verifyPublicPublication(
           true,
         );
       }
+      for (const retained of plan.retainedPackages ?? []) {
+        const fetchedTagCommit = requireSuccess(
+          dependencies,
+          "git",
+          ["-C", temporary, "rev-parse", `refs/tags/${retained.tag}^{commit}`],
+          `cannot resolve fetched retained package tag ${retained.tag}`,
+          mutationStarted,
+          true,
+        );
+        if (fetchedTagCommit !== retainedTagCommits.get(retained.tag)) {
+          throw new DeployBlocked(
+            `public retained package tag ${retained.tag} changed during readback`,
+            mutationStarted,
+          );
+        }
+        requireSuccess(
+          dependencies,
+          "git",
+          [
+            "-C",
+            temporary,
+            "diff",
+            "--quiet",
+            `refs/tags/${retained.tag}^{commit}`,
+            localCommit,
+            "--",
+            retained.sourcePath,
+          ],
+          `public retained package tag ${retained.tag} bytes were updated or deleted`,
+          mutationStarted,
+          true,
+        );
+      }
       for (let index = 0; index < trust.revocationTags.length; index += 1) {
         const tag = trust.revocationTags[index];
         const version = trust.statements[index].statementVersion;
@@ -1605,6 +1798,11 @@ export function verifyPublicPublication(
       statementVersion: trust.statements[index].statementVersion,
       statementDigest: trust.statements[index].statementDigest,
     })),
+    currentPackageCount: plan.formCount,
+    releaseRootCount:
+      plan.releaseRootCount ??
+      plan.formCount + (plan.retainedPackages ?? []).length,
+    releaseTagCount: plan.formCount + (plan.retainedPackages ?? []).length,
     tagCount: plan.formCount,
     tags: plan.forms.map((form) => ({
       tag: form.locator.tag,
@@ -1614,11 +1812,19 @@ export function verifyPublicPublication(
       sourcePath: form.locator.sourcePath,
       packageDigest: form.packageDigest,
     })),
+    retainedTags: (plan.retainedPackages ?? []).map((retained) => ({
+      tag: retained.tag,
+      commit: retainedTagCommits.get(retained.tag),
+      releaseId: retained.releaseId,
+      artifactId: retained.artifactId,
+      sourcePath: retained.sourcePath,
+      packageDigest: retained.packageDigest,
+    })),
     postConditions: [
       "PUBLIC_MAIN_READBACK",
       "SIGNED_SET_TAG_READBACK",
       "APPEND_ONLY_REVOCATION_TAG_CHAIN_READBACK",
-      "ALL_16_TAGGED_PACKAGE_BYTES_READBACK",
+      "ALL_19_RELEASE_ROOT_AND_TAGGED_PACKAGE_BYTES_READBACK",
       "FRESH_TREE_BYTE_COMPARISON",
       "CORE_V1_1_0_PACKAGE_TRUST_REVOCATION_VERIFICATION",
     ],
@@ -1635,60 +1841,39 @@ function verifyFetchedReleaseTree(
   const localRoot = plan.repositoryRoot ?? root;
   const expected = new Map();
   for (const form of plan.forms) {
-    const releaseRoot = path.join(
+    verifyFetchedReleaseRoot(
+      {
+        kind: form.kind,
+        locator: form.locator,
+        packageDigest: form.packageDigest,
+      },
       fetchedRoot,
-      ...form.locator.sourcePath.split("/"),
-    );
-    const candidateReleaseRoot = path.join(
       localRoot,
-      ...form.locator.sourcePath.split("/"),
-    );
-    if (!existsSync(releaseRoot)) {
-      throw new DeployBlocked(
-        `${form.locator.sourcePath}: public release path is missing`,
-        mutationStarted,
-      );
-    }
-    for (const relative of inventoryRelativeFiles(releaseRoot)) {
-      expected.set(
-        `${form.locator.sourcePath}/${relative}`,
-        path.join(releaseRoot, relative),
-      );
-    }
-    const localFiles = inventoryRelativeFiles(candidateReleaseRoot);
-    if (localFiles.length !== inventoryRelativeFiles(releaseRoot).length) {
-      throw new DeployBlocked(
-        `${form.kind}: public release closure file count differs from local`,
-        mutationStarted,
-      );
-    }
-    for (const relative of localFiles) {
-      const localPath = path.join(candidateReleaseRoot, relative);
-      const publicPath = path.join(releaseRoot, relative);
-      if (!existsSync(publicPath) || !bytesEqual(localPath, publicPath)) {
-        throw new DeployBlocked(
-          `${form.kind}: public release bytes differ at ${relative}`,
-          mutationStarted,
-        );
-      }
-    }
-    const locator = runCoreLocatorForFetched(
       dependencies,
-      releaseRoot,
       mutationStarted,
+      expected,
     );
-    if (
-      locator.apiVersion !== form.locator.apiVersion ||
-      locator.releaseId !== form.locator.releaseId ||
-      locator.artifactId !== form.locator.artifactId ||
-      locator.tag !== form.locator.tag ||
-      locator.sourcePath !== form.locator.sourcePath
-    ) {
-      throw new DeployBlocked(
-        `${form.kind}: public release locator differs from candidate`,
-        mutationStarted,
-      );
-    }
+  }
+  for (const retained of plan.retainedPackages ?? []) {
+    verifyFetchedReleaseRoot(
+      {
+        kind: retained.formRef.kind,
+        locator: {
+          apiVersion: "packages.forms.takoform.com/v1alpha5",
+          releaseId: retained.releaseId,
+          artifactId: retained.artifactId,
+          tag: retained.tag,
+          sourcePath: retained.sourcePath,
+        },
+        packageDigest: retained.packageDigest,
+        formRef: retained.formRef,
+      },
+      fetchedRoot,
+      localRoot,
+      dependencies,
+      mutationStarted,
+      expected,
+    );
   }
   const allFiles = inventoryRelativeFiles(
     path.join(fetchedRoot, "forms", "releases"),
@@ -1701,6 +1886,94 @@ function verifyFetchedReleaseTree(
       );
     }
   }
+}
+
+function verifyFetchedReleaseRoot(
+  entry,
+  fetchedRoot,
+  localRoot,
+  dependencies,
+  mutationStarted,
+  expected,
+) {
+  const releaseRoot = path.join(
+    fetchedRoot,
+    ...entry.locator.sourcePath.split("/"),
+  );
+  const localReleaseRoot = path.join(
+    localRoot,
+    ...entry.locator.sourcePath.split("/"),
+  );
+  if (!existsSync(releaseRoot)) {
+    throw new DeployBlocked(
+      `${entry.locator.sourcePath}: public release path is missing`,
+      mutationStarted,
+    );
+  }
+  const publicFiles = inventoryRelativeFiles(releaseRoot);
+  const localFiles = inventoryRelativeFiles(localReleaseRoot);
+  if (localFiles.length !== publicFiles.length) {
+    throw new DeployBlocked(
+      `${entry.kind}: public release closure file count differs from local`,
+      mutationStarted,
+    );
+  }
+  for (const relative of localFiles) {
+    const localPath = path.join(localReleaseRoot, relative);
+    const publicPath = path.join(releaseRoot, relative);
+    if (!existsSync(publicPath) || !bytesEqual(localPath, publicPath)) {
+      throw new DeployBlocked(
+        `${entry.kind}: public release bytes differ at ${relative}`,
+        mutationStarted,
+      );
+    }
+  }
+  for (const relative of publicFiles) {
+    expected.set(
+      `${entry.locator.sourcePath}/${relative}`,
+      publicPathFor(releaseRoot, relative),
+    );
+  }
+  const locator = runCoreLocatorForFetched(
+    dependencies,
+    releaseRoot,
+    mutationStarted,
+  );
+  if (
+    locator.apiVersion !== entry.locator.apiVersion ||
+    locator.releaseId !== entry.locator.releaseId ||
+    locator.artifactId !== entry.locator.artifactId ||
+    locator.tag !== entry.locator.tag ||
+    locator.sourcePath !== entry.locator.sourcePath
+  ) {
+    throw new DeployBlocked(
+      `${entry.kind}: public release locator differs from the exact inventory`,
+      mutationStarted,
+    );
+  }
+  if (entry.formRef) {
+    const packageIndex = JSON.parse(
+      readFileSync(path.join(releaseRoot, "package-index.json"), "utf8"),
+    );
+    if (
+      JSON.stringify(packageIndex.formRef) !== JSON.stringify(entry.formRef)
+    ) {
+      throw new DeployBlocked(
+        `${entry.kind}: public release FormRef differs from the exact inventory`,
+        mutationStarted,
+      );
+    }
+    if (locator.artifactId !== entry.packageDigest.replace(":", "-")) {
+      throw new DeployBlocked(
+        `${entry.kind}: public release package digest differs from the exact inventory`,
+        mutationStarted,
+      );
+    }
+  }
+}
+
+function publicPathFor(releaseRoot, relative) {
+  return path.join(releaseRoot, relative);
 }
 
 function runCoreLocatorForFetched(dependencies, packageRoot, mutationStarted) {
@@ -1771,6 +2044,18 @@ function assertPlansEqual(before, after) {
     throw new DeployBlocked(
       "publication locator set changed during the owner gate",
     );
+  const retained = (plan) =>
+    (plan.retainedPackages ?? [])
+      .map(
+        (entry) =>
+          `${entry.tag}:${entry.sourcePath}:${entry.packageDigest}:${JSON.stringify(entry.formRef)}`,
+      )
+      .join("\n");
+  if (retained(before) !== retained(after)) {
+    throw new DeployBlocked(
+      "retained publication inventory changed during the owner gate",
+    );
+  }
 }
 
 function assertTrustReportsEqual(before, after) {
@@ -1815,6 +2100,11 @@ function dryRunEvidence(plan, trust, commit, missingPackageTags) {
       previousSetId: trust.previousCheckpoint?.setId ?? null,
       revocationTag: trust.revocationTag || null,
     },
+    currentPackageCount: plan.formCount,
+    releaseRootCount:
+      plan.releaseRootCount ??
+      plan.formCount + (plan.retainedPackages ?? []).length,
+    releaseTagCount: plan.formCount + (plan.retainedPackages ?? []).length,
     tagCount: plan.formCount,
     tags: plan.forms.map((form) => form.locator.tag),
     packageTagsToCreate: missingPackageTags,

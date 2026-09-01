@@ -7,7 +7,7 @@ import (
 	"github.com/tako0614/takoform/formpackage"
 )
 
-// The six typed Binding contracts of the Edge Platform Family (decision
+// The seven typed Binding contracts of the Edge Platform Family (decision
 // 0010). A Binding grants a capability and a concrete runtime API together,
 // without exposing credentials; outward capability use always belongs to a
 // revision resource.
@@ -46,6 +46,7 @@ type BindingLifecycle struct {
 
 type bindingSpec struct {
 	name        string
+	version     string
 	title       string
 	description string
 	iface       string
@@ -82,6 +83,56 @@ var bindingSpecs = []bindingSpec{
 			"may resolve to the previous value, or to null, until replication converges.",
 		iface:      "edge.kv",
 		targetKind: "EdgeKVNamespace",
+	},
+	{
+		name:    "module-worker.object-bucket",
+		title:   "Module Worker object bucket binding",
+		version: "1.1.0",
+		description: "Projects the complete edge.objects runtime API into a Worker Version under one " +
+			"JavaScript-identifier binding name, without exposing credentials or endpoints. The exact methods " +
+			"are head(key), get(key, options?), put(key, body, options?), delete(key), list(options?), " +
+			"createMultipartUpload(key, options?), uploadPart(key, uploadId, partNumber, body, options?), " +
+			"completeMultipartUpload(key, uploadId, parts), and abortMultipartUpload(key, uploadId); each " +
+			"returns a Promise. Extra positional arguments, non-plain-object options, unknown option members, and invalid " +
+			"input types reject with TypeError. Except for the key and body/contentLength cases mapped below, values " +
+			"that cannot form a valid Interface input document reject with TypeError. Options are closed plain objects: " +
+			"get accepts ifMatch and ifNoneMatch " +
+			"strings plus range {offset, length?}, where offset is a non-negative safe integer and length is a positive " +
+			"safe integer within the Interface limit; put accepts contentLength, contentType, ifMatch, and ifNoneMatch " +
+			"\"*\"; list accepts prefix, cursor, and delimiter strings plus integer limit from 1 through 1000; " +
+			"createMultipartUpload accepts only contentType; uploadPart accepts only contentLength. `maxLength` counts " +
+			"Unicode code points: contentType/etag 256, cursor 4096, delimiter 16; only key/prefix count UTF-8 bytes. " +
+			"completeMultipartUpload parts is an ordered array of 1 through 10000 closed " +
+			"{partNumber, etag} objects with strictly increasing integer partNumber from 1 through 10000 and a " +
+			"non-empty etag within that bound. An invalid option value or individual completion member that is " +
+			"outside those structural bounds rejects with TypeError; once the caller supplies structurally valid input, " +
+			"a schema-valid Interface operation fails with the exact " +
+			"error name declared by that operation. A key outside the Interface UTF-8 byte budget is invalid_key; " +
+			"a schema-valid cursor the host does not recognize is invalid_cursor; an object-relative range that cannot " +
+			"be served is range_not_satisfiable; an unmet validator is precondition_failed; a completion with unordered, " +
+			"duplicate, non-uploaded, stale-etag, or undersized non-final parts is invalid_part; and an unknown upload is " +
+			"upload_not_found. Bodies are exactly a string " +
+			"(encoded as UTF-8), an ArrayBuffer, or a ReadableStream<Uint8Array>. For a string or ArrayBuffer, " +
+			"contentLength may be omitted and, when present, MUST equal the intrinsic byte length. For a " +
+			"ReadableStream, options is required and contentLength is required and MUST be a finite safe " +
+			"non-negative integer no greater than the Interface limit; the host streams bytes with backpressure " +
+			"and MUST NOT buffer the body merely to discover its length. Absent ReadableStream contentLength and numeric " +
+			"contentLength that is non-finite, non-integral, negative, unsafe, over the Interface limit, or mismatched " +
+			"reject pre-consumption with invalid_body. Present non-number contentLength, other invalid body/option types, " +
+			"and unknown option members reject with TypeError. The stream is consumed " +
+			"at most once, and a stream delivering a different count rejects with invalid_body and stores nothing. " +
+			"put resolves to {etag, size}; uploadPart resolves to {etag, partNumber}; completeMultipartUpload " +
+			"resolves to {etag, size}; createMultipartUpload resolves to {uploadId}; delete and abort resolve " +
+			"to undefined; head resolves to {etag, size, contentType?, uploadedAtMillis?} or null, and get " +
+			"resolves to {body, etag, size, partial, range?, contentType?} or null, where body is a " +
+			"ReadableStream<Uint8Array> consumed incrementally. `bodyStream` is host-internal wire framing " +
+			"and is never exposed in or accepted by this JavaScript result. A list resolves to {objects, prefixes, " +
+			"truncated, cursor?}; every object has key, etag, size, and optional uploadedAtMillis. Absent head/get " +
+			"keys resolve null; a failed precondition rejects with an Error named precondition_failed, an " +
+			"unsatisfiable range with range_not_satisfiable, and every other host failure with an Error named for " +
+			"its edge.objects code. A get, head, or list after a resolved put or delete observes it.",
+		iface:      "edge.objects",
+		targetKind: "ObjectBucket",
 	},
 	{
 		name:  "module-worker.sqlite",
@@ -214,9 +265,13 @@ func BindingDefinitions() ([]BindingDefinition, error) {
 				}
 			}
 		}
+		version := spec.version
+		if version == "" {
+			version = "1.0.0"
+		}
 		out = append(out, BindingDefinition{
 			APIVersion: BindingAPIVersion, Kind: "BindingDefinition",
-			Name: spec.name, Version: "1.0.0",
+			Name: spec.name, Version: version,
 			Title: spec.title, Description: spec.description,
 			SourceRole:      string(currentformmodel.RoleRevision),
 			TargetInterface: ref,

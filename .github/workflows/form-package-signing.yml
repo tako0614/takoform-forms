@@ -134,7 +134,7 @@ jobs:
               --output "$candidate" > "$preparation"
             jq -e \
               --arg output "$candidate" \
-              '.status == "signing-required" and .coreVersion == "v1.1.0" and .mode == "genesis" and .sequence == 0 and .checkpointVersion == "0.0.0" and .packageCount == 16 and .output == $output and (.subjects | length == 17)' \
+              '.status == "signing-required" and .coreVersion == "v1.1.0" and .mode == "genesis" and .sequence == 0 and .checkpointVersion == "0.0.0" and .packageCount == 17 and .output == $output and (.subjects | length == 18)' \
               "$preparation" >/dev/null
           else
             go run ./cmd/publisher-trust prepare-advancement \
@@ -146,7 +146,7 @@ jobs:
               --arg output "$candidate" \
               --arg previous "$PREVIOUS_SET" \
               --arg version "$STATEMENT_VERSION" \
-              '.status == "signing-required" and .coreVersion == "v1.1.0" and .mode == "advancement" and .sequence >= 1 and .checkpointVersion == $version and .previousSetId == $previous and .revocationTag == ("forms/revocations/v" + $version) and .packageCount == 16 and .output == $output and (.subjects | length == 17)' \
+              '.status == "signing-required" and .coreVersion == "v1.1.0" and .mode == "advancement" and .sequence >= 1 and .checkpointVersion == $version and .previousSetId == $previous and .revocationTag == ("forms/revocations/v" + $version) and .packageCount == 17 and .output == $output and (.subjects | length == 18)' \
               "$preparation" >/dev/null
           fi
 
@@ -176,7 +176,7 @@ jobs:
             --expected-source-commit "$EXPECTED_COMMIT" > "$verification"
           jq -e \
             --arg commit "$EXPECTED_COMMIT" \
-            '.status == "verified" and .coreVersion == "v1.1.0" and .setId == $commit and .sourceCommit == $commit and .packageCount == 16 and (.packages | length == 16) and .checkpoint.status == "verified" and (.checkpointHistory | length) == (.checkpoint.pin.sequence + 1)' \
+            '.status == "verified" and .coreVersion == "v1.1.0" and .setId == $commit and .sourceCommit == $commit and .packageCount == 17 and (.packages | length == 17) and .checkpoint.status == "verified" and (.checkpointHistory | length) == (.checkpoint.pin.sequence + 1)' \
             "$verification" >/dev/null
           if [[ -z "$PREVIOUS_SET" ]]; then
             jq -e '.checkpoint.pin.sequence == 0 and (.revocationTags | length) == 0 and (.statements | length) == 0' "$verification" >/dev/null
