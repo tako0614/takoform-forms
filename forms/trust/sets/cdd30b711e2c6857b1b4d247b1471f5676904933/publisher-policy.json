@@ -1,0 +1,1 @@
+{"apiVersion":"trust.forms.takoform.com/v1alpha1","kind":"PublisherPolicy","oidcIssuer":"https://token.actions.githubusercontent.com","ref":"refs/heads/main","sourceRepository":"https://github.com/tako0614/takoform-forms","workflow":"https://github.com/tako0614/takoform-forms/.github/workflows/form-package-signing.yml"}
