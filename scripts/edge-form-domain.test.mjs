@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { bindEdgeDomain, parseDomainInvocation } from "./edge-form-domain.mjs";
+import {
+  bindEdgeDomain,
+  parseDomainInvocation,
+  orderWorkerDeployments,
+} from "./edge-form-domain.mjs";
 
 const account = "a".repeat(32),
   commit = "b".repeat(40);
@@ -43,14 +47,17 @@ function fixture({
     if (route.endsWith("/deployments"))
       return {
         deployments: [
-          { versions: [{ version_id: "version-id", percentage: 100 }] },
+          {
+            id: "deployment-id",
+            created_on: "2026-09-05T00:00:00.000Z",
+            versions: [{ version_id: "version-id", percentage: 100 }],
+          },
         ],
       };
     if (route.endsWith("/versions/version-id"))
       return {
-        metadata: {
-          annotations: { "workers/tag": stale ? "c".repeat(40) : commit },
-        },
+        metadata: { created_on: "2026-09-05T00:00:00.000Z" },
+        annotations: { "workers/tag": stale ? "c".repeat(40) : commit },
       };
     if (method === "POST")
       return {
@@ -81,6 +88,15 @@ function fixture({
   };
 }
 describe("isolated Edge hostname authority", () => {
+  test("normalizes both provider history orderings and rejects undated identities", () => {
+    const older = { id: "old", created_on: "2026-09-04T00:00:00.000Z" };
+    const newer = { id: "new", created_on: "2026-09-05T00:00:00.000Z" };
+    expect(orderWorkerDeployments([older, newer])).toEqual([newer, older]);
+    expect(orderWorkerDeployments([newer, older])).toEqual([newer, older]);
+    expect(() => orderWorkerDeployments([{ id: "unknown" }])).toThrow(
+      "timestamp",
+    );
+  });
   test("requires exact environment, account and source", () => {
     expect(() => parseDomainInvocation([])).toThrow();
     expect(() =>

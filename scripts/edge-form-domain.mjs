@@ -33,6 +33,23 @@ export const DOMAIN_CONTRACT = {
   },
 };
 
+// Wrangler's JSON list is oldest-first; the REST endpoint need not share its order.
+// Always select the provider predecessor by its timestamp, not array position.
+export function orderWorkerDeployments(deployments) {
+  if (
+    !Array.isArray(deployments) ||
+    deployments.some(
+      (entry) => !entry?.id || !Number.isFinite(Date.parse(entry.created_on)),
+    )
+  )
+    throw new Error(
+      "provider deployment history lacks exact identity/timestamp",
+    );
+  return [...deployments].sort(
+    (a, b) => Date.parse(b.created_on) - Date.parse(a.created_on),
+  );
+}
+
 export function assertSiteSource(commit, directory = root) {
   if (!sha.test(commit ?? ""))
     throw new Error("--commit must select an exact 40-hex source commit");
@@ -122,14 +139,14 @@ export async function bindEdgeDomain(
   const workerURL = `/accounts/${account}/workers/scripts/${worker}`;
   await api("GET", `${workerURL}/settings`);
   const history = await api("GET", `${workerURL}/deployments`);
-  const versions = history.deployments?.[0]?.versions;
+  const versions = orderWorkerDeployments(history.deployments)[0]?.versions;
   if (versions?.length !== 1 || versions[0].percentage !== 100)
     throw new Error("domain target must have one 100% deployed version");
   const version = await api(
     "GET",
     `${workerURL}/versions/${versions[0].version_id}`,
   );
-  if (version.metadata?.annotations?.["workers/tag"] !== options.commit)
+  if (version.annotations?.["workers/tag"] !== options.commit)
     throw new Error(
       "uploaded Worker does not identify the selected source commit",
     );

@@ -35,6 +35,7 @@ import {
   DOMAIN_CONTRACT,
   DOMAIN_SURFACE,
   assertSiteSource,
+  orderWorkerDeployments,
   runDomainCLI,
 } from "./edge-form-domain.mjs";
 
@@ -669,7 +670,11 @@ function readEdgeHistory(dependencies, mutationStarted = false) {
       "unexpected deployment history shape",
       mutationStarted,
     );
-  return { absent: false, deployments };
+  try {
+    return { absent: false, deployments: orderWorkerDeployments(deployments) };
+  } catch (error) {
+    throw new DeployBlocked(error.message, mutationStarted);
+  }
 }
 
 function runEdgeFormPackageVerification(plan, trust, dependencies) {
