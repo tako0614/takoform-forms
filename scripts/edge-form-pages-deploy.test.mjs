@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 import {
   DEPLOY_CONTRACT,
+  assertEdgePageHeaders,
+  readEdgeFormPages,
   parseDeployInvocation as parseOwnerInvocation,
   runDeploy as runOwnerDeploy,
 } from "./deploy.mjs";
@@ -21,6 +26,73 @@ const runDeploy = (args, dependencies) =>
   runOwnerDeploy(target(args), dependencies);
 
 describe("Edge Form human page deploy surface", () => {
+  test("root readback rejects matching HTML with missing CSP after an upload", () => {
+    const temporary = mkdtempSync(path.join(tmpdir(), "edge-header-readback-"));
+    const assetsDirectory = path.join(temporary, "assets");
+    mkdirSync(assetsDirectory);
+    writeFileSync(path.join(assetsDirectory, "index.html"), "matching HTML");
+    writeFileSync(
+      path.join(assetsDirectory, "_headers"),
+      "/*\n  Content-Security-Policy: default-src 'none'\n",
+    );
+    let reads = 0;
+    try {
+      let failure;
+      try {
+        readEdgeFormPages(
+          {
+            stderr() {},
+            runReadOnly(command, args) {
+              expect(command).toBe("curl");
+              expect(args).toContain("--dump-header");
+              writeFileSync(
+                args[args.indexOf("--output") + 1],
+                "matching HTML",
+              );
+              writeFileSync(
+                args[args.indexOf("--dump-header") + 1],
+                "HTTP/2 200\r\ncache-control: no-transform\r\nx-content-type-options: nosniff\r\n\r\n",
+              );
+              reads++;
+              return { exitCode: 0, stdout: "200", stderr: "" };
+            },
+          },
+          { routes: ["/"], files: [] },
+          assetsDirectory,
+          true,
+        );
+      } catch (error) {
+        failure = error;
+      }
+      expect(failure?.message).toContain("deployed response headers differ");
+      expect(failure?.mutationStarted).toBe(true);
+      expect(reads).toBe(1);
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+  });
+  test("requires deployed script policy and response protections, not just matching HTML", () => {
+    const expected =
+      "/*\n  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-test'; style-src 'self' 'unsafe-inline'\n";
+    const valid =
+      "HTTP/1.1 200 Connection established\r\n\r\nHTTP/2 200\r\ncontent-security-policy: style-src 'unsafe-inline' 'self'; script-src 'sha256-test' 'self'; default-src 'none'\r\nx-content-type-options: nosniff\r\ncache-control: public, no-transform\r\n\r\n";
+    expect(() => assertEdgePageHeaders(valid, expected)).not.toThrow();
+    for (const invalid of [
+      valid.replace(/content-security-policy:[^\r]+\r\n/u, ""),
+      valid.replace("'sha256-test'", "'unsafe-inline'"),
+      valid.replace("nosniff", "none"),
+      valid.replace("no-transform", "max-age=0"),
+    ])
+      expect(() => assertEdgePageHeaders(invalid, expected)).toThrow();
+    const pages = DEPLOY_CONTRACT.surfaces.filter((surface) =>
+      ["edge-form-pages-bootstrap", "edge-form-pages"].includes(
+        surface.surface,
+      ),
+    );
+    expect(pages[0].covers).toEqual(pages[1].covers);
+    expect(new Set(pages[0].covers).size).toBe(pages[0].covers.length);
+    expect(pages[0].covers).toContain("scripts/edge-form-pages-vitepress.mjs");
+  });
   test("requires an explicit production environment and exact source", () => {
     expect(() =>
       parseOwnerInvocation([EDGE_FORM_PAGES_SURFACE, "--trust-set", SET_ID]),

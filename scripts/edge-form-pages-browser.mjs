@@ -31,7 +31,18 @@ const mime = {
   ".woff2": "font/woff2",
   ".xml": "application/xml",
   ".txt": "text/plain",
+  ".js": "text/javascript",
+  ".json": "application/json",
 };
+const headers = Object.fromEntries(
+  readFileSync(path.join(build.outputDirectory, "_headers"), "utf8")
+    .split("\n")
+    .filter((line) => line.startsWith("  "))
+    .map((line) => {
+      const colon = line.indexOf(":");
+      return [line.slice(0, colon).trim(), line.slice(colon + 1).trim()];
+    }),
+);
 const server = createServer((request, response) => {
   const route = new URL(request.url, "http://localhost").pathname;
   const relative = route.endsWith("/")
@@ -39,6 +50,7 @@ const server = createServer((request, response) => {
     : route.slice(1);
   const found = build.files.includes(relative) && relative !== "_headers";
   response.writeHead(found ? 200 : 404, {
+    ...headers,
     "Content-Type": `${mime[path.extname(found ? relative : "404.html")] ?? "application/octet-stream"}`,
   });
   response.end(
@@ -60,6 +72,9 @@ try {
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
   page.on("requestfailed", (request) => errors.push(request.url()));
   await context.route("**/*", (route) =>
     route.request().url().startsWith(origin) ? route.continue() : route.abort(),
@@ -68,7 +83,9 @@ try {
     await page.setViewportSize({ width, height: 900 });
     const descriptions = new Set();
     for (const route of build.routes) {
-      const response = await page.goto(origin + route);
+      const response = await page.goto(origin + route, {
+        waitUntil: "networkidle",
+      });
       if (response.status() !== 200)
         throw new Error(`HTTP failure at ${route}`);
       await page.evaluate(() => document.fonts.ready);
@@ -115,9 +132,30 @@ try {
         );
         if (new Set(ids).size !== ids.length) failures.push("duplicate IDs");
         for (const link of document.querySelectorAll('a[href^="#"]'))
-          if (!document.getElementById(link.hash.slice(1)))
+          if (!document.getElementById(decodeURIComponent(link.hash.slice(1))))
             failures.push("missing anchor");
-        for (const node of document.querySelectorAll("a,summary")) {
+        for (const node of document.querySelectorAll(
+          "a,button,input,summary",
+        )) {
+          if (
+            !node.checkVisibility({
+              checkOpacity: true,
+              checkVisibilityCSS: true,
+            })
+          )
+            continue;
+          if (
+            node.closest(".VPSkipLink") ||
+            node.classList.contains("header-anchor")
+          )
+            continue;
+          const sidebar = node.closest(".VPSidebar");
+          if (
+            sidebar &&
+            !sidebar.classList.contains("open") &&
+            innerWidth < 960
+          )
+            continue;
           const r = node.getBoundingClientRect();
           if (
             r.width &&
@@ -147,16 +185,20 @@ try {
         .locator('a[href^="/"]')
         .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
       for (const link of links)
-        if (!build.routes.includes(link))
+        if (!build.routes.includes(new URL(link, origin).pathname))
           throw new Error(`${route}: missing internal route ${link}`);
     }
   }
   await page.setViewportSize({ width: 320, height: 900 });
   await page.goto(`${origin}/forms/WorkerVersion/0.3.0/`);
-  const summary = page.locator("#desired-schema > summary");
+  const summary = page.locator("#desired-schema details > summary");
   await summary.focus();
   await page.keyboard.press("Enter");
-  if (!(await page.locator("#desired-schema").evaluate((node) => node.open)))
+  if (
+    !(await page
+      .locator("#desired-schema details")
+      .evaluate((node) => node.open))
+  )
     throw new Error("keyboard schema disclosure failed");
   const focus = await summary.evaluate(
     (node) => getComputedStyle(node).outlineStyle,
@@ -164,11 +206,48 @@ try {
   if (focus === "none")
     throw new Error("schema control has no visible keyboard focus");
   await page.keyboard.press("Enter");
+  const menu = page.locator(".VPLocalNav button.menu");
+  await menu.focus();
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() =>
+    document.querySelector(".VPSidebar")?.classList.contains("open"),
+  );
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(
+    () => !document.querySelector(".VPSidebar")?.classList.contains("open"),
+  );
+  await page.locator(".VPNavBarSearch button").click();
+  await page.locator("#localsearch-input").fill("bucketBindings");
+  const searchResult = page
+    .locator('.VPLocalSearchBox a[href*="WorkerVersion/0.3.0/"]')
+    .first();
+  await searchResult.waitFor();
+  await searchResult.click();
+  await page.waitForFunction(
+    () => !document.querySelector(".VPLocalSearchBox"),
+  );
   await page.screenshot({
     path: "/tmp/edge-form-docs-mobile.png",
     fullPage: true,
   });
   await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(origin);
+  for (const colorScheme of ["dark", "light"]) {
+    await page.emulateMedia({ colorScheme });
+    await page.reload({ waitUntil: "networkidle" });
+    if (
+      (await page
+        .locator("html")
+        .evaluate((node) => node.classList.contains("dark"))) !==
+      (colorScheme === "dark")
+    )
+      throw new Error(`${colorScheme}: theme did not follow system preference`);
+  }
+  await page.goto(`${origin}/forms/WorkerVersion/0.3.0/`);
+  const next = page.locator("a.pager-link.next");
+  const nextRoute = await next.getAttribute("href");
+  await next.click();
+  await page.waitForURL(origin + nextRoute);
   await page.goto(origin);
   await page.screenshot({
     path: "/tmp/edge-form-docs-desktop.png",

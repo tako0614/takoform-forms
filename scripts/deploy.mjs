@@ -65,6 +65,21 @@ const semverPattern =
 const MAX_REVOCATION_SEQUENCE = 1024;
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const edgePageSources = [
+  "package.json",
+  "bun.lock",
+  "forms/releases",
+  "forms/trust/sets",
+  "forms/retained-packages.json",
+  "scripts/form-publication.mjs",
+  "scripts/edge-form-pages.mjs",
+  "scripts/edge-form-pages-vitepress.mjs",
+  "scripts/deploy.mjs",
+  "site/.vitepress",
+  "site/reading-guide.json",
+  "site/icon.svg",
+  "site/wrangler.jsonc",
+];
 
 export const DEPLOY_CONTRACT = Object.freeze({
   kind: "takos.deploy-contract@v2",
@@ -74,7 +89,7 @@ export const DEPLOY_CONTRACT = Object.freeze({
       surface: "edge-form-pages-bootstrap",
       target:
         "First static-only Worker version for takoform-edge-form-pages (no DNS or routes)",
-      covers: ["scripts/deploy.mjs", "scripts/edge-form-pages.mjs", "site"],
+      covers: edgePageSources,
       requiresScripts: ["check:edge-form-pages", "deploy"],
       requiresTools: ["bun", "git", "go", "wrangler"],
       requiresEnv: ["CLOUDFLARE_ACCOUNT_ID"],
@@ -128,17 +143,7 @@ export const DEPLOY_CONTRACT = Object.freeze({
     {
       surface: EDGE_FORM_PAGES_SURFACE,
       target: `${EDGE_FORM_PAGES_WORKER} at ${EDGE_FORM_PAGES_ORIGIN}`,
-      covers: [
-        "package.json",
-        "bun.lock",
-        "forms/releases",
-        "forms/trust/sets",
-        "scripts/edge-form-pages.mjs",
-        "scripts/deploy.mjs",
-        "site/tokens.css",
-        "site/site.css",
-        "site/wrangler.jsonc",
-      ],
+      covers: edgePageSources,
       requiresScripts: ["check:edge-form-pages", "deploy"],
       requiresTools: ["git", "bun", "go", "curl", "wrangler"],
       requiresEnv: ["CLOUDFLARE_ACCOUNT_ID"],
@@ -147,7 +152,7 @@ export const DEPLOY_CONTRACT = Object.freeze({
         provenance:
           "Exact CLOUDFLARE_ACCOUNT_ID and a clean source commit equal to public main are required. The selected signed set is explicit and Core v1.1.0 verifies it. Anonymous Git readback proves package tags, paths and bytes before generation. Explanations are version-pinned; schema and fixtures come from verified packages. Source and provider predecessor are rechecked immediately before upload.",
         "post-conditions":
-          "After upload, anonymous HTTPS readback compares the root publisher index and every /forms/<Kind>/<definitionVersion>/ response byte-for-byte with the generated static closure.",
+          "After upload, anonymous HTTPS readback compares all pages and assets byte-for-byte with the generated static closure. The root response must also serve the generated CSP, nosniff and no-transform headers.",
         reversal:
           "The site is a routine Cloudflare Worker version. A bad version is reversed through Cloudflare deployment history; Form Package tags, signed sets, and package bytes are never changed by this surface.",
         "failure-handling":
@@ -682,7 +687,7 @@ function runEdgeFormPackageVerification(plan, trust, dependencies) {
     : verifyPublicEdgeFormPackages(plan, trust, dependencies);
 }
 
-function readEdgeFormPages(
+export function readEdgeFormPages(
   dependencies,
   build,
   assetsDirectory,
@@ -714,6 +719,7 @@ function readEdgeFormPages(
     status: "404",
   });
   const receivedPath = path.join(assetsDirectory, "..", "readback.bin");
+  const receivedHeaders = path.join(assetsDirectory, "..", "readback.headers");
   for (const { route, relative, status } of checks) {
     const expected = readFileSync(path.join(assetsDirectory, relative));
     const responseStatus = requireSuccess(
@@ -730,6 +736,7 @@ function readEdgeFormPages(
         "10",
         "--max-time",
         "30",
+        ...(route === "/" ? ["--dump-header", receivedHeaders] : []),
         "--output",
         receivedPath,
         "--write-out",
@@ -747,8 +754,74 @@ function readEdgeFormPages(
         mutationStarted,
       );
     }
+    if (route === "/") {
+      try {
+        assertEdgePageHeaders(
+          readFileSync(receivedHeaders, "utf8"),
+          readFileSync(path.join(assetsDirectory, "_headers"), "utf8"),
+        );
+      } catch (error) {
+        throw new DeployBlocked(
+          `deployed response headers differ: ${error.message}`,
+          mutationStarted,
+        );
+      }
+    }
     dependencies.stderr(`verified ${route}\n`);
   }
+}
+
+export function assertEdgePageHeaders(received, expectedFile) {
+  // curl can include a proxy CONNECT response before the actual HTTP response.
+  const response = received
+    .split(/\r?\n\r?\n/u)
+    .filter((block) => /^HTTP\/\S+\s+\d{3}/u.test(block))
+    .at(-1);
+  if (!response) throw new Error("missing HTTP response headers");
+  const headers = new Map();
+  for (const line of response.split(/\r?\n/u).slice(1)) {
+    const colon = line.indexOf(":");
+    if (colon < 1) continue;
+    const key = line.slice(0, colon).toLowerCase();
+    headers.set(key, [
+      ...(headers.get(key) ?? []),
+      line.slice(colon + 1).trim(),
+    ]);
+  }
+  const policy = headers.get("content-security-policy");
+  const expectedPolicy = expectedFile.match(
+    /^\s+Content-Security-Policy:\s*(.+)$/mu,
+  )?.[1];
+  if (
+    !expectedPolicy ||
+    policy?.length !== 1 ||
+    normalizeCsp(policy[0]) !== normalizeCsp(expectedPolicy)
+  ) {
+    throw new Error("missing or mismatched Content-Security-Policy");
+  }
+  if (
+    headers.get("x-content-type-options")?.join(",").toLowerCase() !== "nosniff"
+  ) {
+    throw new Error("missing X-Content-Type-Options: nosniff");
+  }
+  const cacheControl = headers.get("cache-control")?.join(",") ?? "";
+  if (!/(?:^|,)\s*no-transform\s*(?:,|$)/iu.test(cacheControl)) {
+    throw new Error("missing Cache-Control: no-transform");
+  }
+}
+
+function normalizeCsp(value) {
+  const directives = new Map();
+  for (const part of value
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean)) {
+    const [name, ...sources] = part.split(/\s+/u);
+    const key = name.toLowerCase();
+    if (directives.has(key)) throw new Error("duplicate CSP directive");
+    directives.set(key, [...new Set(sources)].sort());
+  }
+  return JSON.stringify([...directives].sort(([a], [b]) => a.localeCompare(b)));
 }
 
 function runEdgeFormPageGate(dependencies, trustSet) {

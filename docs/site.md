@@ -35,8 +35,12 @@ real prerequisite resources; the publisher does not invent these.
 
 ## Source and quality rules
 
-- `scripts/edge-form-pages.mjs` renders exact Core-verified package closures under
+- `scripts/edge-form-pages.mjs` verifies the exact package closures under
   `forms/releases/`, not candidate files, guessed schemas or copied Core code.
+- `scripts/edge-form-pages-vitepress.mjs` generates Markdown from that verified
+  data in a fresh temporary directory. `site/.vitepress/config.mts` builds it
+  with VitePress's standard theme, local search, sidebar, outline and previous/
+  next links. There is no separate handwritten HTML renderer or custom palette.
 - `site/reading-guide.json` supplies non-normative reading guidance. Each entry
   is pinned to a definition version so a new version requires explicit review.
 - Canonical examples follow the Definition's `conformanceFixtures` declaration
@@ -52,10 +56,15 @@ real prerequisite resources; the publisher does not invent these.
 - Every page needs one clear title, a unique description, valid structure,
   working internal links and visible keyboard focus. Do not call a fixture
   runnable when its resources or artifacts do not exist.
-- The site needs no client JavaScript. Its CSP permits only local styles/fonts
-  and images; `Cache-Control: no-transform` prevents proxy-injected analytics
-  from changing the verified HTML. This does not change zone-wide analytics
-  settings or authorize a third-party script.
+- The site serves local VitePress JavaScript and a local search index. Its CSP
+  permits same-origin scripts and exact hashes of the generated inline bootstrap
+  scripts, not arbitrary inline or third-party scripts. Local styles/fonts and
+  inline styles support the theme and syntax highlighting. `Cache-Control:
+  no-transform` prevents proxy-injected analytics from changing verified HTML.
+  This does not change zone-wide settings. All generated assets are included in
+  the build digest and the existing deployment readback. The root HTTP response
+  must also carry the generated CSP, `nosniff` and `no-transform`; matching HTML
+  alone is not a successful deployment readback.
 
 ## Build and verify
 
@@ -78,7 +87,8 @@ The portable gate is read-only and validates exact packages, deterministic HTML,
 fixtures, history labels and the static build. The explicit browser lane needs
 installed Chrome/Chromium (`TAKOFORM_BROWSER` overrides its path); it neither
 downloads a browser nor uses a user profile. It checks every current and retained
-page at 320/375/414/768px, navigation, JSON, semantics and keyboard disclosure.
+page at 320/375/414/768px under the generated CSP, navigation, JSON, semantics,
+keyboard disclosure, the mobile sidebar, local search and both color schemes.
 Manual visual review still checks hierarchy, contrast and reading burden.
 
 ## Publish through this repository

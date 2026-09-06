@@ -6,7 +6,7 @@
   "scripts": {
     "check": "bun run check:tools && bun run format:check && bun run check:boundary && bun run check:integrity && bun run check:generation && bun run check:publication && bun run check:trust && bun run check:edge-form-pages && bun run lint && bun run typecheck && bun run test:portable && bun run build:portable",
     "check:tools": "set -eu; for tool in bun go gofmt node; do command -v \"$tool\" >/dev/null || { printf 'Required portable check tool is missing: %s\\n' \"$tool\" >&2; exit 127; }; done; test -x node_modules/.bin/prettier || { printf 'Run bun install --frozen-lockfile before check; pinned Prettier is missing.\\n' >&2; exit 127; }",
-    "format:check": "set -eu; unformatted=\"$(gofmt -l .)\"; if [ -n \"$unformatted\" ]; then printf 'The following files need gofmt:\\n%s\\n' \"$unformatted\"; exit 1; fi; node_modules/.bin/prettier --check $(git ls-files -- '*.js' '*.mjs')",
+    "format:check": "set -eu; unformatted=\"$(gofmt -l .)\"; if [ -n \"$unformatted\" ]; then printf 'The following files need gofmt:\\n%s\\n' \"$unformatted\"; exit 1; fi; node_modules/.bin/prettier --check $(git ls-files -- '*.js' '*.mjs' '*.mts')",
     "check:boundary": "node scripts/check-boundary.mjs",
     "check:integrity": "node scripts/check-integrity.mjs",
     "check:generation": "bun scripts/current-form-families.mjs --check",
@@ -21,7 +21,7 @@
     "verify:trust": "go run ./cmd/publisher-trust verify-evidence --repository .",
     "install:trust": "go run ./cmd/publisher-trust install --repository .",
     "recover:trust": "go run ./cmd/publisher-trust recover-partial-install --repository .",
-    "fmt": "set -eu; gofmt -w $(find . -name '*.go' -type f -not -path './.git/*'); node_modules/.bin/prettier --write $(git ls-files -- '*.js' '*.mjs')",
+    "fmt": "set -eu; gofmt -w $(find . -name '*.go' -type f -not -path './.git/*'); node_modules/.bin/prettier --write $(git ls-files -- '*.js' '*.mjs' '*.mts')",
     "lint": "go mod verify && go vet ./...",
     "typecheck": "go test -run '^$' ./...",
     "test:portable": "bun test scripts/*.test.mjs && go test ./...",
@@ -30,10 +30,9 @@
     "deploy": "bun scripts/deploy.mjs"
   },
   "devDependencies": {
-    "@fontsource/ibm-plex-sans": "5.3.0",
-    "@fontsource/space-grotesk": "5.3.0",
     "playwright-core": "1.55.1",
     "prettier": "3.6.2",
+    "vitepress": "1.6.4",
     "wrangler": "4.127.1"
   }
 }

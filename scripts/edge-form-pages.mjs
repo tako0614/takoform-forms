@@ -3,7 +3,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
-  cpSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -11,11 +10,11 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
-  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { renderVitePressPages } from "./edge-form-pages-vitepress.mjs";
 
 import {
   ABANDONED_PREPUBLICATION_SET_ID,
@@ -119,87 +118,14 @@ export function buildEdgeFormPages({
     throw new Error("outputDirectory must be an empty, non-symlink directory");
   }
   mkdirSync(outputDirectory, { recursive: true });
-  const fontsDirectory = path.join(outputDirectory, "fonts");
-  mkdirSync(fontsDirectory, { recursive: true });
-  for (const [source, destination] of [
-    [
-      "node_modules/@fontsource/space-grotesk/files/space-grotesk-latin-600-normal.woff2",
-      "space-grotesk-latin-600-normal.woff2",
-    ],
-    [
-      "node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-400-normal.woff2",
-      "ibm-plex-sans-latin-400-normal.woff2",
-    ],
-    [
-      "node_modules/@fontsource/space-grotesk/LICENSE",
-      "SPACE-GROTESK-LICENSE.txt",
-    ],
-    [
-      "node_modules/@fontsource/ibm-plex-sans/LICENSE",
-      "IBM-PLEX-SANS-LICENSE.txt",
-    ],
-  ]) {
-    cpSync(path.join(root, source), path.join(fontsDirectory, destination));
-  }
-  cpSync(
-    path.join(root, "site", "tokens.css"),
-    path.join(outputDirectory, "tokens.css"),
-  );
-  cpSync(
-    path.join(root, "site", "site.css"),
-    path.join(outputDirectory, "site.css"),
-  );
-  cpSync(
-    path.join(root, "site", "icon.svg"),
-    path.join(outputDirectory, "icon.svg"),
-  );
-
-  const routes = ["/"];
-  writeFileSync(
-    path.join(outputDirectory, "index.html"),
-    renderIndex(forms, trust, isPublic),
-    { mode: 0o644 },
-  );
-  for (const form of forms) {
-    const route = `/forms/${form.formRef.kind}/${form.formRef.definitionVersion}/`;
-    const destination = path.join(
-      outputDirectory,
-      "forms",
-      form.formRef.kind,
-      form.formRef.definitionVersion,
-    );
-    mkdirSync(destination, { recursive: true });
-    writeFileSync(
-      path.join(destination, "index.html"),
-      renderForm(form, trust, isPublic),
-      {
-        mode: 0o644,
-      },
-    );
-    routes.push(route);
-  }
-  writeFileSync(
-    path.join(outputDirectory, "404.html"),
-    document({
-      title: "Form page not found — Edge Forms",
-      canonical: `${EDGE_FORM_PAGES_ORIGIN}/404`,
-      description:
-        "This Form page does not exist. Browse the current Edge Form contracts.",
-      body: '<main class="page-shell form-page" id="content"><h1>Form page not found</h1><p>This address does not identify a page in the current publisher index.</p><a class="source-link" href="/">Browse all Forms</a></main>',
-    }),
-  );
-  writeFileSync(
-    path.join(outputDirectory, "robots.txt"),
-    `User-agent: *\nAllow: /\nSitemap: ${EDGE_FORM_PAGES_ORIGIN}/sitemap.xml\n`,
-  );
-  writeFileSync(
-    path.join(outputDirectory, "sitemap.xml"),
-    `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${routes.map((route) => `<url><loc>${EDGE_FORM_PAGES_ORIGIN}${route}</loc></url>`).join("")}</urlset>\n`,
-  );
-  writeFileSync(
-    path.join(outputDirectory, "_headers"),
-    "/*\n  Cache-Control: public, max-age=0, must-revalidate, no-transform\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n  Content-Security-Policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'\n",
-  );
+  const routes = renderVitePressPages({
+    root,
+    outputDirectory,
+    forms,
+    trust,
+    isPublic,
+    origin: EDGE_FORM_PAGES_ORIGIN,
+  });
   const files = assetFiles(outputDirectory);
   const digest = createHash("sha256");
   for (const relative of files)
@@ -365,200 +291,6 @@ function validatePublicReadback(readback, forms, trust) {
   return true;
 }
 
-function renderIndex(forms, trust, isPublic) {
-  const cards = forms
-    .filter((form) => !form.retained)
-    .map(
-      (form) => `<li class="catalogue__item">
-  <a class="form-link" href="/forms/${h(form.formRef.kind)}/${h(form.formRef.definitionVersion)}/">
-    <span class="form-link__kind">${h(form.formRef.kind)}</span>
-    <span class="form-link__title">${h(form.guide.purpose)}</span>
-    <span class="form-link__version">${h(form.formRef.definitionVersion)}</span>
-  </a>
-</li>`,
-    )
-    .join("\n");
-  return document({
-    title: "Edge Forms — Takoform",
-    canonical: `${EDGE_FORM_PAGES_ORIGIN}/`,
-    body: `<header class="masthead">
-  <a class="wordmark" href="/">Takoform / Edge Forms</a>
-  <span class="masthead__set">set ${h(shortSet(trust.setId))}</span>
-</header>
-<main class="page-shell" id="content">
-  <section class="catalogue-head">
-    <p class="catalogue-head__count">${forms.filter((form) => !form.retained).length} signed Edge Forms</p>
-    <h1>Choose a resource contract</h1>
-    <p>Worker applications, storage, queues, workflows and actors. Pick a Form to read what it means, which fields it accepts, and an exact package example.</p>
-    <p>For a Worker application, follow <strong>ModuleWorker → WorkerVersion → WorkerDeployment</strong>: identity, immutable code and configuration, then traffic. WorkerBundle identifies the committed code artifact; WorkerEndpoint or WorkerCustomDomain makes the active deployment reachable.</p>
-    <p>These are contracts, not a hosting service. <strong>Host support and admission are separate</strong> from publishing or reading a package. <a href="https://takoform.com/start/">Start with the Takoform model</a> or <a href="https://takoform.com/guides/">choose an integration guide</a>.</p>
-    ${statusNote(isPublic)}
-  </section>
-  <ol class="catalogue">${cards}</ol>
-  <section class="form-section history"><h2>Retained versions</h2><p>Historical contracts stay available at their original versioned addresses. They are not members of the current signed set.</p><ul>${forms
-    .filter((form) => form.retained)
-    .map(
-      (form) =>
-        `<li><a href="/forms/${h(form.formRef.kind)}/${h(form.formRef.definitionVersion)}/">${h(form.formRef.kind)} ${h(form.formRef.definitionVersion)}</a></li>`,
-    )
-    .join("")}</ul></section>
-</main>
-${footer()}`,
-  });
-}
-
-function renderForm(form, trust, isPublic) {
-  const definition = form.definition;
-  const required = new Set(definition.desiredSchema?.required ?? []);
-  const capabilities = list(definition.lifecycleCapabilities);
-  const interfaces = Array.isArray(definition.providedInterfaces)
-    ? definition.providedInterfaces
-        .map(
-          (entry) =>
-            `<li><code>${h(entry.name)}@${h(entry.version)}</code><span>${h(entry.schemaDigest)}</span></li>`,
-        )
-        .join("")
-    : "";
-  const properties = Object.entries(definition.desiredSchema?.properties ?? {})
-    .map(
-      ([name, schema]) =>
-        `<div class="spec-row"><dt><code>${h(name)}</code><span class="field-meta">${required.has(name) ? "Required" : "Optional"} · ${h(schema.type ?? (schema.oneOf ? "oneOf" : "schema"))}</span></dt><dd>${h(schema.description ?? "See the exact schema below.")}${constraints(schema)}</dd></div>`,
-    )
-    .join("");
-  const desiredState = properties
-    ? `<section class="form-section">
-    <h2 id="fields-title">Desired state</h2>
-    <dl class="spec-table">${properties}</dl>
-  </section>`
-    : '<section class="form-section"><h2 id="fields-title">Desired state</h2><p>No configurable desired-state fields. Use the empty object shown below.</p></section>';
-  const sourceUrl = `https://github.com/tako0614/takoform-forms/tree/${encodeURIComponent(form.locator.tag)}/${form.locator.sourcePath}`;
-  return document({
-    title: `${definition.title} ${form.formRef.definitionVersion} — Edge Forms`,
-    description: `${form.formRef.kind} ${form.formRef.definitionVersion}: ${definition.description}`,
-    canonical: `${EDGE_FORM_PAGES_ORIGIN}/forms/${form.formRef.kind}/${form.formRef.definitionVersion}/`,
-    body: `<header class="masthead">
-  <a class="wordmark" href="/">Takoform / Edge Forms</a>
-  <a class="masthead__back" href="/">All Forms</a>
-</header>
-<main class="page-shell form-page" id="content">
-  <header class="form-head">
-    <p class="form-head__identity"><code>${h(form.formRef.apiVersion)}/${h(form.formRef.kind)}@${h(form.formRef.definitionVersion)}</code></p>
-    <h1>${h(definition.title)}</h1>
-    <p class="form-head__description">${h(form.guide?.purpose ?? "Read the original contract for this retained version.")}</p>
-    ${form.retained ? `<p class="status-note">Retained historical version. Not part of the current signed set.${isPublic ? " Public package bytes verified." : " Public readability is not asserted by this local build."}</p>` : statusNote(isPublic)}
-    <p>Host support and admission are separate from package publication. These fields describe portable desired state, not a provider-specific deployment command.</p>
-    <nav class="page-nav" aria-label="On this page"><a href="#fields-title">Fields</a><a href="#example-title">Example &amp; schema</a><a href="#lifecycle-title">Lifecycle &amp; interfaces</a><a href="#locator-title">Package identity</a></nav>
-  </header>
-  ${form.guide ? `<section class="form-section"><h2>How it fits</h2><p>${h(form.guide.note)}</p><p>Works with: ${form.related.map((entry) => `<a href="/forms/${h(entry.formRef.kind)}/${h(entry.formRef.definitionVersion)}/">${h(entry.definition.title)}</a>`).join(" · ")}</p></section>` : ""}
-  <details class="contract-description"><summary>Full contract description</summary><p>${h(definition.description)}</p></details>
-  ${form.versions.length ? `<p>Other versions: ${form.versions.map((entry) => `<a href="/forms/${h(entry.formRef.kind)}/${h(entry.formRef.definitionVersion)}/">${h(entry.formRef.definitionVersion)} (${entry.retained ? "retained" : "current"})</a>`).join(" · ")}</p>` : ""}
-  <dl class="detail-grid" aria-label="Form identity">
-    ${datum("Kind", form.formRef.kind)}
-    ${datum("Definition version", form.formRef.definitionVersion)}
-    ${datum("Role", definition.role)}
-  </dl>
-  ${desiredState}
-  <section class="form-section" aria-labelledby="example-title">
-    <h2 id="example-title">Example desired state</h2>
-    <p>This is the exact <code>${h(form.desiredPath)}</code> from this package, not a complete Host API request or OpenTofu configuration. Replace example resource references and artifact digests with your own; it does not provision anything by itself.</p>
-    <pre tabindex="0" aria-label="Example desired-state JSON"><code>${h(JSON.stringify(form.example, null, 2))}</code></pre>
-    <a class="source-link" href="${h(sourceUrl)}/${h(form.desiredPath)}">Read source fixture</a>
-    <details id="desired-schema"><summary>Full desired-state schema</summary><p>Nested fields, allowed alternatives and all schema constraints. Host-validated semantics also apply; read the contract description above.</p><pre tabindex="0" aria-label="Complete desired-state schema"><code>${h(JSON.stringify(definition.desiredSchema, null, 2))}</code></pre></details>
-  </section>
-  <section class="form-section split-section">
-    <div><h2 id="lifecycle-title">Lifecycle</h2><ul class="plain-list">${capabilities}</ul></div>
-    <div><h2>Provided interfaces</h2><ul class="interface-list">${interfaces || "<li>None</li>"}</ul></div>
-  </section>
-  <section class="locator" aria-labelledby="locator-title">
-    <h2 id="locator-title">Canonical package locator</h2>
-    <dl>
-      ${datum("Package digest", form.packageDigest)}
-      ${datum("Schema digest", form.formRef.schemaDigest)}
-      ${datum("Tag", form.locator.tag)}
-      ${datum("Source path", form.locator.sourcePath)}
-      ${form.retained ? datum("History", "Retained package; not a current signed-set member") : datum("Signed set", trust.setId)}
-    </dl>
-    <a class="source-link" href="${h(sourceUrl)}">Open immutable package</a>
-    <details><summary>Four-field FormRef</summary><pre tabindex="0" aria-label="Exact FormRef"><code>${h(JSON.stringify(form.formRef, null, 2))}</code></pre></details>
-  </section>
-</main>
-${footer()}`,
-  });
-}
-
-function constraints(schema) {
-  const values = Object.entries(schema).filter(([key]) =>
-    [
-      "default",
-      "enum",
-      "const",
-      "minimum",
-      "maximum",
-      "minLength",
-      "maxLength",
-      "pattern",
-      "format",
-      "minItems",
-      "maxItems",
-      "uniqueItems",
-      "additionalProperties",
-    ].includes(key),
-  );
-  return values.length
-    ? `<ul class="field-constraints">${values.map(([key, value]) => `<li><code>${h(key)}: ${h(JSON.stringify(value))}</code></li>`).join("")}</ul>`
-    : "";
-}
-
-function document({
-  title,
-  canonical,
-  body,
-  description = "Choose an Edge Form contract: fields, constraints, exact package examples, and canonical source identities.",
-}) {
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>${h(title)}</title>
-  <meta name="description" content="${h(description)}">
-  <meta property="og:title" content="${h(title)}">
-  <meta property="og:description" content="${h(description)}">
-  <meta property="og:url" content="${h(canonical)}">
-  <link rel="canonical" href="${h(canonical)}">
-  <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <link rel="stylesheet" href="/tokens.css">
-  <link rel="stylesheet" href="/site.css">
-</head>
-<body><a class="skip-link" href="#content">Skip to content</a>${body}</body>
-</html>
-`;
-}
-
-function statusNote(isPublic) {
-  return isPublic
-    ? '<p class="status-note status-note--verified"><span aria-hidden="true">✓</span> Public package readback verified</p>'
-    : '<p class="status-note">Signed package closure. This build does not assert public readability.</p>';
-}
-
-function datum(term, value) {
-  return `<div class="datum"><dt>${h(term)}</dt><dd><code>${h(value ?? "")}</code></dd></div>`;
-}
-
-function list(values) {
-  return Array.isArray(values)
-    ? values.map((value) => `<li><code>${h(value)}</code></li>`).join("")
-    : "";
-}
-
-function footer() {
-  return '<footer class="footer"><span>Takoform publisher</span><span>Human pages only — package locators remain authoritative.</span></footer>';
-}
-
-function shortSet(setId) {
-  return `${setId.slice(0, 10)}…${setId.slice(-6)}`;
-}
-
 function readJSON(file) {
   return JSON.parse(readFileSync(file, "utf8"));
 }
@@ -569,15 +301,6 @@ function resolveWithinRoot(root, relative) {
     throw new Error(`package path escapes repository: ${relative}`);
   }
   return resolved;
-}
-
-function h(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 }
 
 function parseCLI(args) {

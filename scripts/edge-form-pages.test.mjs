@@ -73,9 +73,13 @@ describe("publisher-owned Edge Form pages", () => {
       }
 
       const root = readFileSync(path.join(first, "index.html"), "utf8");
-      expect(root.match(/href="\/forms\//gu)).toHaveLength(
-        plan.formCount + plan.retainedPackages.length,
-      );
+      expect(
+        new Set(
+          [...root.matchAll(/href="(\/forms\/[^"#]+)"/gu)].map(
+            (match) => match[1],
+          ),
+        ).size,
+      ).toBe(plan.formCount + plan.retainedPackages.length);
       expect(root).toContain(`${plan.formCount} signed Edge Forms`);
       expect(root).not.toContain("Public package readback verified");
       expect(root).not.toContain("API discovery");
@@ -124,32 +128,52 @@ describe("publisher-owned Edge Form pages", () => {
       expect(worker).toContain("additionalProperties");
       expect(worker).toContain("Host support and admission are separate");
       expect(worker).toContain("fixtures/desired.json");
-      expect(root).toContain("Choose a resource contract");
+      expect(root).toContain("Settings, examples and package references");
       expect(root).toContain("ModuleWorker → WorkerVersion → WorkerDeployment");
       expect(existsSync(path.join(first, "sitemap.xml"))).toBe(true);
       expect(existsSync(path.join(first, "404.html"))).toBe(true);
-      expect(firstResult.files).toContain("site.css");
+      expect(
+        firstResult.files.some((file) => /^assets\/.*\.css$/u.test(file)),
+      ).toBe(true);
+      expect(root).toContain("VPNavBarSearch");
+      expect(worker).toContain("VPDocAsideOutline");
+      expect(worker).toContain("VPSidebar");
+      expect(worker).toContain("pager-link prev");
+      expect(worker).toContain("pager-link next");
       expect(firstResult.files).toContain("icon.svg");
       expect(root).toContain('rel="icon"');
       expect(readFileSync(path.join(first, "_headers"), "utf8")).toContain(
         "no-transform",
       );
-      expect(firstResult.files).toContain(
-        "fonts/space-grotesk-latin-600-normal.woff2",
+      expect(firstResult.files.some((file) => file.endsWith(".woff2"))).toBe(
+        true,
       );
+      const policy = readFileSync(path.join(first, "_headers"), "utf8");
+      expect(policy).toContain("script-src 'self' 'sha256-");
+      expect(policy).not.toMatch(/script-src[^;]*unsafe-inline/u);
       const retained = readFileSync(
         path.join(first, "forms/WorkerVersion/0.2.0/index.html"),
         "utf8",
       );
-      expect(retained).toContain("Retained historical version");
-      expect(retained).not.toContain("<dt>Signed set</dt>");
+      expect(retained).toContain(
+        "This historical version is not part of the current signed set",
+      );
+      expect(retained).not.toContain("<td>Signed set</td>");
       expect(retained).not.toContain("bucketBindings");
       expect(worker).toContain("bucketBindings");
+      const queue = readFileSync(
+        path.join(first, "forms/AtLeastOnceQueue/0.1.0/index.html"),
+        "utf8",
+      );
+      expect(queue.match(/<h1[^>]*>([\s\S]*?)<\/h1>/u)?.[1]).toContain(
+        "At-Least-Once Queue",
+      );
+      expect(retained).toContain("Historical Worker Version definition");
     } finally {
       rmSync(first, { recursive: true, force: true });
       rmSync(second, { recursive: true, force: true });
     }
-  });
+  }, 60000);
 
   test("claims public readability only with exact package readback evidence", () => {
     const plan = derivePublicationPlan();
@@ -182,7 +206,7 @@ describe("publisher-owned Edge Form pages", () => {
     } finally {
       rmSync(output, { recursive: true, force: true });
     }
-  });
+  }, 60000);
 
   test("rejects a signed set that differs from the installed package closure", () => {
     const plan = derivePublicationPlan();
