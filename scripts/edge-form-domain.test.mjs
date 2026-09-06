@@ -93,6 +93,18 @@ describe("isolated Edge hostname authority", () => {
     const newer = { id: "new", created_on: "2026-09-05T00:00:00.000Z" };
     expect(orderWorkerDeployments([older, newer])).toEqual([newer, older]);
     expect(orderWorkerDeployments([newer, older])).toEqual([newer, older]);
+    const microOlder = {
+      id: "micro-old",
+      created_on: "2026-09-05T00:00:00.000001Z",
+    };
+    const microNewer = {
+      id: "micro-new",
+      created_on: "2026-09-05T00:00:00.000002Z",
+    };
+    expect(orderWorkerDeployments([microOlder, microNewer])).toEqual([
+      microNewer,
+      microOlder,
+    ]);
     expect(() => orderWorkerDeployments([{ id: "unknown" }])).toThrow(
       "timestamp",
     );

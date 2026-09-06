@@ -1,10 +1,9 @@
 #!/usr/bin/env bun
 
-// The Forms publisher has one mutation surface: the canonical public Git
-// repository. Package and signed publisher-evidence identities are
-// create-only. Signing happens in the separate manual OIDC preparation
-// workflow; this entrypoint has no signer, private key, delete, retag, force,
-// or retry path.
+// Package publication is create-only in canonical public Git; signing happens
+// in the separate manual OIDC preparation workflow. Human-page uploads and
+// initial hostname authority are isolated surfaces and never publish packages.
+// This entrypoint has no signer, private key, delete, retag or force path.
 
 import { spawnSync } from "node:child_process";
 import {

@@ -45,8 +45,10 @@ export function orderWorkerDeployments(deployments) {
     throw new Error(
       "provider deployment history lacks exact identity/timestamp",
     );
-  return [...deployments].sort(
-    (a, b) => Date.parse(b.created_on) - Date.parse(a.created_on),
+  // Preserve Cloudflare's fractional precision, as Wrangler does. Date.parse
+  // is only a validity check: arithmetic on it would discard sub-milliseconds.
+  return [...deployments].sort((a, b) =>
+    b.created_on.localeCompare(a.created_on),
   );
 }
 
