@@ -52,6 +52,10 @@ real prerequisite resources; the publisher does not invent these.
 - Every page needs one clear title, a unique description, valid structure,
   working internal links and visible keyboard focus. Do not call a fixture
   runnable when its resources or artifacts do not exist.
+- The site needs no client JavaScript. Its CSP permits only local styles/fonts
+  and images; `Cache-Control: no-transform` prevents proxy-injected analytics
+  from changing the verified HTML. This does not change zone-wide analytics
+  settings or authorize a third-party script.
 
 ## Build and verify
 

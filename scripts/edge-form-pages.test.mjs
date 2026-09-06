@@ -129,6 +129,11 @@ describe("publisher-owned Edge Form pages", () => {
       expect(existsSync(path.join(first, "sitemap.xml"))).toBe(true);
       expect(existsSync(path.join(first, "404.html"))).toBe(true);
       expect(firstResult.files).toContain("site.css");
+      expect(firstResult.files).toContain("icon.svg");
+      expect(root).toContain('rel="icon"');
+      expect(readFileSync(path.join(first, "_headers"), "utf8")).toContain(
+        "no-transform",
+      );
       expect(firstResult.files).toContain(
         "fonts/space-grotesk-latin-600-normal.woff2",
       );

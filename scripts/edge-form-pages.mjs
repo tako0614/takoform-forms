@@ -149,6 +149,10 @@ export function buildEdgeFormPages({
     path.join(root, "site", "site.css"),
     path.join(outputDirectory, "site.css"),
   );
+  cpSync(
+    path.join(root, "site", "icon.svg"),
+    path.join(outputDirectory, "icon.svg"),
+  );
 
   const routes = ["/"];
   writeFileSync(
@@ -194,7 +198,7 @@ export function buildEdgeFormPages({
   );
   writeFileSync(
     path.join(outputDirectory, "_headers"),
-    "/*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n  Content-Security-Policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'\n",
+    "/*\n  Cache-Control: public, max-age=0, must-revalidate, no-transform\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n  Content-Security-Policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'\n",
   );
   const files = assetFiles(outputDirectory);
   const digest = createHash("sha256");
@@ -522,6 +526,7 @@ function document({
   <meta property="og:description" content="${h(description)}">
   <meta property="og:url" content="${h(canonical)}">
   <link rel="canonical" href="${h(canonical)}">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
   <link rel="stylesheet" href="/tokens.css">
   <link rel="stylesheet" href="/site.css">
 </head>

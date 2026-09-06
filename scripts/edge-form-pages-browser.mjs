@@ -27,6 +27,7 @@ const build = JSON.parse(result.stdout);
 const mime = {
   ".html": "text/html",
   ".css": "text/css",
+  ".svg": "image/svg+xml",
   ".woff2": "font/woff2",
   ".xml": "application/xml",
   ".txt": "text/plain",

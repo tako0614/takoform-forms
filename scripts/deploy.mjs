@@ -722,6 +722,10 @@ function readEdgeFormPages(
       [
         "--silent",
         "--show-error",
+        "--user-agent",
+        "Mozilla/5.0 (compatible; EdgeFormDocsReadback/1.0)",
+        "--header",
+        "Accept: text/html, */*;q=0.8",
         "--connect-timeout",
         "10",
         "--max-time",
