@@ -9,6 +9,12 @@ implement without changing its meaning.
 **Current roster:** one family (`edge.forms.takoform.com`), 17 Forms, 8
 Interfaces, and 7 Bindings.
 
+Read the [individual Form reference](https://edge.forms.takoform.com/) to choose
+a contract and inspect its purpose, related Forms, fields, constraints and exact
+package examples. [How to read the model](docs/site.md#read-the-reference) explains
+Worker delivery, capability bindings and SQLite migrations. Older versions stay
+available under **Retained versions**, with their own historical definitions.
+
 The publisher signs 17 current package subjects. The append-only release tree
 contains those 17 current roots, the two explicitly retained historical roots
 listed in [`forms/retained-packages.json`](forms/retained-packages.json), and
@@ -34,7 +40,7 @@ published bytes are rewritten or reidentified.
 | Binding      | A named capability made available to worker code, resolved to an Interface.               |
 | Form Package | One Form Definition, its package index, and data-only fixtures, verified as one byte set. |
 
-Official and external publishers use the same package format and verification
+All publishers use the same package format and verification
 rules. See the [Edge inventory](forms/README.md) and
 [documentation map](docs/README.md).
 
@@ -52,7 +58,7 @@ For example, this four-field FormRef identifies an SQLite database:
 A Form Package binds one Definition and its fixtures to that identity; its
 digest covers the complete package byte set.
 
-A minimal real desired state is a WorkerBundle manifest reference:
+A canonical schema-valid desired-state example is a WorkerBundle manifest reference:
 
 ```json
 {
@@ -61,6 +67,8 @@ A minimal real desired state is a WorkerBundle manifest reference:
 ```
 
 It is the [checked-in desired fixture](forms/candidates/edge.forms.takoform.com/worker-bundle/fixtures/desired.json).
+This example digest does not provide a live artifact. It is a contract example,
+not a complete Host API request, OpenTofu configuration or runnable deployment.
 
 ## Local flow
 
@@ -68,6 +76,7 @@ Install the pinned tools, then run the complete read-only gate:
 
 ```console
 bun install --frozen-lockfile
+go mod download
 bun run check
 ```
 
@@ -79,6 +88,8 @@ go run ./cmd/form-package verify forms/candidates/edge.forms.takoform.com/module
 
 Focused checks: `bun run check:generation`, `bun run check:publication`, and
 `bun run check:trust`.
+For the human pages, use `bun run build:edge-form-pages` and the explicit browser
+lane `bun run check:edge-form-pages:browser`; see [site maintenance](docs/site.md).
 
 ## Preparing and publishing packages
 
@@ -149,8 +160,11 @@ The checked-in `cdd30b711e2c6857b1b4d247b1471f5676904933` signed set is
 cryptographically verified but explicitly abandoned as evidence-only because
 three package identities were superseded before publication. Its set tag and
 the three old package tags must remain absent, and the deploy surface refuses
-that set. A future authorized OIDC signing run must produce and import a new
-set before publication.
+that set. The repository also contains its deployable successor,
+`e7f8a39311dd011b8467e97e7f300cabb9a6b06c`, with the current package identities.
+Do not confuse the retained abandoned evidence with the selected publication
+set. Use `--verify` with the exact successor set to establish current public
+tag and byte availability; checked-in evidence alone does not prove it.
 
 Core defines verification; this repo defines Edge contracts; providers map them;
 hosts implement them. Publication proves package bytes and identity, not Host

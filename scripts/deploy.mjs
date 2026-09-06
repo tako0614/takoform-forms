@@ -25,11 +25,24 @@ import {
   credentialFreeEnvironment,
   derivePublicationPlan,
 } from "./form-publication.mjs";
+import {
+  EDGE_FORM_PAGES_ORIGIN,
+  EDGE_FORM_PAGES_SURFACE,
+  EDGE_FORM_PAGES_WORKER,
+  buildEdgeFormPages,
+} from "./edge-form-pages.mjs";
+import {
+  DOMAIN_CONTRACT,
+  DOMAIN_SURFACE,
+  assertSiteSource,
+  runDomainCLI,
+} from "./edge-form-domain.mjs";
 
 export const RELEASE_SURFACE = "form-packages-edge";
 export const REPOSITORY_URL = "https://github.com/tako0614/takoform-forms.git";
 export const REPOSITORY = "tako0614/takoform-forms";
 export const OWNER_GATE = "bun run check";
+export const EDGE_FORM_PAGES_GATE = "bun run check:edge-form-pages";
 export const TRUST_SET_TAG_PREFIX = "forms/sets/";
 export const REVOCATION_TAG_PREFIX = "forms/revocations/v";
 export const PUBLISHER_REPOSITORY = `https://github.com/${REPOSITORY}`;
@@ -56,6 +69,27 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const DEPLOY_CONTRACT = Object.freeze({
   kind: "takos.deploy-contract@v2",
   surfaces: [
+    DOMAIN_CONTRACT,
+    {
+      surface: "edge-form-pages-bootstrap",
+      target:
+        "First static-only Worker version for takoform-edge-form-pages (no DNS or routes)",
+      covers: ["scripts/deploy.mjs", "scripts/edge-form-pages.mjs", "site"],
+      requiresScripts: ["check:edge-form-pages", "deploy"],
+      requiresTools: ["bun", "git", "go", "wrangler"],
+      requiresEnv: ["CLOUDFLARE_ACCOUNT_ID"],
+      triggers: [],
+      obligations: {
+        provenance:
+          "Explicit clean commit equal to public main, exact-set scoped gate and generated asset digest. Exact CLOUDFLARE_ACCOUNT_ID is required. Only accepted when provider confirms Worker absence immediately before upload.",
+        "post-conditions":
+          "Provider deployment history confirms the uploaded version. This surface reports UPLOADED_AWAITING_DOMAIN, never public availability; edge-form-domain and subsequent edge-form-pages --verify complete initial publication.",
+        reversal:
+          "The initial Worker has no public route or data bindings. Later routine versions retain a predecessor for provider rollback; hostname creation is a separate authority surface.",
+        "failure-handling":
+          "One upload only; failure is indeterminate and provider history is inspected. Never automatically delete, retry or create a domain.",
+      },
+    },
     {
       surface: RELEASE_SURFACE,
       target: `${REPOSITORY_URL}:main + forms/<release-id>/sha256-<digest> + forms/sets/<signed-source-commit> + forms/revocations/v<statement-version>`,
@@ -89,6 +123,39 @@ export const DEPLOY_CONTRACT = Object.freeze({
           "The non-authoring TASK-0042 independent architecture review examined this publisher authority boundary and identified this contract omission. Before any publication, a person or agent that did not author the release must review the exact signed source commit, trust-set verification report, immutable tag plan, and atomic refspecs; the operator retains the named reviewer and exact commit outside the repository, and neither the signing workflow nor a green gate substitutes for that review.",
         "no-overwrite":
           "Immediately before mutation, the new set tag and new revocation tag must be absent locally and remotely. Existing Core-derived package tags are reused only when their tagged package path is byte-identical to the Core-verified signed source; prior revocation refs and bytes must equal the signed cumulative prefix. The atomic push has no force, delete, update, or retag path.",
+      },
+    },
+    {
+      surface: EDGE_FORM_PAGES_SURFACE,
+      target: `${EDGE_FORM_PAGES_WORKER} at ${EDGE_FORM_PAGES_ORIGIN}`,
+      covers: [
+        "package.json",
+        "bun.lock",
+        "forms/releases",
+        "forms/trust/sets",
+        "scripts/edge-form-pages.mjs",
+        "scripts/deploy.mjs",
+        "site/tokens.css",
+        "site/site.css",
+        "site/wrangler.jsonc",
+      ],
+      requiresScripts: ["check:edge-form-pages", "deploy"],
+      requiresTools: ["git", "bun", "go", "curl", "wrangler"],
+      requiresEnv: ["CLOUDFLARE_ACCOUNT_ID"],
+      triggers: [],
+      obligations: {
+        provenance:
+          "Exact CLOUDFLARE_ACCOUNT_ID and a clean source commit equal to public main are required. The selected signed set is explicit and Core v1.1.0 verifies it. Anonymous Git readback proves package tags, paths and bytes before generation. Explanations are version-pinned; schema and fixtures come from verified packages. Source and provider predecessor are rechecked immediately before upload.",
+        "post-conditions":
+          "After upload, anonymous HTTPS readback compares the root publisher index and every /forms/<Kind>/<definitionVersion>/ response byte-for-byte with the generated static closure.",
+        reversal:
+          "The site is a routine Cloudflare Worker version. A bad version is reversed through Cloudflare deployment history; Form Package tags, signed sets, and package bytes are never changed by this surface.",
+        "failure-handling":
+          "Missing or divergent package evidence blocks before Wrangler. After an upload error, read provider history once and report indeterminate status for manual reconciliation; never upload again automatically. No failure invokes package publication or mutates Git refs.",
+        "independent-review":
+          "The operator reviews the exact signed set id, generated route list, custom-domain target, and Wrangler dry-run before the first production upload.",
+        "no-overwrite":
+          "This surface replaces only the static Worker version. It has no Git push, package tag, signed-set, revocation, Form identity, or package mutation path.",
       },
     },
   ],
@@ -161,6 +228,39 @@ export function parseDeployInvocation(args) {
   if (args.length === 1 && args[0] === "--contract") {
     return { mode: "contract" };
   }
+  if (args[0] === DOMAIN_SURFACE)
+    return { surface: DOMAIN_SURFACE, mode: "domain", args: args.slice(1) };
+  if (
+    [EDGE_FORM_PAGES_SURFACE, "edge-form-pages-bootstrap"].includes(args[0]) &&
+    args[1] === "--trust-set" &&
+    commitPattern.test(args[2] ?? "")
+  ) {
+    const parsed = { surface: args[0], mode: "publish", trustSet: args[2] };
+    for (let i = 3; i < args.length; i++) {
+      if (
+        ["--dry-run", "--verify"].includes(args[i]) &&
+        parsed.mode === "publish"
+      )
+        parsed.mode = args[i].slice(2);
+      else if (
+        ["--environment", "--commit"].includes(args[i]) &&
+        parsed[args[i].slice(2)] === undefined &&
+        args[i + 1]
+      )
+        parsed[args[i].slice(2)] = args[++i];
+      else throw new Error(usage());
+    }
+    if (
+      parsed.environment !== "production" ||
+      (parsed.mode !== "verify" && !commitPattern.test(parsed.commit ?? "")) ||
+      (parsed.surface === "edge-form-pages-bootstrap" &&
+        parsed.mode === "verify")
+    )
+      throw new Error(
+        "Edge site requires --environment production and --commit <exact-public-main-commit> (commit optional only for --verify)",
+      );
+    return parsed;
+  }
   if (
     args[0] !== RELEASE_SURFACE ||
     args[1] !== "--trust-set" ||
@@ -192,6 +292,15 @@ export function runDeploy(args, dependencies = defaultDependencies()) {
   }
 
   try {
+    if (invocation.surface === DOMAIN_SURFACE)
+      return runDomainCLI(invocation.args);
+    if (
+      [EDGE_FORM_PAGES_SURFACE, "edge-form-pages-bootstrap"].includes(
+        invocation.surface,
+      )
+    ) {
+      return runEdgeFormPagesDeploy(invocation, dependencies);
+    }
     if (invocation.mode === "verify") {
       const plan = readPlan(dependencies);
       const trust = readTrustSet(dependencies, plan, invocation.trustSet, {
@@ -285,16 +394,367 @@ export function runDeploy(args, dependencies = defaultDependencies()) {
         : new DeployBlocked(
             error instanceof Error ? error.message : String(error),
           );
+    const pageSurface = [
+      EDGE_FORM_PAGES_SURFACE,
+      "edge-form-pages-bootstrap",
+    ].includes(invocation?.surface);
     const prefix = blocked.mutationStarted
-      ? "deploy failed after publication mutation started: publication is indeterminate"
+      ? pageSurface
+        ? "deploy failed after Edge Form page mutation started: deployment is indeterminate"
+        : "deploy failed after publication mutation started: publication is indeterminate"
       : "deploy blocked";
     dependencies.stderr(`${prefix}: ${blocked.message}\n`);
     if (blocked.mutationStarted) {
       dependencies.stderr(
-        "inspect origin main, every expected tag, and the public release paths before any retry; do not overwrite or delete an identity\n",
+        pageSurface
+          ? "inspect Cloudflare deployment history and every public page route before any retry; use provider history for reversal\n"
+          : "inspect origin main, every expected tag, and the public release paths before any retry; do not overwrite or delete an identity\n",
       );
     }
     return 1;
+  }
+}
+
+export function runEdgeFormPagesDeploy(invocation, dependencies) {
+  let inputs = readEdgeFormPageInputs(dependencies, invocation.trustSet);
+  let publicReadback = runEdgeFormPackageVerification(
+    inputs.plan,
+    inputs.trust,
+    dependencies,
+  );
+  let sourceCommit = null;
+  const bootstrap = invocation.surface === "edge-form-pages-bootstrap";
+  let before;
+
+  if (invocation.mode !== "verify") {
+    sourceCommit = requireEdgeFormPageSourceIdentity(
+      dependencies,
+      invocation.commit,
+    );
+    before = readEdgeHistory(dependencies);
+    if (bootstrap !== before.absent)
+      throw new DeployBlocked(
+        bootstrap
+          ? "bootstrap requires an absent Worker; inspect existing provider history"
+          : "Worker absent; use the explicit edge-form-pages-bootstrap surface first",
+      );
+    if (
+      !bootstrap &&
+      (!before.deployments[0]?.id || !before.deployments[0]?.versions?.length)
+    )
+      throw new DeployBlocked(
+        "routine update requires a provider predecessor identity for rollback",
+      );
+    runEdgeFormPageGate(dependencies, invocation.trustSet);
+    const after = readEdgeFormPageInputs(dependencies, invocation.trustSet);
+    assertPlansEqual(inputs.plan, after.plan);
+    assertTrustReportsEqual(inputs.trust, after.trust);
+    inputs = after;
+    publicReadback = runEdgeFormPackageVerification(
+      inputs.plan,
+      inputs.trust,
+      dependencies,
+    );
+    if (
+      requireEdgeFormPageSourceIdentity(dependencies, invocation.commit) !==
+      sourceCommit
+    )
+      throw new DeployBlocked("source changed during the scoped gate");
+  }
+
+  const temporary = mkdtempSync(
+    path.join(tmpdir(), "takoform-edge-form-pages-"),
+  );
+  try {
+    const assetsDirectory = path.join(temporary, "assets");
+    const build =
+      typeof dependencies.buildEdgeFormPages === "function"
+        ? dependencies.buildEdgeFormPages({
+            outputDirectory: assetsDirectory,
+            plan: inputs.plan,
+            trust: inputs.trust,
+            publicReadback,
+          })
+        : buildEdgeFormPages({
+            outputDirectory: assetsDirectory,
+            plan: inputs.plan,
+            trust: inputs.trust,
+            publicReadback,
+          });
+
+    if (invocation.mode === "verify") {
+      const history = readEdgeHistory(dependencies);
+      if (history.absent || !history.deployments.length)
+        throw new DeployBlocked(
+          "Worker has no authoritative deployment history",
+        );
+      readEdgeFormPages(dependencies, build, assetsDirectory);
+      outputJSON(dependencies, {
+        kind: "takoform.edge-form-pages-verification@v1",
+        surface: EDGE_FORM_PAGES_SURFACE,
+        origin: EDGE_FORM_PAGES_ORIGIN,
+        signedSet: inputs.trust.setId,
+        routeCount: build.routes.length,
+        routes: build.routes,
+        status: "VERIFIED",
+        assetDigest: build.digest,
+        deployment: history.deployments[0],
+      });
+      return 0;
+    }
+
+    const wrangler = path.join(root, "node_modules", ".bin", "wrangler");
+    const wranglerArgs = [
+      "deploy",
+      "--cwd",
+      temporary,
+      "--config",
+      path.join(root, "site", "wrangler.jsonc"),
+      "--assets",
+      assetsDirectory,
+      "--tag",
+      sourceCommit,
+      "--message",
+      `Edge Form docs ${sourceCommit}`,
+    ];
+    if (invocation.mode === "dry-run") {
+      wranglerArgs.push(
+        "--dry-run",
+        "--outdir",
+        path.join(temporary, "wrangler-dry-run"),
+      );
+    }
+    if (
+      requireEdgeFormPageSourceIdentity(dependencies, invocation.commit) !==
+      sourceCommit
+    )
+      throw new DeployBlocked("source changed before upload");
+    const immediatelyBefore = readEdgeHistory(dependencies);
+    if (
+      immediatelyBefore.absent !== before.absent ||
+      JSON.stringify(immediatelyBefore.deployments[0] ?? null) !==
+        JSON.stringify(before.deployments[0] ?? null)
+    )
+      throw new DeployBlocked(
+        "provider state changed before upload; re-inspect the selected target",
+      );
+    let upload;
+    try {
+      upload = requireSuccess(
+        dependencies,
+        wrangler,
+        wranglerArgs,
+        `Wrangler ${invocation.mode === "dry-run" ? "dry-run" : "upload"} for ${EDGE_FORM_PAGES_SURFACE}`,
+        invocation.mode === "publish",
+      );
+    } catch (error) {
+      if (invocation.mode === "publish") {
+        const observed = readEdgeHistory(dependencies, true);
+        dependencies.stderr(
+          `Provider history after uncertain upload: ${JSON.stringify(observed)}\n`,
+        );
+      }
+      throw error;
+    }
+
+    if (invocation.mode === "dry-run") {
+      outputJSON(dependencies, {
+        kind: "takoform.edge-form-pages-dry-run@v1",
+        surface: EDGE_FORM_PAGES_SURFACE,
+        worker: EDGE_FORM_PAGES_WORKER,
+        origin: EDGE_FORM_PAGES_ORIGIN,
+        sourceCommit,
+        signedSet: inputs.trust.setId,
+        routeCount: build.routes.length,
+        routes: build.routes,
+        publicPackageReadback: publicReadback.kind,
+        status: "DRY_RUN_VERIFIED",
+        assetDigest: build.digest,
+        rollback: before.deployments[0] ?? null,
+      });
+      return 0;
+    }
+
+    const versionId = /Current Version ID:\s*([a-f0-9-]{36})/iu.exec(
+      upload,
+    )?.[1];
+    const afterHistory = readEdgeHistory(dependencies, true);
+    if (
+      !versionId ||
+      !afterHistory.deployments[0]?.versions?.some(
+        (version) =>
+          version.version_id === versionId && version.percentage === 100,
+      )
+    )
+      throw new DeployBlocked(
+        "uploaded version did not match authoritative 100% deployment history",
+        true,
+      );
+    if (!bootstrap)
+      readEdgeFormPages(dependencies, build, assetsDirectory, true);
+    outputJSON(dependencies, {
+      kind: "takoform.edge-form-pages-publication@v1",
+      surface: invocation.surface,
+      worker: EDGE_FORM_PAGES_WORKER,
+      origin: EDGE_FORM_PAGES_ORIGIN,
+      sourceCommit,
+      signedSet: inputs.trust.setId,
+      routeCount: build.routes.length,
+      routes: build.routes,
+      status: bootstrap ? "UPLOADED_AWAITING_DOMAIN" : "PUBLISHED",
+      assetDigest: build.digest,
+      versionId,
+      deployment: afterHistory.deployments[0],
+      rollback: before.deployments[0] ?? null,
+    });
+    return 0;
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+}
+
+function readEdgeFormPageInputs(dependencies, trustSet) {
+  if (typeof dependencies.readEdgeFormPageInputs === "function") {
+    return dependencies.readEdgeFormPageInputs(trustSet);
+  }
+  const plan = readPlan(dependencies);
+  const trust = readTrustSet(dependencies, plan, trustSet, {
+    credentialFree: true,
+  });
+  return { plan, trust };
+}
+
+function requireEdgeFormPageSourceIdentity(dependencies, commit) {
+  return typeof dependencies.requireEdgeFormPageSourceIdentity === "function"
+    ? dependencies.requireEdgeFormPageSourceIdentity()
+    : assertSiteSource(commit);
+}
+
+function readEdgeHistory(dependencies, mutationStarted = false) {
+  if (dependencies.readEdgeHistory) return dependencies.readEdgeHistory();
+  if (!/^[a-f0-9]{32}$/u.test(process.env.CLOUDFLARE_ACCOUNT_ID ?? ""))
+    throw new DeployBlocked(
+      "select exact CLOUDFLARE_ACCOUNT_ID before site operations",
+      mutationStarted,
+    );
+  const result = dependencies.run(
+    path.join(root, "node_modules/.bin/wrangler"),
+    [
+      "deployments",
+      "list",
+      "--name",
+      EDGE_FORM_PAGES_WORKER,
+      "--json",
+      "--config",
+      path.join(root, "site/wrangler.jsonc"),
+    ],
+  );
+  if (result.exitCode !== 0) {
+    if (/\[code: 10007\]/u.test(result.stderr))
+      return { absent: true, deployments: [] };
+    throw new DeployBlocked(
+      `cannot read Cloudflare deployment history: ${result.stderr}`,
+      mutationStarted,
+    );
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(result.stdout);
+  } catch {
+    throw new DeployBlocked("non-JSON provider history", mutationStarted);
+  }
+  const deployments = Array.isArray(parsed) ? parsed : parsed.deployments;
+  if (!Array.isArray(deployments))
+    throw new DeployBlocked(
+      "unexpected deployment history shape",
+      mutationStarted,
+    );
+  return { absent: false, deployments };
+}
+
+function runEdgeFormPackageVerification(plan, trust, dependencies) {
+  return typeof dependencies.verifyEdgeFormPackages === "function"
+    ? dependencies.verifyEdgeFormPackages(plan, trust)
+    : verifyPublicEdgeFormPackages(plan, trust, dependencies);
+}
+
+function readEdgeFormPages(
+  dependencies,
+  build,
+  assetsDirectory,
+  mutationStarted = false,
+) {
+  if (typeof dependencies.readEdgeFormPages === "function") {
+    try {
+      dependencies.readEdgeFormPages({ build, assetsDirectory });
+    } catch (error) {
+      throw new DeployBlocked(
+        error instanceof Error ? error.message : String(error),
+        mutationStarted,
+      );
+    }
+    return;
+  }
+  const checks = build.routes.map((route) => ({
+    route,
+    relative: route === "/" ? "index.html" : `${route.slice(1)}index.html`,
+    status: "200",
+  }));
+  for (const relative of build.files ?? []) {
+    if (relative === "_headers" || relative.endsWith(".html")) continue;
+    checks.push({ route: `/${relative}`, relative, status: "200" });
+  }
+  checks.push({
+    route: "/__missing-form-page__",
+    relative: "404.html",
+    status: "404",
+  });
+  const receivedPath = path.join(assetsDirectory, "..", "readback.bin");
+  for (const { route, relative, status } of checks) {
+    const expected = readFileSync(path.join(assetsDirectory, relative));
+    const responseStatus = requireSuccess(
+      dependencies,
+      "curl",
+      [
+        "--silent",
+        "--show-error",
+        "--connect-timeout",
+        "10",
+        "--max-time",
+        "30",
+        "--output",
+        receivedPath,
+        "--write-out",
+        "%{http_code}",
+        `${EDGE_FORM_PAGES_ORIGIN}${route}`,
+      ],
+      `cannot read back ${EDGE_FORM_PAGES_ORIGIN}${route}`,
+      mutationStarted,
+      true,
+    );
+    const actual = readFileSync(receivedPath);
+    if (responseStatus !== status || !actual.equals(expected)) {
+      throw new DeployBlocked(
+        `deployed bytes/status differ at ${route} (HTTP ${responseStatus}, expected ${status})`,
+        mutationStarted,
+      );
+    }
+    dependencies.stderr(`verified ${route}\n`);
+  }
+}
+
+function runEdgeFormPageGate(dependencies, trustSet) {
+  dependencies.stderr(`==> ${EDGE_FORM_PAGES_GATE}\n`);
+  const gate = dependencies.run("bun", [
+    "run",
+    "check:edge-form-pages",
+    "--trust-set",
+    trustSet,
+  ]);
+  if (gate.stdout) dependencies.stderr(gate.stdout);
+  if (gate.stderr) dependencies.stderr(gate.stderr);
+  if (gate.exitCode !== 0) {
+    throw new DeployBlocked(`${EDGE_FORM_PAGES_GATE} failed`);
   }
 }
 
@@ -1904,6 +2364,129 @@ export function verifyPublicPublication(
   };
 }
 
+/** Prove one explicit signed package set through immutable public Git refs. */
+export function verifyPublicEdgeFormPackages(plan, trust, dependencies) {
+  const temporary = mkdtempSync(
+    path.join(tmpdir(), "takoform-edge-pages-public-"),
+  );
+  try {
+    requireSuccess(
+      dependencies,
+      "git",
+      ["clone", "--quiet", "--no-checkout", REPOSITORY_URL, temporary],
+      "cannot clone the public Form publisher",
+      false,
+      true,
+    );
+    const setCommit = requireSuccess(
+      dependencies,
+      "git",
+      ["-C", temporary, "rev-parse", `refs/tags/${trust.setTag}^{commit}`],
+      `cannot resolve public signed set ${trust.setTag}`,
+      false,
+      true,
+    );
+    if (!commitPattern.test(setCommit)) {
+      throw new DeployBlocked(
+        `public signed set ${trust.setTag} did not resolve to a commit`,
+      );
+    }
+    requireSuccess(
+      dependencies,
+      "git",
+      ["-C", temporary, "checkout", "--quiet", "--detach", setCommit],
+      `cannot materialize public signed set ${trust.setTag}`,
+      false,
+      true,
+    );
+    const publicTrust = readTrustSet(dependencies, plan, trust.setId, {
+      credentialFree: true,
+      repositoryRoot: temporary,
+    });
+    assertTrustReportsEqual(trust, publicTrust);
+
+    const tags = [];
+    const retainedTags = [];
+    const pagePackages = [
+      ...plan.forms,
+      ...(plan.retainedPackages ?? []).map((entry) => ({
+        ...entry,
+        retained: true,
+        kind: entry.formRef.kind,
+        locator: { tag: entry.tag, sourcePath: entry.sourcePath },
+      })),
+    ];
+    for (const form of pagePackages) {
+      const tagCommit = requireSuccess(
+        dependencies,
+        "git",
+        [
+          "-C",
+          temporary,
+          "rev-parse",
+          `refs/tags/${form.locator.tag}^{commit}`,
+        ],
+        `cannot resolve public package tag ${form.locator.tag}`,
+        false,
+        true,
+      );
+      if (!commitPattern.test(tagCommit)) {
+        throw new DeployBlocked(
+          `public package tag ${form.locator.tag} did not resolve to a commit`,
+        );
+      }
+      requireSuccess(
+        dependencies,
+        "git",
+        [
+          "-C",
+          temporary,
+          "diff",
+          "--quiet",
+          tagCommit,
+          setCommit,
+          "--",
+          form.locator.sourcePath,
+        ],
+        `public package tag ${form.locator.tag} differs from signed set ${trust.setId}`,
+        false,
+        true,
+      );
+      verifyFetchedReleaseRoot(
+        {
+          kind: form.kind,
+          locator: form.locator,
+          packageDigest: form.packageDigest,
+          formRef: form.formRef,
+        },
+        temporary,
+        plan.repositoryRoot ?? root,
+        dependencies,
+        false,
+        new Map(),
+      );
+      (form.retained ? retainedTags : tags).push({
+        tag: form.locator.tag,
+        commit: tagCommit,
+        sourcePath: form.locator.sourcePath,
+        packageDigest: form.packageDigest,
+      });
+    }
+    return {
+      kind: "takoform.edge-form-package-readback@v1",
+      status: "VERIFIED",
+      repository: REPOSITORY_URL,
+      setId: trust.setId,
+      setTag: trust.setTag,
+      setCommit,
+      tags,
+      retainedTags,
+    };
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+}
+
 function verifyFetchedReleaseTree(
   plan,
   fetchedRoot,
@@ -2273,7 +2856,7 @@ function outputJSON(dependencies, value) {
 }
 
 function usage() {
-  return `usage: bun run deploy -- [--contract] | ${RELEASE_SURFACE} --trust-set <40-hex-source-commit> [--dry-run|--verify]`;
+  return `usage: bun run deploy -- [--contract] | ${RELEASE_SURFACE} --trust-set <40-hex-source-commit> [--dry-run|--verify] | ${EDGE_FORM_PAGES_SURFACE} --trust-set <40-hex-source-commit> [--dry-run|--verify]`;
 }
 
 export function credentialFreeInvocation(
@@ -2292,5 +2875,5 @@ export function credentialFreeInvocation(
 }
 
 if (import.meta.main) {
-  process.exitCode = runDeploy(process.argv.slice(2));
+  process.exitCode = await runDeploy(process.argv.slice(2));
 }

@@ -30,32 +30,28 @@ const SECOND_REVOCATION_TAG = "forms/revocations/v1.1.0";
 describe("Edge Form Package deploy surface", () => {
   test("exposes the exact contract and accepts only the documented CLI", () => {
     expect(DEPLOY_CONTRACT.kind).toBe("takos.deploy-contract@v2");
-    expect(DEPLOY_CONTRACT.surfaces).toHaveLength(1);
-    expect(DEPLOY_CONTRACT.surfaces[0].surface).toBe(RELEASE_SURFACE);
-    expect(DEPLOY_CONTRACT.surfaces[0].target).toContain(REPOSITORY_URL);
-    expect(DEPLOY_CONTRACT.surfaces[0].triggers).toEqual([
-      "authority",
-      "published-identity",
-    ]);
-    expect(
-      JSON.stringify(DEPLOY_CONTRACT.surfaces[0].obligations),
-    ).not.toContain("unsigned");
-    expect(Object.keys(DEPLOY_CONTRACT.surfaces[0].obligations).sort()).toEqual(
-      [
-        "failure-handling",
-        "independent-review",
-        "no-overwrite",
-        "post-conditions",
-        "provenance",
-        "reversal",
-      ],
+    expect(DEPLOY_CONTRACT.surfaces).toHaveLength(4);
+    const publication = DEPLOY_CONTRACT.surfaces.find(
+      (surface) => surface.surface === RELEASE_SURFACE,
     );
-    expect(
-      DEPLOY_CONTRACT.surfaces[0].obligations["independent-review"],
-    ).toContain("TASK-0042 independent architecture review");
-    expect(
-      DEPLOY_CONTRACT.surfaces[0].obligations["independent-review"],
-    ).toContain("exact signed source commit");
+    expect(publication.target).toContain(REPOSITORY_URL);
+    expect(publication.requiresScripts).toEqual(["check", "deploy"]);
+    expect(publication.triggers).toEqual(["authority", "published-identity"]);
+    expect(JSON.stringify(publication.obligations)).not.toContain("unsigned");
+    expect(Object.keys(publication.obligations).sort()).toEqual([
+      "failure-handling",
+      "independent-review",
+      "no-overwrite",
+      "post-conditions",
+      "provenance",
+      "reversal",
+    ]);
+    expect(publication.obligations["independent-review"]).toContain(
+      "TASK-0042 independent architecture review",
+    );
+    expect(publication.obligations["independent-review"]).toContain(
+      "exact signed source commit",
+    );
     expect(parseDeployInvocation(["--contract"])).toEqual({ mode: "contract" });
     expect(
       parseDeployInvocation([RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT]),

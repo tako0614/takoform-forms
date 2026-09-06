@@ -1,0 +1,121 @@
+{
+  "ModuleWorker": {
+    "version": "0.1.0",
+    "purpose": "Give one Worker application a stable identity.",
+    "note": "An empty desired state is intentional. Code, configuration and bindings belong to WorkerVersion; traffic belongs to WorkerDeployment.",
+    "related": ["WorkerBundle", "WorkerVersion", "WorkerDeployment"]
+  },
+  "WorkerBundle": {
+    "version": "0.1.0",
+    "purpose": "Identify an immutable build of your Worker code.",
+    "note": "Commit an artifact manifest first. The example digest is illustrative; this package does not host the referenced code bytes.",
+    "related": ["ModuleWorker", "WorkerVersion"]
+  },
+  "StaticAssetBundle": {
+    "version": "0.1.0",
+    "purpose": "Identify immutable static files served with a Worker.",
+    "note": "The manifest identifies the files. Serving order and fallback behavior belong to the WorkerVersion assets attachment.",
+    "related": ["WorkerVersion"]
+  },
+  "WorkerVersion": {
+    "version": "0.3.0",
+    "purpose": "Capture one immutable combination of code, handlers and configuration.",
+    "note": "Changing a revision creates another version. Sensitive values are never portable state: declare their names only. The example is comprehensive, not a minimal deployment. There is no compatibility-date or compatibility-flag field.",
+    "related": [
+      "ModuleWorker",
+      "WorkerBundle",
+      "StaticAssetBundle",
+      "WorkerDeployment",
+      "ObjectBucket",
+      "SQLiteDatabase",
+      "EdgeKVNamespace"
+    ]
+  },
+  "WorkerDeployment": {
+    "version": "0.2.0",
+    "purpose": "Choose which Worker revisions receive traffic.",
+    "note": "Weights are basis points and must total exactly 10000. Rollback changes the weights; it never edits an immutable revision.",
+    "related": [
+      "ModuleWorker",
+      "WorkerVersion",
+      "WorkerEndpoint",
+      "WorkerCustomDomain"
+    ]
+  },
+  "WorkerEndpoint": {
+    "version": "0.1.0",
+    "purpose": "Expose the active deployment at a Host-assigned HTTPS address.",
+    "note": "Do not supply a hostname. The Host returns an address that stays fixed for the attachment UID, including when deployments change.",
+    "related": ["ModuleWorker", "WorkerDeployment", "WorkerCustomDomain"]
+  },
+  "WorkerCustomDomain": {
+    "version": "0.1.0",
+    "purpose": "Connect a hostname you control to a Worker's active deployment.",
+    "note": "Deleting this attachment detaches the hostname, not the Worker. The Host canonicalizes the DNS name and refuses duplicate ownership. The fixture uses a deliberately non-routable .invalid hostname.",
+    "related": ["ModuleWorker", "WorkerDeployment", "WorkerEndpoint"]
+  },
+  "WorkerCronTrigger": {
+    "version": "0.1.0",
+    "purpose": "Invoke a Worker's scheduled handler on a UTC cron schedule.",
+    "note": "Delivery is at least once, with no catch-up for missed runs. The target must provide the scheduled handler; write it to tolerate repeated delivery.",
+    "related": ["ModuleWorker", "WorkerVersion"]
+  },
+  "EdgeKVNamespace": {
+    "version": "0.1.0",
+    "purpose": "Store opaque key-value bytes with eventual consistency.",
+    "note": "The empty desired state is intentional. The edge.kv Interface fixes the semantics, including the absence of a read-your-writes guarantee. Expose it to code through a typed WorkerVersion binding.",
+    "related": ["WorkerVersion", "ObjectBucket", "SQLiteDatabase"]
+  },
+  "ObjectBucket": {
+    "version": "0.1.0",
+    "purpose": "Store and stream objects with strong read-after-write consistency.",
+    "note": "The empty desired state is intentional. edge.objects defines streaming, conditions, ranges and multipart operations. CORS, lifecycle rules and object lock are not configurable bucket fields in this contract.",
+    "related": ["WorkerVersion", "EdgeKVNamespace"]
+  },
+  "SQLiteDatabase": {
+    "version": "0.1.0",
+    "purpose": "Keep relational data behind the edge.sql Interface.",
+    "note": "The empty desired state is intentional. Runtime access uses a typed WorkerVersion binding; schema changes use migration sets and applications.",
+    "related": [
+      "WorkerVersion",
+      "SQLiteMigrationSet",
+      "SQLiteMigrationApplication"
+    ]
+  },
+  "SQLiteMigrationSet": {
+    "version": "0.1.0",
+    "purpose": "Identify immutable, ordered SQL migration history.",
+    "note": "A MigrationBundle manifest identifies the SQL bytes. Successors may append, but must not rewrite, reorder or remove an already applied prefix.",
+    "related": ["SQLiteDatabase", "SQLiteMigrationApplication"]
+  },
+  "SQLiteMigrationApplication": {
+    "version": "0.1.0",
+    "purpose": "Apply one exact migration set to one database.",
+    "note": "Only the unapplied suffix executes. Deleting the application never runs down migrations or rewrites the database migration ledger.",
+    "related": ["SQLiteDatabase", "SQLiteMigrationSet"]
+  },
+  "AtLeastOnceQueue": {
+    "version": "0.1.0",
+    "purpose": "Buffer messages for unordered, at-least-once delivery.",
+    "note": "Retention is required; delivery delay defaults to zero. A queue has at most one consumer. Producers and inbound consumption are configured separately.",
+    "related": ["QueueConsumer", "WorkerVersion"]
+  },
+  "QueueConsumer": {
+    "version": "0.1.0",
+    "purpose": "Deliver queued messages to a Worker's queue handler.",
+    "note": "This is an inbound attachment, not a WorkerVersion binding. maxRetries counts redeliveries. The optional dead-letter queue must not introduce a cycle; the comprehensive fixture includes one.",
+    "related": ["AtLeastOnceQueue", "ModuleWorker", "WorkerVersion"]
+  },
+  "ActorNamespace": {
+    "version": "0.1.0",
+    "purpose": "Give a Worker actor class a persistent identity space.",
+    "note": "Every traffic-weighted WorkerVersion must export the class. Actor instances are runtime data, not individual Form Resources.",
+    "related": ["ModuleWorker", "WorkerVersion", "WorkerDeployment"]
+  },
+  "DurableWorkflow": {
+    "version": "0.1.0",
+    "purpose": "Make a Worker's durable workflow class available.",
+    "note": "Every traffic-weighted WorkerVersion must export the class. Workflow instances are runtime data; this Form represents the workflow capability, not each run.",
+    "related": ["ModuleWorker", "WorkerVersion", "WorkerDeployment"]
+  }
+}
