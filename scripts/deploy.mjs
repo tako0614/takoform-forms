@@ -2417,7 +2417,13 @@ export function verifyPublicEdgeFormPackages(plan, trust, dependencies) {
         ...entry,
         retained: true,
         kind: entry.formRef.kind,
-        locator: { tag: entry.tag, sourcePath: entry.sourcePath },
+        locator: {
+          apiVersion: "packages.forms.takoform.com/v1alpha5",
+          releaseId: entry.releaseId,
+          artifactId: entry.artifactId,
+          tag: entry.tag,
+          sourcePath: entry.sourcePath,
+        },
       })),
     ];
     for (const form of pagePackages) {

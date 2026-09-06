@@ -16,6 +16,7 @@ import {
   REPOSITORY_URL,
   runDeploy,
   verifyPublicPublication,
+  verifyPublicEdgeFormPackages,
   parseDeployInvocation,
 } from "./deploy.mjs";
 
@@ -647,6 +648,16 @@ describe("Edge Form Package deploy surface", () => {
       evidence.tags.every((tag) => tag.commit === EXISTING_TAG_COMMIT),
     ).toBe(true);
     expect(evidence.retainedTags).toHaveLength(2);
+    const pageEvidence = verifyPublicEdgeFormPackages(
+      plan,
+      trust,
+      dependencies,
+    );
+    expect(pageEvidence.tags).toHaveLength(17);
+    expect(pageEvidence.retainedTags).toHaveLength(2);
+    expect(pageEvidence.retainedTags.map((entry) => entry.tag)).toEqual(
+      plan.retainedPackages.map((entry) => entry.tag),
+    );
     expect(
       evidence.retainedTags.every((tag) => tag.commit === EXISTING_TAG_COMMIT),
     ).toBe(true);
