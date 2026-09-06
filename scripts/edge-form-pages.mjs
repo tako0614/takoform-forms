@@ -386,7 +386,7 @@ function renderIndex(forms, trust, isPublic) {
     <p class="catalogue-head__count">${forms.filter((form) => !form.retained).length} signed Edge Forms</p>
     <h1>Choose a resource contract</h1>
     <p>Worker applications, storage, queues, workflows and actors. Pick a Form to read what it means, which fields it accepts, and an exact package example.</p>
-    <p>For a Worker application, follow <strong>ModuleWorker → WorkerVersion → WorkerDeployment</strong>: identity, immutable code and configuration, then traffic. WorkerBundle holds code bytes; WorkerEndpoint or WorkerCustomDomain makes the active deployment reachable.</p>
+    <p>For a Worker application, follow <strong>ModuleWorker → WorkerVersion → WorkerDeployment</strong>: identity, immutable code and configuration, then traffic. WorkerBundle identifies the committed code artifact; WorkerEndpoint or WorkerCustomDomain makes the active deployment reachable.</p>
     <p>These are contracts, not a hosting service. <strong>Host support and admission are separate</strong> from publishing or reading a package. <a href="https://takoform.com/start/">Start with the Takoform model</a> or <a href="https://takoform.com/guides/">choose an integration guide</a>.</p>
     ${statusNote(isPublic)}
   </section>

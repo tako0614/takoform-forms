@@ -139,11 +139,11 @@ bun run deploy -- form-packages-edge --trust-set <source-commit> --verify
 `main` and the matching tags; run `--verify` afterwards for anonymous public
 readback. Existing immutable package tags may point to an older commit only
 when their package paths are byte-identical to the signed source. Anonymous
-readback fetches every tag, compares those bytes, and reruns Core v1.1.0 over
-all 22 local release roots (17 current, two retained, and three abandoned
-evidence-only roots), while the 19 publishable current/retained package tags,
-bundles, the pinned publisher policy and trusted root, the signed
-checkpoint, and every not-revoked decision. Changing package bytes creates a
+readback fetches all 19 publishable current/retained package tags, compares
+their bytes, and reruns Core v1.1.0 over all 22 local release roots (17 current,
+two retained, and three abandoned evidence-only roots). It also verifies the
+signature bundles, pinned publisher policy and trusted root, signed checkpoint,
+and every not-revoked decision. Changing package bytes creates a
 new digest, path, and package tag; changing publisher evidence creates a new
 `forms/sets/<source-commit>` identity.
 
