@@ -1,7 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
-  cpSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -79,10 +78,6 @@ export function renderVitePressPages({
       throw new Error(
         `VitePress build failed:\n${result.stderr}\n${result.stdout}`,
       );
-    cpSync(
-      path.join(root, "site/icon.svg"),
-      path.join(outputDirectory, "icon.svg"),
-    );
     writeFileSync(
       path.join(outputDirectory, "robots.txt"),
       `User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\n`,

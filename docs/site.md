@@ -41,6 +41,7 @@ real prerequisite resources; the publisher does not invent these.
   data in a fresh temporary directory. `site/.vitepress/config.mts` builds it
   with VitePress's standard theme, local search, sidebar, outline and previous/
   next links. There is no separate handwritten HTML renderer or custom palette.
+  Site identity is text-only, without a custom logo or favicon mark.
 - `site/reading-guide.json` supplies non-normative reading guidance. Each entry
   is pinned to a definition version so a new version requires explicit review.
 - Canonical examples follow the Definition's `conformanceFixtures` declaration

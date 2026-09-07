@@ -140,8 +140,10 @@ describe("publisher-owned Edge Form pages", () => {
       expect(worker).toContain("VPSidebar");
       expect(worker).toContain("pager-link prev");
       expect(worker).toContain("pager-link next");
-      expect(firstResult.files).toContain("icon.svg");
-      expect(root).toContain('rel="icon"');
+      expect(firstResult.files).not.toContain("icon.svg");
+      expect(root).toContain('rel="icon" href="data:,"');
+      expect(root).not.toContain('class="VPImage logo');
+      expect(root).not.toContain('property="og:image"');
       expect(readFileSync(path.join(first, "_headers"), "utf8")).toContain(
         "no-transform",
       );

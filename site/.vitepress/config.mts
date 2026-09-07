@@ -22,7 +22,7 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: false,
   vite: { build: { target: "esnext" } },
-  head: [["link", { rel: "icon", href: "/icon.svg" }]],
+  head: [["link", { rel: "icon", href: "data:," }]],
   themeConfig: {
     search: { provider: "local" },
     outline: { level: [2, 3] },
