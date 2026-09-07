@@ -394,10 +394,10 @@ function nextSteps(locale) {
   const ja = locale === "ja";
   const core = `https://takoform.com/${ja ? "" : "en/"}`;
   return ja
-    ? `- アプリを作る：利用するHostのドキュメントで接続先・認証・対応する正確なFormRefを確認し、そのHostで使う[OpenTofu Provider](https://github.com/tako0614/terraform-provider-takoform)または[Goクライアント](${core}client/)の手順へ進みます。ここに載せたJSONは設定の形を読む例で、配備手順ではありません。
+    ? `- アプリを作る：利用するHostのドキュメントで接続先・認証・対応する正確なFormRefを確認し、そのHostで使う[OpenTofuの案内](${core}guides/#opentofu-provider-を使う-reader)または[Goクライアント](${core}client/)の手順へ進みます。ここに載せたJSONは設定の形を読む例で、配備手順ではありません。
 - Hostやクライアントを実装する：[Coreの実装ガイド](${core}guides/)で共通APIと検証の手順を確認します。各Formの振る舞いを実装する必要があり、Schemaの検証だけでは対応済みになりません。
 - 定義を検証する：各ページのパッケージ参照から、正確なタグ・ダイジェスト・Schemaを照合します。[パッケージ検証](${core}start/)は利用するHostへの接続なしで試せます。`
-    : `- Build an application: use your Host's documentation to obtain its endpoint, authentication and supported exact FormRefs, then follow the [OpenTofu Provider](https://github.com/tako0614/terraform-provider-takoform) or [Go client](${core}client/) instructions for that Host. The JSON here teaches the input shape; it is not a deployment procedure.
+    : `- Build an application: use your Host's documentation to obtain its endpoint, authentication and supported exact FormRefs, then follow the [OpenTofu guidance](${core}guides/#opentofu-provider-を使う-reader) or [Go client](${core}client/) instructions for that Host. The JSON here teaches the input shape; it is not a deployment procedure.
 - Implement a Host or client: follow [Core's implementation guides](${core}guides/) for the common API and verification flow. Implement the Form's behavior too; schema validation alone is not support.
 - Verify a definition: use each page's package reference to check the exact tag, digest and schema. Try [package verification](${core}start/) without connecting to a Host.`;
 }
