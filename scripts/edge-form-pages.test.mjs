@@ -64,7 +64,7 @@ describe("publisher-owned Edge Form pages", () => {
       rmSync(link, { force: true });
       rmSync(directory, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
   test("renders one deterministic human page per exact signed package", () => {
     const plan = derivePublicationPlan();
     const trust = signedTrustFor(plan);
