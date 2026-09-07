@@ -32,6 +32,13 @@ schema, lifecycle capabilities, Interface references and package identity.
 The four-field FormRef identifies the contract; the package digest identifies the
 full package. Neither is a Host deployment ID.
 
+The public index provides a task chooser, a Queue/Workflow/Actor comparison and
+HTTP/queue/migration composition paths. Individual pages explain a concrete use
+case and the purpose of each related Form: required input, serving prerequisite,
+consumer, optional connection or alternative. These are publisher-authored
+explanations reviewed against exact released contracts, not a machine-readable
+dependency graph or an inferred deployment plan.
+
 Examples are **canonical conformance fixtures, not copy-and-deploy tutorials**.
 They may refer to unavailable example artifacts or prerequisite resources; the
 custom-domain example deliberately uses `.invalid`. Empty desired objects are
@@ -53,6 +60,10 @@ real prerequisite resources; the publisher does not invent these.
 - `site/reading-guide.json` supplies non-normative reading guidance. Each entry
   is pinned to a definition version so a new version requires explicit review.
   Its English and Japanese text share that version pin; both are required.
+  Purpose, use case, constraints and relationship explanations must be present
+  in both languages. Related kinds must resolve to current pages without duplicate
+  or self references. New wording must not assign runtime policy to an artifact
+  bundle or confuse producer bindings with inbound attachments.
 - Canonical examples follow the Definition's `conformanceFixtures` declaration
   and must be listed in the package index. Required fields, defaults and limits
   come from `desiredSchema`. The full schema remains inspectable.

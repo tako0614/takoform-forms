@@ -190,12 +190,14 @@ description: Takoform Edge Formsの設定項目、利用例、パッケージ参
 
 # Edge Forms
 
-Worker、ストレージ、キュー、ワークフロー、ActorのためのForm定義です。各ページに設定項目、利用例、正確なパッケージ参照を掲載しています。
+Worker、ストレージ、キュー、ワークフロー、Actorの設定と振る舞いを定めるForm定義です。コードのバージョン、トラフィック、データ、実行のきっかけを分けて組み合わせ、変更したい部分を指定できます。各ページで用途、組み合わせ、設定項目、正確なパッケージ参照を確認できます。
 
 ## Workerアプリケーション {#worker-applications}
 
 ModuleWorker → WorkerVersion → WorkerDeploymentの順に、アプリケーションの識別子、コードと設定のバージョン、トラフィックの割り振りを定義します。
 WorkerBundleはコードの成果物を特定します。WorkerEndpointとWorkerCustomDomainは、デプロイへの接続方法を定義します。
+
+${renderTaskGuide(current, locale)}
 
 ## 現在のForms {#current-forms}
 
@@ -211,6 +213,8 @@ Formを選び、利用するHostがその正確なバージョンに対応して
 
 Hostの対応や受け入れ判断は、パッケージの公開とは別です。パッケージを読むだけでリソースが作成されたり、ホスティングが提供されたりすることはありません。
 検証方法は[Takoformの導入ガイド](https://takoform.com/start/)、クライアントやHostの実装は[実装ガイド](https://takoform.com/guides/)を参照してください。
+
+${nextSteps(locale)}
 
 ## 過去のバージョン {#retained-versions}
 
@@ -228,12 +232,14 @@ description: Settings, examples and package references for Takoform Edge Forms.
 
 # Edge Forms
 
-Form definitions for workers, storage, queues, workflows and actors. Each page lists the accepted settings, an example and the exact package reference.
+Form definitions for the configuration and behavior of workers, storage, queues, workflows and actors. Compose code versions, traffic, data and event entry points separately so you can target the part you want to change. Each page explains use cases, connections, accepted settings and the exact package reference.
 
 ## Worker applications
 
 ModuleWorker → WorkerVersion → WorkerDeployment: create an application identity, describe a version of its code and configuration, then select the version that receives traffic.
 WorkerBundle identifies the code artifact. WorkerEndpoint or WorkerCustomDomain describes how the deployed application is reached.
+
+${renderTaskGuide(current, locale)}
 
 ## Current Forms
 
@@ -249,6 +255,8 @@ Choose a Form, check whether your Host supports that exact version, and use its 
 
 Host support and admission are separate from package publication. Reading a package does not create a resource or provide hosting.
 See [Takoform's getting started guide](https://takoform.com/en/start/) for package verification and [implementation guides](https://takoform.com/en/guides/) for clients and Hosts.
+
+${nextSteps(locale)}
 
 ## Retained versions
 
@@ -290,7 +298,7 @@ ${t("Host support and admission are separate from package publication. Check you
 
 ${form.versions.length ? `${t("Other versions", "他のバージョン")}: ${form.versions.map(link).join(" · ")}` : ""}
 
-${guide ? `## ${t("Usage", "使い方")} {#usage}\n\n${literal(guide.note)}\n\n${t("Related Forms", "関連するForms")}: ${form.related.map(link).join(" · ")}` : ""}
+${guide ? `## ${t("Usage", "使い方")} {#usage}\n\n${literal(guide.useCase)}\n\n${literal(guide.note)}\n\n### ${t("Connections and alternatives", "組み合わせと比較対象")} {#connections}\n\n${form.related.map((entry) => `- ${link(entry.form)} — ${literal(locale === "ja" ? entry.ja : entry.relation)}`).join("\n")}` : ""}
 
 ::: details ${t("Full contract description", "定義の説明（英語原文）")}
 <span lang="en">${literal(definition.description)}</span>
@@ -321,7 +329,9 @@ ${json(definition.desiredSchema)}
 
 ## ${t("Lifecycle", "ライフサイクル")} {#lifecycle-title}
 
-${t("Role", "役割")}: ${literal(definition.role)}
+${t("Role", "役割")}: ${literal(definition.role)} — ${roleDescription(definition.role, locale)}
+
+${t("The operations supported by this definition are listed below; immutable revisions are replaced with a new resource rather than edited in place.", "この定義が持つ操作は以下のとおりです。変更不可のrevisionは書き換えず、新しいリソースとして作成します。")}
 
 ${(definition.lifecycleCapabilities ?? []).map((capability) => `- ${literal(capability)}`).join("\n") || t("None.", "ありません。")}
 
@@ -345,6 +355,85 @@ ${(definition.providedInterfaces ?? []).map((entry) => `- ${literal(`${entry.nam
 ::: details ${t("Four-field FormRef", "4項目のFormRef")}
 ${json(formRef)}
 :::
+
+## ${t("Next steps", "次に進む")} {#next-steps}
+
+${nextSteps(locale)}
+`;
+}
+
+function roleDescription(role, locale) {
+  const descriptions = {
+    identity: [
+      "A long-lived resource identity, separate from a particular code revision or traffic selection.",
+      "特定のコードの版やトラフィックの割り当てとは分けて扱う、長く使うリソースの識別子です。",
+    ],
+    revision: [
+      "An immutable version of contents or configuration. Create a new revision when they change.",
+      "内容や設定を固定した版です。変更するときは新しいrevisionを作成します。",
+    ],
+    deployment: [
+      "Selects the revisions that serve a resource and their traffic allocation.",
+      "リソースを処理するバージョンと、トラフィックの割り当てを選びます。",
+    ],
+    attachment: [
+      "Connects resources or an inbound event source. Its fields identify what it attaches.",
+      "リソース同士、または外からの呼び出しの入口を接続します。設定項目で接続する対象を指定します。",
+    ],
+    policy: [
+      "Describes rules applied to a resource's behavior; see this Form's lifecycle for supported changes.",
+      "リソースの振る舞いに適用する規則です。変更できる範囲は、このFormのライフサイクルに従います。",
+    ],
+  };
+  if (!descriptions[role])
+    throw new Error(`undocumented lifecycle role: ${role}`);
+  return descriptions[role][locale === "ja" ? 1 : 0];
+}
+
+function nextSteps(locale) {
+  const ja = locale === "ja";
+  const core = `https://takoform.com/${ja ? "" : "en/"}`;
+  return ja
+    ? `- アプリを作る：利用するHostのドキュメントで接続先・認証・対応する正確なFormRefを確認し、そのHostで使う[OpenTofuの案内](${core}guides/#opentofu-provider-を使う-reader)または[Goクライアント](${core}client/)の手順へ進みます。ここに載せたJSONは設定の形を読む例で、配備手順ではありません。
+- Hostやクライアントを実装する：[Coreの実装ガイド](${core}guides/)で共通APIと検証の手順を確認します。各Formの振る舞いを実装する必要があり、Schemaの検証だけでは対応済みになりません。
+- 定義を検証する：各ページのパッケージ参照から、正確なタグ・ダイジェスト・Schemaを照合します。[パッケージ検証](${core}start/)は利用するHostへの接続なしで試せます。`
+    : `- Build an application: use your Host's documentation to obtain its endpoint, authentication and supported exact FormRefs, then follow the [OpenTofu guidance](${core}guides/#opentofu-provider-を使う-reader) or [Go client](${core}client/) instructions for that Host. The JSON here teaches the input shape; it is not a deployment procedure.
+- Implement a Host or client: follow [Core's implementation guides](${core}guides/) for the common API and verification flow. Implement the Form's behavior too; schema validation alone is not support.
+- Verify a definition: use each page's package reference to check the exact tag, digest and schema. Try [package verification](${core}start/) without connecting to a Host.`;
+}
+
+function renderTaskGuide(forms, locale) {
+  const t = (en, ja) => (locale === "ja" ? ja : en);
+  const link = (kind) => {
+    const form = forms.find((entry) => entry.formRef.kind === kind);
+    if (!form)
+      throw new Error(`task guide references absent current Form: ${kind}`);
+    return formLink(form, locale);
+  };
+  return `## ${t("Choose by task", "やりたいことから選ぶ")} {#choose-by-task}
+
+- **${t("Publish an HTTP API or website", "HTTP APIやWebサイトを公開する")}**: ${link("ModuleWorker")} + ${link("WorkerBundle")} + ${link("WorkerVersion")} + ${link("WorkerDeployment")} → ${link("WorkerEndpoint")} / ${link("WorkerCustomDomain")}
+- **${t("Serve static files with code", "コードと一緒に静的ファイルを配信する")}**: ${link("StaticAssetBundle")} → ${link("WorkerVersion")}
+- **${t("Store application data", "アプリケーションのデータを保存する")}**: ${link("SQLiteDatabase")} / ${link("ObjectBucket")} / ${link("EdgeKVNamespace")} → ${t("typed WorkerVersion binding", "WorkerVersionの型付きBinding")}
+- **${t("Run jobs in the background", "依頼を受け付け、後で処理する")}**: ${link("AtLeastOnceQueue")} + ${link("QueueConsumer")}
+- **${t("Run on a schedule", "決まった時刻に処理する")}**: ${link("WorkerCronTrigger")} → ${t("Worker scheduled handler", "Workerのscheduledハンドラー")}
+- **${t("Coordinate state by ID", "IDごとの状態を管理する")}**: ${link("ActorNamespace")}
+- **${t("Resume a multi-step process", "複数段階の処理を再開する")}**: ${link("DurableWorkflow")}
+- **${t("Change a database schema", "データベースのスキーマを変更する")}**: ${link("SQLiteMigrationSet")} → ${link("SQLiteMigrationApplication")} → ${link("SQLiteDatabase")}
+
+${t("For storage, choose SQLite for SQL queries and transactions, ObjectBucket for object bodies with strong read-after-write consistency, or EdgeKVNamespace for key-value data that can tolerate propagation delay.", "ストレージは、SQLでの検索やトランザクションならSQLite、オブジェクト本体と書き込み後の強い読み取り一貫性ならObjectBucket、反映の遅れを許容できるキー・バリューデータならEdgeKVNamespaceを選びます。")}
+
+### ${t("Queue, Workflow or Actor?", "Queue・Workflow・Actorの違い")} {#queue-workflow-actor}
+
+- ${link("AtLeastOnceQueue")}: ${t("Buffer independent jobs, such as image processing, for a consumer", "画像処理などの独立したジョブを貯め、受信側で処理する")}${t(". ", "。")}${t("Unordered, at-least-once delivery; handle duplicate messages safely", "順序を保証しない、少なくとも1回の配信。重複を安全に処理する")}${t(".", "。")}
+- ${link("DurableWorkflow")}: ${t("Generate a report, wait for approval, then deliver it; resume durable progress", "レポート生成 → 承認待ち → 配信など、進捗を保って続きを実行する")}${t(". ", "。")}${t("Recorded step results are replayed; side effects before recording may repeat. Use idempotency and preserve replay compatibility across code changes", "記録済みの結果を再利用するが、記録前の副作用は重複し得る。冪等性とコード変更時の再実行互換性が必要")}${t(".", "。")}
+- ${link("ActorNamespace")}: ${t("Keep state for each room or session ID and handle its calls one at a time", "部屋やセッションのIDごとに状態を持ち、呼び出しを順番に扱う")}${t(". ", "。")}${t("The Form configures the namespace and class, not one infrastructure resource per actor ID", "Formで設定するのは名前空間とクラス。ActorのIDごとにインフラのリソースを作らない")}${t(".", "。")}
+
+### ${t("Connect the pieces", "組み合わせの流れ")} {#composition}
+
+- ${t("HTTP: create the Worker identity and commit a code artifact, then create a version referring to both. A deployment assigns traffic to versions; an endpoint or custom domain routes HTTP to that Worker's active deployment. Merely creating a version does not expose it.", "HTTP：Workerの識別子を作り、コードのArtifactを確定し、両方を参照するバージョンを作成します。Deploymentでトラフィックを割り当て、EndpointまたはCustomDomainでそのWorkerの有効なデプロイへHTTPを接続します。バージョンを作るだけでは公開されません。")}
+- ${t("Queue: WorkerVersion producer binding → AtLeastOnceQueue → QueueConsumer → ModuleWorker queue handler. Sending and inbound consumption are separate connections; QueueConsumer is not a producer binding. Producers and consumers may use different Workers.", "Queue：WorkerVersionの送信側Binding → AtLeastOnceQueue → QueueConsumer → ModuleWorkerのqueueハンドラー。送信と受信は別の接続で、QueueConsumerは送信側Bindingではありません。送信側と受信側に別のWorkerを使えます。")}
+- ${t("SQL: define ordered SQL in a migration artifact, identify it with SQLiteMigrationSet, then select that set and a database in SQLiteMigrationApplication. Code accesses the database separately through a WorkerVersion binding. Deleting the application does not undo SQL.", "SQL：順序付きSQLをマイグレーションのArtifactとして定義し、SQLiteMigrationSetで特定し、SQLiteMigrationApplicationでそのセットとデータベースを指定します。コードからの接続は、別にWorkerVersionのBindingで行います。Applicationを削除してもSQLは元に戻りません。")}
 `;
 }
 
