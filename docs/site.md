@@ -5,6 +5,12 @@ by this publisher, not the neutral Takoform API/Core site. It contains an index,
 17 current Form pages and two retained version pages. Package publication,
 Host support, admission and actual hosting are separate concerns.
 
+English keeps the existing root routes; Japanese pages are under `/ja/`. The
+language menu links to the corresponding page and preserves its heading fragment.
+Each locale has the complete 20-page sidebar. Guides and navigation are translated;
+contract descriptions and field descriptions are marked as original English.
+Schema, example and package-reference bytes do not change with language.
+
 ## Read the reference
 
 Start with the job, then choose the contract:
@@ -46,6 +52,7 @@ real prerequisite resources; the publisher does not invent these.
   expanded, and related-site links are available there as well.
 - `site/reading-guide.json` supplies non-normative reading guidance. Each entry
   is pinned to a definition version so a new version requires explicit review.
+  Its English and Japanese text share that version pin; both are required.
 - Canonical examples follow the Definition's `conformanceFixtures` declaration
   and must be listed in the package index. Required fields, defaults and limits
   come from `desiredSchema`. The full schema remains inspectable.

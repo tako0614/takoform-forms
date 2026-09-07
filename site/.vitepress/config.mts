@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { defineConfig } from "vitepress";
+import { renderForSearch } from "./search.mjs";
 
 const buildRoot = process.env.EDGE_DOCS_BUILD_ROOT;
 if (!buildRoot)
@@ -14,6 +15,34 @@ export default defineConfig({
   title: "Edge Forms",
   description:
     "Settings, examples and package references for Takoform Edge Forms.",
+  locales: {
+    root: { label: "English", lang: "en" },
+    ja: {
+      label: "日本語",
+      lang: "ja-JP",
+      description: "Takoform Edge Formsの設定項目、利用例、パッケージ参照。",
+      themeConfig: {
+        nav: [
+          { text: "Forms", link: "/ja/" },
+          { text: "Takoform", link: "https://takoform.com/" },
+        ],
+        sidebar: JSON.parse(
+          readFileSync(path.join(buildRoot, "sidebar-ja.json"), "utf8"),
+        ),
+        docFooter: { prev: "前へ", next: "次へ" },
+        darkModeSwitchLabel: "配色",
+        returnToTopLabel: "先頭へ",
+        sidebarMenuLabel: "目次",
+        outlineTitle: "このページ",
+        langMenuLabel: "言語を切り替える",
+        notFound: {
+          title: "ページがありません",
+          quote: "URLを確認するか、目次からFormを探してください。",
+          linkText: "Forms一覧",
+        },
+      },
+    },
+  },
   srcDir: path.join(buildRoot, "docs"),
   cacheDir: path.join(buildRoot, "cache"),
   tempDir: path.join(buildRoot, "temp"),
@@ -24,14 +53,37 @@ export default defineConfig({
   vite: { build: { target: "esnext" } },
   head: [["link", { rel: "icon", href: "data:," }]],
   themeConfig: {
-    search: { provider: "local" },
+    search: {
+      provider: "local",
+      options: {
+        _render: renderForSearch,
+        locales: {
+          ja: {
+            translations: {
+              button: { buttonText: "検索", buttonAriaLabel: "検索" },
+              modal: {
+                displayDetails: "詳細を表示",
+                resetButtonTitle: "検索をクリア",
+                backButtonTitle: "閉じる",
+                noResultsText: "見つかりませんでした",
+                footer: {
+                  selectText: "選択",
+                  navigateText: "移動",
+                  closeText: "閉じる",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
     outline: { level: [2, 3] },
     nav: [
       { text: "Forms", link: "/" },
-      { text: "Takoform", link: "https://takoform.com/" },
+      { text: "Takoform", link: "https://takoform.com/en/" },
     ],
     sidebar: JSON.parse(
-      readFileSync(path.join(buildRoot, "sidebar.json"), "utf8"),
+      readFileSync(path.join(buildRoot, "sidebar-en.json"), "utf8"),
     ),
     socialLinks: [
       { icon: "github", link: "https://github.com/tako0614/takoform-forms" },

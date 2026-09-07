@@ -16,10 +16,33 @@ import {
   buildEdgeFormPages,
 } from "./edge-form-pages.mjs";
 import { derivePublicationPlan } from "./form-publication.mjs";
+import { renderForSearch, tokenize } from "../site/.vitepress/search.mjs";
 
 const SET_ID = "e7f8a39311dd011b8467e97e7f300cabb9a6b06c";
 
 describe("publisher-owned Edge Form pages", () => {
+  test("tokenizes Japanese usage text and preserves binding names", () => {
+    expect(
+      tokenize("たとえばチャットの部屋ごとにActorを使えます。bucketBindings"),
+    ).toEqual(
+      expect.arrayContaining(["チャット", "部屋", "Actor", "bucketBindings"]),
+    );
+    expect(tokenize("  。  ")).toEqual([]);
+    const html =
+      '<h2 id="usage">使い方<a href="#usage">#</a></h2><p>たとえばチャットの部屋ごとにActorを使えます。</p>';
+    const output = renderForSearch("", {}, { render: () => html });
+    expect(output).toContain(
+      '<h2 id="usage">使い方<a href="#usage">#</a></h2>',
+    );
+    expect(output).toContain("チャット の 部屋");
+    expect(
+      renderForSearch(
+        "",
+        { frontmatter: { search: false } },
+        { render: () => html },
+      ),
+    ).toBe("");
+  });
   test("does not overwrite nonempty or linked output directories", () => {
     const plan = derivePublicationPlan();
     const trust = signedTrustFor(plan);
@@ -62,7 +85,7 @@ describe("publisher-owned Edge Form pages", () => {
       expect(firstResult).toEqual(secondResult);
       expect(firstResult.formCount).toBe(plan.formCount);
       expect(firstResult.routes).toHaveLength(
-        plan.formCount + plan.retainedPackages.length + 1,
+        2 * (plan.formCount + plan.retainedPackages.length + 1),
       );
       expect(firstResult.routes[0]).toBe("/");
       expect(tree(first)).toEqual(tree(second));
@@ -84,13 +107,42 @@ describe("publisher-owned Edge Form pages", () => {
         const sidebar = html.match(
           /<aside\b[^>]*class="VPSidebar[^>]*>([\s\S]*?)<\/aside>/u,
         )?.[1];
+        expect(html).not.toContain("_vp-fn_");
+        expect(html).not.toContain("new Function");
         expect(sidebar).toBeDefined();
         const links = [...sidebar.matchAll(/href="(\/[^"#]*)"/gu)].map(
           (match) => match[1],
         );
-        expect(links.sort()).toEqual([...firstResult.routes].sort());
+        const japanese = route.startsWith("/ja/");
+        expect(html).toContain(`lang="${japanese ? "ja-JP" : "en"}"`);
+        expect(links.sort()).toEqual(
+          firstResult.routes
+            .filter((entry) => entry.startsWith("/ja/") === japanese)
+            .sort(),
+        );
         expect(sidebar).not.toMatch(/class="[^"]*\bcollapsed\b/u);
-        expect(sidebar).toContain('href="https://takoform.com/"');
+        expect(sidebar).toContain(
+          `href="https://takoform.com/${japanese ? "" : "en/"}"`,
+        );
+        const counterpart = japanese ? route.slice(3) : `/ja${route}`;
+        expect(html).toContain(`href="${counterpart}"`);
+        if (japanese) {
+          const english = readFileSync(
+            path.join(first, `${counterpart.slice(1)}index.html`),
+            "utf8",
+          );
+          const headings = (source) =>
+            [...source.matchAll(/<h[1-6]\b[^>]*id="([^"]+)"/gu)].map(
+              (match) => match[1],
+            );
+          const examples = (source) =>
+            [
+              ...source.matchAll(/<div class="language-json[\s\S]*?<\/pre>/gu),
+            ].map((match) => match[0]);
+          expect(headings(html)).toEqual(headings(english));
+          expect(examples(html)).toEqual(examples(english));
+          expect(html).toContain(route === "/ja/" ? "定義を使う" : "設定項目");
+        }
       }
       expect(
         new Set(

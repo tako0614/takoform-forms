@@ -96,11 +96,20 @@ try {
         );
       if (
         JSON.stringify(sidebarRoutes) !==
-        JSON.stringify([...build.routes].sort())
+        JSON.stringify(
+          build.routes
+            .filter(
+              (entry) => entry.startsWith("/ja/") === route.startsWith("/ja/"),
+            )
+            .sort(),
+        )
       )
         throw new Error(`${route}: sidebar is missing published pages`);
       if (await page.locator(".VPSidebarItem.collapsed").count())
         throw new Error(`${route}: sidebar group starts collapsed`);
+      const expectedLang = route.startsWith("/ja/") ? "ja-JP" : "en";
+      if ((await page.locator("html").getAttribute("lang")) !== expectedLang)
+        throw new Error(`${route}: document language drifted on hydration`);
       const problems = await page.evaluate(() => {
         const failures = [];
         if (
@@ -201,6 +210,73 @@ try {
           throw new Error(`${route}: missing internal route ${link}`);
     }
   }
+  for (const width of [375, 1024, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const [route, fragment] of [
+      ["/", "#using-these-definitions"],
+      ["/forms/WorkerVersion/0.3.0/", "#example-title"],
+      ["/forms/WorkerVersion/0.2.0/", "#locator-title"],
+    ]) {
+      await page.goto(origin + route + fragment, { waitUntil: "networkidle" });
+      for (const [label, target, lang] of [
+        ["日本語", `/ja${route}`, "ja-JP"],
+        ["English", route, "en"],
+      ]) {
+        let menu;
+        if (width < 768) {
+          await page.locator(".VPNavBarHamburger").click();
+          menu = page.locator(".VPNavScreenTranslations");
+          await menu.locator("button.title").click();
+        } else {
+          menu = page.locator(
+            width < 1280 ? ".VPNavBarExtra" : ".VPNavBarTranslations",
+          );
+          await menu.locator("button.button").focus();
+          await page.keyboard.press("Enter");
+        }
+        await menu.getByRole("link", { name: label, exact: true }).click();
+        await page.waitForURL(
+          (url) => url.pathname === target && url.hash === fragment,
+        );
+        await page.waitForFunction(
+          (value) => document.documentElement.lang === value,
+          lang,
+        );
+        if (
+          !(await page.evaluate(
+            (hash) => !!document.getElementById(hash.slice(1)),
+            fragment,
+          ))
+        )
+          throw new Error(`${target}: translated fragment missing`);
+      }
+    }
+  }
+  await page.setViewportSize({ width: 375, height: 900 });
+  await page.goto(`${origin}/ja/`, { waitUntil: "networkidle" });
+  await page.locator(".VPNavBarSearch button").click();
+  await page.locator("#localsearch-input").fill("チャット");
+  const japaneseResult = page
+    .locator('.VPLocalSearchBox a[href*="/ja/forms/ActorNamespace/0.1.0/"]')
+    .first();
+  await japaneseResult.waitFor();
+  await japaneseResult.click();
+  await page.waitForFunction(
+    () => !document.querySelector(".VPLocalSearchBox"),
+  );
+  await page.locator("#desired-schema summary").click();
+  if (
+    !(await page
+      .locator("#desired-schema details")
+      .evaluate((node) => node.open))
+  )
+    throw new Error("Japanese schema disclosure failed");
+  const japaneseNext = page.locator("a.pager-link.next");
+  const japaneseNextRoute = await japaneseNext.getAttribute("href");
+  if (!japaneseNextRoute.startsWith("/ja/"))
+    throw new Error("Japanese pager left locale");
+  await japaneseNext.click();
+  await page.waitForURL(origin + japaneseNextRoute);
   await page.setViewportSize({ width: 320, height: 900 });
   await page.goto(`${origin}/forms/WorkerVersion/0.3.0/`);
   const summary = page.locator("#desired-schema details > summary");
@@ -267,7 +343,7 @@ try {
   });
   if (errors.length) throw new Error(errors.join("\n"));
   console.log(
-    `edge-form-pages-browser: ${build.routes.length * 4} responsive pages, JSON, navigation and keyboard disclosure passed (${browser.version()})`,
+    `edge-form-pages-browser: ${build.routes.length * 4} responsive pages, bilingual search, language/fragment round trips, JSON, navigation and keyboard disclosure passed (${browser.version()})`,
   );
 } finally {
   await browser?.close();

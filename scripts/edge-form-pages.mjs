@@ -71,6 +71,10 @@ export function buildEdgeFormPages({
       form.guide.version !== form.formRef.definitionVersion ||
       !form.guide.purpose ||
       !form.guide.note ||
+      typeof form.guide.ja?.purpose !== "string" ||
+      !form.guide.ja.purpose.trim() ||
+      typeof form.guide.ja?.note !== "string" ||
+      !form.guide.ja.note.trim() ||
       !form.guide.related.every((kind) => guide[kind])
     )
       throw new Error(
