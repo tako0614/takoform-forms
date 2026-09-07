@@ -26,6 +26,62 @@ const runDeploy = (args, dependencies) =>
   runOwnerDeploy(target(args), dependencies);
 
 describe("Edge Form human page deploy surface", () => {
+  test("reads encoded asset paths without following redirects or relaxing bytes", () => {
+    const temporary = mkdtempSync(path.join(tmpdir(), "edge-asset-readback-"));
+    const assetsDirectory = path.join(temporary, "assets");
+    mkdirSync(path.join(assetsDirectory, "chunks"), { recursive: true });
+    const files = [
+      "chunks/@localSearchIndexroot.hash.js",
+      "chunks/literal%20#?.js",
+    ];
+    const expectedURLs = [
+      "https://edge.forms.takoform.com/chunks/%40localSearchIndexroot.hash.js",
+      "https://edge.forms.takoform.com/chunks/literal%2520%23%3F.js",
+      "https://edge.forms.takoform.com/__missing-form-page__",
+    ];
+    for (const file of [...files, "404.html"])
+      writeFileSync(path.join(assetsDirectory, file), `exact ${file}`);
+    try {
+      for (const corrupt of [false, true]) {
+        let reads = 0;
+        const verify = () =>
+          readEdgeFormPages(
+            {
+              stderr() {},
+              runReadOnly(command, args) {
+                expect(command).toBe("curl");
+                expect(args).not.toContain("--location");
+                expect(args).not.toContain("-L");
+                expect(args.at(-1)).toBe(expectedURLs[reads]);
+                const file = [...files, "404.html"][reads];
+                writeFileSync(
+                  args[args.indexOf("--output") + 1],
+                  corrupt ? "changed bytes" : `exact ${file}`,
+                );
+                reads++;
+                return {
+                  exitCode: 0,
+                  stdout: file === "404.html" ? "404" : "200",
+                  stderr: "",
+                };
+              },
+            },
+            { routes: [], files },
+            assetsDirectory,
+            true,
+          );
+        if (corrupt) {
+          expect(verify).toThrow("deployed bytes/status differ");
+          expect(reads).toBe(1);
+        } else {
+          verify();
+          expect(reads).toBe(3);
+        }
+      }
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+  });
   test("root readback rejects matching HTML with missing CSP after an upload", () => {
     const temporary = mkdtempSync(path.join(tmpdir(), "edge-header-readback-"));
     const assetsDirectory = path.join(temporary, "assets");

@@ -711,7 +711,11 @@ export function readEdgeFormPages(
   }));
   for (const relative of build.files ?? []) {
     if (relative === "_headers" || relative.endsWith(".html")) continue;
-    checks.push({ route: `/${relative}`, relative, status: "200" });
+    checks.push({
+      route: `/${relative.split("/").map(encodeURIComponent).join("/")}`,
+      relative,
+      status: "200",
+    });
   }
   checks.push({
     route: "/__missing-form-page__",
