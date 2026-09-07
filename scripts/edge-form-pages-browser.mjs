@@ -89,6 +89,18 @@ try {
       if (response.status() !== 200)
         throw new Error(`HTTP failure at ${route}`);
       await page.evaluate(() => document.fonts.ready);
+      const sidebarRoutes = await page
+        .locator('.VPSidebar a[href^="/"]')
+        .evaluateAll((links) =>
+          links.map((link) => link.getAttribute("href")).sort(),
+        );
+      if (
+        JSON.stringify(sidebarRoutes) !==
+        JSON.stringify([...build.routes].sort())
+      )
+        throw new Error(`${route}: sidebar is missing published pages`);
+      if (await page.locator(".VPSidebarItem.collapsed").count())
+        throw new Error(`${route}: sidebar group starts collapsed`);
       const problems = await page.evaluate(() => {
         const failures = [];
         if (

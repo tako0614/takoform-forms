@@ -46,7 +46,7 @@ export function renderVitePressPages({
       { text: "Overview", link: "/" },
       ...[false, true].map((retained) => ({
         text: retained ? "Retained versions" : "Current Forms",
-        collapsed: retained,
+        collapsed: false,
         items: forms
           .filter((form) => !!form.retained === retained)
           .map((form) => ({
@@ -54,6 +54,16 @@ export function renderVitePressPages({
             link: routeFor(form),
           })),
       })),
+      {
+        text: "Related links",
+        items: [
+          { text: "Takoform", link: "https://takoform.com/" },
+          {
+            text: "GitHub",
+            link: "https://github.com/tako0614/takoform-forms",
+          },
+        ],
+      },
     ];
     writeFileSync(
       path.join(temporary, "sidebar.json"),

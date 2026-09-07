@@ -42,6 +42,8 @@ real prerequisite resources; the publisher does not invent these.
   with VitePress's standard theme, local search, sidebar, outline and previous/
   next links. There is no separate handwritten HTML renderer or custom palette.
   Site identity is text-only, without a custom logo or favicon mark.
+  Every page uses the same sidebar. Current and retained Form groups start
+  expanded, and related-site links are available there as well.
 - `site/reading-guide.json` supplies non-normative reading guidance. Each entry
   is pinned to a definition version so a new version requires explicit review.
 - Canonical examples follow the Definition's `conformanceFixtures` declaration

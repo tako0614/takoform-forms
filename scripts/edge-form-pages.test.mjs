@@ -73,6 +73,25 @@ describe("publisher-owned Edge Form pages", () => {
       }
 
       const root = readFileSync(path.join(first, "index.html"), "utf8");
+      for (const route of firstResult.routes) {
+        const html = readFileSync(
+          path.join(
+            first,
+            route === "/" ? "index.html" : `${route.slice(1)}index.html`,
+          ),
+          "utf8",
+        );
+        const sidebar = html.match(
+          /<aside\b[^>]*class="VPSidebar[^>]*>([\s\S]*?)<\/aside>/u,
+        )?.[1];
+        expect(sidebar).toBeDefined();
+        const links = [...sidebar.matchAll(/href="(\/[^"#]*)"/gu)].map(
+          (match) => match[1],
+        );
+        expect(links.sort()).toEqual([...firstResult.routes].sort());
+        expect(sidebar).not.toMatch(/class="[^"]*\bcollapsed\b/u);
+        expect(sidebar).toContain('href="https://takoform.com/"');
+      }
       expect(
         new Set(
           [...root.matchAll(/href="(\/forms\/[^"#]+)"/gu)].map(
