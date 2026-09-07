@@ -2,137 +2,482 @@
   "ModuleWorker": {
     "version": "0.1.0",
     "purpose": "Give one Worker application a stable identity.",
-    "ja": { "purpose": "Workerアプリケーションに、変わらない識別子を付けます。", "note": "設定が空なのは意図したものです。コード・設定・BindingはWorkerVersionで、トラフィックの割り振りはWorkerDeploymentで指定します。" },
+    "ja": {
+      "purpose": "Workerアプリケーションに、変わらない識別子を付けます。",
+      "note": "設定が空なのは意図したものです。コード・設定・BindingはWorkerVersionで、トラフィックの割り振りはWorkerDeploymentで指定します。",
+      "useCase": "APIやアプリケーションの識別子を保ったまま、新しいコードを公開するときに使います。"
+    },
     "note": "An empty desired state is intentional. Code, configuration and bindings belong to WorkerVersion; traffic belongs to WorkerDeployment.",
-    "related": ["WorkerBundle", "WorkerVersion", "WorkerDeployment"]
+    "related": [
+      {
+        "kind": "WorkerBundle",
+        "relation": "Code artifact used by a version; not configured on this identity.",
+        "ja": "バージョンから参照するコード成果物。この識別子の設定には含めません。"
+      },
+      {
+        "kind": "WorkerVersion",
+        "relation": "Next: attach code and configuration to this Worker.",
+        "ja": "次の手順：このWorkerにコードと設定のバージョンを作ります。"
+      },
+      {
+        "kind": "WorkerDeployment",
+        "relation": "Next: select which versions of this Worker receive traffic.",
+        "ja": "次の手順：このWorkerのどのバージョンにトラフィックを送るかを決めます。"
+      }
+    ],
+    "useCase": "Keep an API or application identity stable while publishing new code versions."
   },
   "WorkerBundle": {
     "version": "0.1.0",
     "purpose": "Identify an immutable build of your Worker code.",
-    "ja": { "purpose": "Workerコードの変更不可のビルド成果物を指定します。", "note": "先にArtifactのマニフェストを確定してください。例のダイジェストは説明用です。このパッケージにコード本体は含まれません。" },
+    "ja": {
+      "purpose": "Workerコードの変更不可のビルド成果物を指定します。",
+      "note": "先にArtifactのマニフェストを確定してください。例のダイジェストは説明用です。このパッケージにコード本体は含まれません。",
+      "useCase": "ビルド済みコードを固定し、複数のバージョンから同じ成果物を参照するときに使います。"
+    },
     "note": "Commit an artifact manifest first. The example digest is illustrative; this package does not host the referenced code bytes.",
-    "related": ["ModuleWorker", "WorkerVersion"]
+    "related": [
+      {
+        "kind": "ModuleWorker",
+        "relation": "Application identity selected separately by WorkerVersion.",
+        "ja": "WorkerVersionが別に指定する、アプリケーションの識別子です。"
+      },
+      {
+        "kind": "WorkerVersion",
+        "relation": "Consumer: reference this bundle as the version’s code.",
+        "ja": "利用先：このBundleをバージョンのコードとして参照します。"
+      }
+    ],
+    "useCase": "Keep a built code artifact immutable so several versions can refer to the same build."
   },
   "StaticAssetBundle": {
     "version": "0.1.0",
     "purpose": "Identify immutable static files served with a Worker.",
-    "ja": { "purpose": "Workerと一緒に配信する、変更不可の静的ファイルを指定します。", "note": "マニフェストが対象ファイルを特定します。配信の順序やフォールバックは、WorkerVersionのassets接続で設定します。" },
+    "ja": {
+      "purpose": "Workerと一緒に配信する、変更不可の静的ファイルを指定します。",
+      "note": "マニフェストが対象ファイルを特定します。配信の順序やフォールバックは、WorkerVersionのassets接続で設定します。",
+      "useCase": "HTML・CSS・画像の内容を固定してWorkerコードと一緒に配信するときに使います。Workerと静的ファイルの検索順、見つからないパスのフォールバックは、WorkerVersionのassets接続で指定します。"
+    },
     "note": "The manifest identifies the files. Serving order and fallback behavior belong to the WorkerVersion assets attachment.",
-    "related": ["WorkerVersion"]
+    "related": [
+      {
+        "kind": "WorkerVersion",
+        "relation": "Consumer: the optional assets attachment chooses this bundle and serving behavior.",
+        "ja": "利用先：任意のassets接続で、このBundleと配信方法を選びます。"
+      }
+    ],
+    "useCase": "Identify immutable HTML, CSS and images to serve alongside Worker code. The WorkerVersion assets attachment sets Worker/asset lookup order and missing-path fallback."
   },
   "WorkerVersion": {
     "version": "0.3.0",
     "purpose": "Capture one immutable combination of code, handlers and configuration.",
-    "ja": { "purpose": "コード・ハンドラー・設定の組み合わせを、変更不可のバージョンとして定義します。", "note": "変更する場合は別のバージョンを作成します。機密値は移植する状態に含めず、名前だけを宣言します。この例は設定項目を網羅したもので、最小構成ではありません。compatibility-dateやcompatibility-flagの項目はありません。" },
+    "ja": {
+      "purpose": "コード・ハンドラー・設定の組み合わせを、変更不可のバージョンとして定義します。",
+      "note": "変更する場合は別のバージョンを作成します。機密値は移植する状態に含めず、名前だけを宣言します。この例は設定項目を網羅したもので、最小構成ではありません。compatibility-dateやcompatibility-flagの項目はありません。",
+      "useCase": "まだトラフィックを切り替えずにリリースを準備し、以前のバージョンを戻し先として残すときに使います。"
+    },
     "note": "Changing a revision creates another version. Sensitive values are never portable state: declare their names only. The example is comprehensive, not a minimal deployment. There is no compatibility-date or compatibility-flag field.",
     "related": [
-      "ModuleWorker",
-      "WorkerBundle",
-      "StaticAssetBundle",
-      "WorkerDeployment",
-      "ObjectBucket",
-      "SQLiteDatabase",
-      "EdgeKVNamespace"
-    ]
+      {
+        "kind": "ModuleWorker",
+        "relation": "Required identity: the Worker this version belongs to.",
+        "ja": "必須の参照：このバージョンが属するWorkerです。"
+      },
+      {
+        "kind": "WorkerBundle",
+        "relation": "Required code artifact: the immutable build to execute.",
+        "ja": "必須の参照：実行するコードの変更不可のビルド成果物です。"
+      },
+      {
+        "kind": "StaticAssetBundle",
+        "relation": "Optional assets: static files served with this version.",
+        "ja": "任意の接続：このバージョンと一緒に配信する静的ファイルです。"
+      },
+      {
+        "kind": "WorkerDeployment",
+        "relation": "Next: promote this version by assigning traffic.",
+        "ja": "次の手順：このバージョンにトラフィックを割り当てます。"
+      },
+      {
+        "kind": "ObjectBucket",
+        "relation": "Optional typed binding: object storage for code.",
+        "ja": "任意の型付きBinding：コードから使うオブジェクトストレージです。"
+      },
+      {
+        "kind": "SQLiteDatabase",
+        "relation": "Optional typed binding: relational data for code.",
+        "ja": "任意の型付きBinding：コードから使うリレーショナルデータです。"
+      },
+      {
+        "kind": "EdgeKVNamespace",
+        "relation": "Optional typed binding: eventually consistent key-value data.",
+        "ja": "任意の型付きBinding：結果整合性のキー・バリューデータです。"
+      },
+      {
+        "kind": "AtLeastOnceQueue",
+        "relation": "Optional producer binding: send messages, not receive them.",
+        "ja": "任意の送信側Binding：メッセージを送信します。受信設定ではありません。"
+      },
+      {
+        "kind": "ActorNamespace",
+        "relation": "Optional typed binding: address an actor by ID.",
+        "ja": "任意の型付きBinding：IDでActorを呼び出します。"
+      },
+      {
+        "kind": "DurableWorkflow",
+        "relation": "Optional typed binding: start and inspect workflow instances.",
+        "ja": "任意の型付きBinding：ワークフローのインスタンスを作成・確認します。"
+      }
+    ],
+    "useCase": "Prepare a release without changing traffic yet; keep the previous version available for rollback."
   },
   "WorkerDeployment": {
     "version": "0.2.0",
     "purpose": "Choose which Worker revisions receive traffic.",
-    "ja": { "purpose": "トラフィックを受け取るWorkerのバージョンを選びます。", "note": "重みはベーシスポイントで指定し、合計を10000にします。ロールバックは重みの変更で行い、変更不可のバージョンを書き換えません。" },
+    "ja": {
+      "purpose": "トラフィックを受け取るWorkerのバージョンを選びます。",
+      "note": "重みはベーシスポイントで指定し、合計を10000にします。ロールバックは重みの変更で行い、変更不可のバージョンを書き換えません。",
+      "useCase": "準備済みのバージョンへの切り替え、複数バージョンへの配分、以前のバージョンへの切り戻しに使います。"
+    },
     "note": "Weights are basis points and must total exactly 10000. Rollback changes the weights; it never edits an immutable revision.",
     "related": [
-      "ModuleWorker",
-      "WorkerVersion",
-      "WorkerEndpoint",
-      "WorkerCustomDomain"
-    ]
+      {
+        "kind": "ModuleWorker",
+        "relation": "Required identity: the Worker whose traffic is controlled.",
+        "ja": "必須の参照：トラフィックを制御するWorkerです。"
+      },
+      {
+        "kind": "WorkerVersion",
+        "relation": "Required versions: select revisions of the same Worker and assign weights.",
+        "ja": "必須の参照：同じWorkerのバージョンを選び、重みを付けます。"
+      },
+      {
+        "kind": "WorkerEndpoint",
+        "relation": "Optional HTTP entry: a Host-assigned address follows the active deployment.",
+        "ja": "任意のHTTP入口：Hostが割り当てたアドレスが、有効なデプロイに追従します。"
+      },
+      {
+        "kind": "WorkerCustomDomain",
+        "relation": "Optional HTTP entry: a customer hostname follows the active deployment.",
+        "ja": "任意のHTTP入口：管理するホスト名が、有効なデプロイに追従します。"
+      }
+    ],
+    "useCase": "Promote a prepared version, split traffic between versions, or return traffic to a previous version."
   },
   "WorkerEndpoint": {
     "version": "0.1.0",
     "purpose": "Expose the active deployment at a Host-assigned HTTPS address.",
-    "ja": { "purpose": "有効なデプロイを、Hostが割り当てたHTTPSアドレスで公開します。", "note": "ホスト名は指定しません。Hostが返すアドレスは、この接続のUIDが同じならデプロイが変わっても維持されます。" },
+    "ja": {
+      "purpose": "有効なデプロイを、Hostが割り当てたHTTPSアドレスで公開します。",
+      "note": "ホスト名は指定しません。Hostが返すアドレスは、この接続のUIDが同じならデプロイが変わっても維持されます。",
+      "useCase": "ドメイン名を用意せずに、WorkerのAPIへHTTPSでアクセスできるようにするときに使います。"
+    },
     "note": "Do not supply a hostname. The Host returns an address that stays fixed for the attachment UID, including when deployments change.",
-    "related": ["ModuleWorker", "WorkerDeployment", "WorkerCustomDomain"]
+    "related": [
+      {
+        "kind": "ModuleWorker",
+        "relation": "Required reference: the Worker that receives requests.",
+        "ja": "必須の参照：リクエストを受け取るWorkerです。"
+      },
+      {
+        "kind": "WorkerDeployment",
+        "relation": "Serving prerequisite: an active deployment with a fetch handler. It is not an endpoint input field.",
+        "ja": "配信の前提：fetchハンドラーを持つ有効なデプロイが必要です。Endpointの入力項目ではありません。"
+      },
+      {
+        "kind": "WorkerCustomDomain",
+        "relation": "Another HTTP entry option: use a hostname you control instead of relying on a Host-assigned address.",
+        "ja": "別のHTTP入口：Hostの割り当てではなく、管理するホスト名を使いたい場合はこちらです。"
+      }
+    ],
+    "useCase": "Make a Worker API reachable over HTTPS without choosing or managing a domain name."
   },
   "WorkerCustomDomain": {
     "version": "0.1.0",
     "purpose": "Connect a hostname you control to a Worker's active deployment.",
-    "ja": { "purpose": "管理しているホスト名を、Workerの有効なデプロイに接続します。", "note": "この接続を削除してもWorkerは削除されず、ホスト名だけが切り離されます。HostはDNS名を正規化し、所有の重複を拒否します。例の.invalidホスト名は接続できない説明用の名前です。" },
+    "ja": {
+      "purpose": "管理しているホスト名を、Workerの有効なデプロイに接続します。",
+      "note": "この接続を削除してもWorkerは削除されず、ホスト名だけが切り離されます。HostはDNS名を正規化し、所有の重複を拒否します。例の.invalidホスト名は接続できない説明用の名前です。",
+      "useCase": "管理するホスト名でWorkerのAPIやWebサイトを公開するときに使います。"
+    },
     "note": "Deleting this attachment detaches the hostname, not the Worker. The Host canonicalizes the DNS name and refuses duplicate ownership. The fixture uses a deliberately non-routable .invalid hostname.",
-    "related": ["ModuleWorker", "WorkerDeployment", "WorkerEndpoint"]
+    "related": [
+      {
+        "kind": "ModuleWorker",
+        "relation": "Required reference: the Worker that serves the hostname.",
+        "ja": "必須の参照：ホスト名へのリクエストを処理するWorkerです。"
+      },
+      {
+        "kind": "WorkerDeployment",
+        "relation": "Serving prerequisite: an active deployment with a fetch handler, not a domain input field.",
+        "ja": "配信の前提：fetchハンドラーを持つ有効なデプロイ。ドメインの入力項目ではありません。"
+      },
+      {
+        "kind": "WorkerEndpoint",
+        "relation": "Another HTTP entry option: use a Host-assigned address without bringing a domain.",
+        "ja": "別のHTTP入口：ドメインを用意せず、Hostが割り当てるアドレスを使う場合はこちらです。"
+      }
+    ],
+    "useCase": "Serve a Worker API or website on a hostname that you control."
   },
   "WorkerCronTrigger": {
     "version": "0.1.0",
     "purpose": "Invoke a Worker's scheduled handler on a UTC cron schedule.",
-    "ja": { "purpose": "UTCのcronスケジュールに従ってWorkerのscheduledハンドラーを呼び出します。", "note": "少なくとも1回の配信で、実行できなかった過去の予定を後から補いません。対象のWorkerにはscheduledハンドラーが必要です。重複配信されても安全に処理できるように実装してください。" },
+    "ja": {
+      "purpose": "UTCのcronスケジュールに従ってWorkerのscheduledハンドラーを呼び出します。",
+      "note": "少なくとも1回の配信で、実行できなかった過去の予定を後から補いません。対象のWorkerにはscheduledハンドラーが必要です。重複配信されても安全に処理できるように実装してください。",
+      "useCase": "古いレコードの確認などを定期実行するときに使います。同じ予定が重複配信されても安全な処理にします。"
+    },
     "note": "Delivery is at least once, with no catch-up for missed runs. The target must provide the scheduled handler; write it to tolerate repeated delivery.",
-    "related": ["ModuleWorker", "WorkerVersion"]
+    "related": [
+      {
+        "kind": "ModuleWorker",
+        "relation": "Required reference: the Worker invoked by the schedule.",
+        "ja": "必須の参照：スケジュールで呼び出すWorkerです。"
+      },
+      {
+        "kind": "WorkerVersion",
+        "relation": "Code prerequisite: serving versions must provide the scheduled handler.",
+        "ja": "コードの前提：実行するバージョンがscheduledハンドラーを持つ必要があります。"
+      },
+      {
+        "kind": "WorkerDeployment",
+        "relation": "Serving prerequisite: the active deployment selects which versions receive scheduled events.",
+        "ja": "実行の前提：有効なデプロイが、スケジュールされたイベントを受け取るバージョンを選びます。"
+      }
+    ],
+    "useCase": "Run periodic work such as checking stale records; make the handler safe if a scheduled event is delivered twice."
   },
   "EdgeKVNamespace": {
     "version": "0.1.0",
     "purpose": "Store opaque key-value bytes with eventual consistency.",
-    "ja": { "purpose": "キーと値のバイト列を、結果整合性のストレージに保存します。", "note": "設定が空なのは意図したものです。意味上の規則はedge.kv Interfaceで定めています。書き込んだ直後にその値を読める保証はありません。コードからは型付きのWorkerVersion Bindingで接続します。" },
+    "ja": {
+      "purpose": "キーと値のバイト列を、結果整合性のストレージに保存します。",
+      "note": "設定が空なのは意図したものです。意味上の規則はedge.kv Interfaceで定めています。書き込んだ直後にその値を読める保証はありません。コードからは型付きのWorkerVersion Bindingで接続します。",
+      "useCase": "反映の遅れを許容できる設定値やキャッシュの配布に使います。書き込み直後の値に基づく判断や排他制御には使いません。"
+    },
     "note": "The empty desired state is intentional. The edge.kv Interface fixes the semantics, including the absence of a read-your-writes guarantee. Expose it to code through a typed WorkerVersion binding.",
-    "related": ["WorkerVersion", "ObjectBucket", "SQLiteDatabase"]
+    "related": [
+      {
+        "kind": "WorkerVersion",
+        "relation": "Consumer: expose the namespace through its typed KV binding.",
+        "ja": "利用先：型付きKV Bindingで名前空間をコードに渡します。"
+      },
+      {
+        "kind": "ObjectBucket",
+        "relation": "Alternative for object bodies that require strong read-after-write consistency.",
+        "ja": "比較先：オブジェクト本体と、書き込み後の強い読み取り一貫性が必要な場合はこちらです。"
+      },
+      {
+        "kind": "SQLiteDatabase",
+        "relation": "Alternative for relational queries and transactions.",
+        "ja": "比較先：リレーショナルな検索やトランザクションが必要な場合はこちらです。"
+      }
+    ],
+    "useCase": "Distribute configuration or cached values when readers can tolerate propagation delay. Do not use it to coordinate immediate read-after-write decisions."
   },
   "ObjectBucket": {
     "version": "0.1.0",
     "purpose": "Store and stream objects with strong read-after-write consistency.",
-    "ja": { "purpose": "書き込み後の強い読み取り一貫性を持つオブジェクトを保存・ストリーミングします。", "note": "設定が空なのは意図したものです。ストリーミング、条件指定、範囲指定、マルチパート操作はedge.objectsで定めています。この定義にはCORS、ライフサイクル規則、オブジェクトロックの設定項目はありません。" },
+    "ja": {
+      "purpose": "書き込み後の強い読み取り一貫性を持つオブジェクトを保存・ストリーミングします。",
+      "note": "設定が空なのは意図したものです。ストリーミング、条件指定、範囲指定、マルチパート操作はedge.objectsで定めています。この定義にはCORS、ライフサイクル規則、オブジェクトロックの設定項目はありません。",
+      "useCase": "アップロードされたファイルや生成物を保存し、本体をストリーミングで読み書きするときに使います。"
+    },
     "note": "The empty desired state is intentional. edge.objects defines streaming, conditions, ranges and multipart operations. CORS, lifecycle rules and object lock are not configurable bucket fields in this contract.",
-    "related": ["WorkerVersion", "EdgeKVNamespace"]
+    "related": [
+      {
+        "kind": "WorkerVersion",
+        "relation": "Consumer: expose the bucket through its typed object-storage binding.",
+        "ja": "利用先：型付きオブジェクトストレージBindingでBucketをコードに渡します。"
+      },
+      {
+        "kind": "EdgeKVNamespace",
+        "relation": "Alternative for small key-value data when propagation delay is acceptable.",
+        "ja": "比較先：反映の遅れを許容できる、小さなキー・バリューデータを扱う場合はこちらです。"
+      }
+    ],
+    "useCase": "Store uploaded files or generated objects and stream their bodies without loading every object into memory."
   },
   "SQLiteDatabase": {
     "version": "0.1.0",
     "purpose": "Keep relational data behind the edge.sql Interface.",
-    "ja": { "purpose": "edge.sql Interfaceを通してリレーショナルデータを扱います。", "note": "設定が空なのは意図したものです。実行時は型付きのWorkerVersion Bindingで接続します。スキーマの変更にはMigrationSetとMigrationApplicationを使います。" },
+    "ja": {
+      "purpose": "edge.sql Interfaceを通してリレーショナルデータを扱います。",
+      "note": "設定が空なのは意図したものです。実行時は型付きのWorkerVersion Bindingで接続します。スキーマの変更にはMigrationSetとMigrationApplicationを使います。",
+      "useCase": "SQLで検索し、トランザクションで更新するアプリケーションのレコードを保存します。スキーマ変更の履歴は実行時の接続と分けて管理します。"
+    },
     "note": "The empty desired state is intentional. Runtime access uses a typed WorkerVersion binding; schema changes use migration sets and applications.",
     "related": [
-      "WorkerVersion",
-      "SQLiteMigrationSet",
-      "SQLiteMigrationApplication"
-    ]
+      {
+        "kind": "WorkerVersion",
+        "relation": "Consumer: runtime SQL access uses its typed database binding.",
+        "ja": "利用先：実行時のSQL操作は型付きデータベースBindingを使います。"
+      },
+      {
+        "kind": "SQLiteMigrationSet",
+        "relation": "Schema input: an immutable ordered history of SQL migrations.",
+        "ja": "スキーマ変更の入力：順序が固定されたSQLマイグレーションの履歴です。"
+      },
+      {
+        "kind": "SQLiteMigrationApplication",
+        "relation": "Schema action: apply an exact set to this database.",
+        "ja": "スキーマ変更の実行：正確なセットをこのデータベースに適用します。"
+      }
+    ],
+    "useCase": "Store structured application records that need SQL queries and transactions; manage schema history separately from runtime access."
   },
   "SQLiteMigrationSet": {
     "version": "0.1.0",
     "purpose": "Identify immutable, ordered SQL migration history.",
-    "ja": { "purpose": "順序が固定された、変更不可のSQLマイグレーション履歴を指定します。", "note": "MigrationBundleのマニフェストがSQLの内容を特定します。後継のセットには追加できますが、適用済みの先頭部分を書き換えたり、並べ替えたり、削除したりすることはできません。" },
+    "ja": {
+      "purpose": "順序が固定された、変更不可のSQLマイグレーション履歴を指定します。",
+      "note": "MigrationBundleのマニフェストがSQLの内容を特定します。後継のセットには追加できますが、適用済みの先頭部分を書き換えたり、並べ替えたり、削除したりすることはできません。",
+      "useCase": "データベースへ適用する前にSQLの履歴を確認し、適用済みのSQLを変更せずに追加するときに使います。"
+    },
     "note": "A MigrationBundle manifest identifies the SQL bytes. Successors may append, but must not rewrite, reorder or remove an already applied prefix.",
-    "related": ["SQLiteDatabase", "SQLiteMigrationApplication"]
+    "related": [
+      {
+        "kind": "SQLiteDatabase",
+        "relation": "Destination chosen by the application, not by this immutable set.",
+        "ja": "適用先：この変更不可のセットではなく、Application側でデータベースを選びます。"
+      },
+      {
+        "kind": "SQLiteMigrationApplication",
+        "relation": "Next: select this exact set and the target database to apply it.",
+        "ja": "次の手順：この正確なセットと適用先のデータベースを指定します。"
+      }
+    ],
+    "useCase": "Review a proposed database schema history before applying it, keeping already applied SQL unchanged."
   },
   "SQLiteMigrationApplication": {
     "version": "0.1.0",
     "purpose": "Apply one exact migration set to one database.",
-    "ja": { "purpose": "一つのデータベースに、指定したマイグレーションセットを適用します。", "note": "未適用の末尾部分だけを実行します。この適用リソースを削除しても、downマイグレーションの実行やデータベースの適用履歴の書き換えは行いません。" },
+    "ja": {
+      "purpose": "一つのデータベースに、指定したマイグレーションセットを適用します。",
+      "note": "未適用の末尾部分だけを実行します。この適用リソースを削除しても、downマイグレーションの実行やデータベースの適用履歴の書き換えは行いません。",
+      "useCase": "確認済みのマイグレーションセットまで、一つのデータベースを進めるときに使います。このリソースの削除ではSQLを元に戻せません。"
+    },
     "note": "Only the unapplied suffix executes. Deleting the application never runs down migrations or rewrites the database migration ledger.",
-    "related": ["SQLiteDatabase", "SQLiteMigrationSet"]
+    "related": [
+      {
+        "kind": "SQLiteDatabase",
+        "relation": "Required reference: the database whose schema is changed.",
+        "ja": "必須の参照：スキーマを変更するデータベースです。"
+      },
+      {
+        "kind": "SQLiteMigrationSet",
+        "relation": "Required reference: the exact migration history to apply.",
+        "ja": "必須の参照：適用する正確なマイグレーション履歴です。"
+      }
+    ],
+    "useCase": "Advance one database to a reviewed migration set; deleting this resource is not a way to undo SQL."
   },
   "AtLeastOnceQueue": {
     "version": "0.1.0",
     "purpose": "Buffer messages for unordered, at-least-once delivery.",
-    "ja": { "purpose": "順序を保証せず、少なくとも1回配信するメッセージをキューに保存します。", "note": "保存期間は必須で、配信遅延の既定値は0です。一つのキューに接続できるConsumerは最大一つです。送信側と受信側は別々に設定します。" },
+    "ja": {
+      "purpose": "順序を保証せず、少なくとも1回配信するメッセージをキューに保存します。",
+      "note": "保存期間は必須で、配信遅延の既定値は0です。一つのキューに接続できるConsumerは最大一つです。送信側と受信側は別々に設定します。",
+      "useCase": "画像処理などの依頼を先に受け付け、後で処理するときに使います。受信側は重複配信を扱える必要があり、メッセージの順序にも依存できません。"
+    },
     "note": "Retention is required; delivery delay defaults to zero. A queue has at most one consumer. Producers and inbound consumption are configured separately.",
-    "related": ["QueueConsumer", "WorkerVersion"]
+    "related": [
+      {
+        "kind": "WorkerVersion",
+        "relation": "Producer: its typed queue-producer binding sends messages into this queue.",
+        "ja": "送信側：型付きqueue-producer Bindingから、このキューへ送信します。"
+      },
+      {
+        "kind": "QueueConsumer",
+        "relation": "Inbound delivery: attach a Worker’s queue handler to drain this queue.",
+        "ja": "受信側：このキューを処理するWorkerのqueueハンドラーを接続します。"
+      }
+    ],
+    "useCase": "Accept jobs such as image processing quickly, then process them in the background. Consumers must tolerate duplicate delivery and cannot rely on message order."
   },
   "QueueConsumer": {
     "version": "0.1.0",
     "purpose": "Deliver queued messages to a Worker's queue handler.",
-    "ja": { "purpose": "キューのメッセージをWorkerのqueueハンドラーに配信します。", "note": "受信側の接続であり、WorkerVersionのBindingではありません。maxRetriesは再配信の回数です。任意のデッドレターキューは循環参照を作れません。網羅的なテスト例にはデッドレターキューも含まれています。" },
+    "ja": {
+      "purpose": "キューのメッセージをWorkerのqueueハンドラーに配信します。",
+      "note": "受信側の接続であり、WorkerVersionのBindingではありません。maxRetriesは再配信の回数です。任意のデッドレターキューは循環参照を作れません。網羅的なテスト例にはデッドレターキューも含まれています。",
+      "useCase": "バックグラウンド処理を行うWorkerのバッチ配信と再試行を設定します。ジョブを送るだけのWorkerとは、受信設定を分けます。"
+    },
     "note": "This is an inbound attachment, not a WorkerVersion binding. maxRetries counts redeliveries. The optional dead-letter queue must not introduce a cycle; the comprehensive fixture includes one.",
-    "related": ["AtLeastOnceQueue", "ModuleWorker", "WorkerVersion"]
+    "related": [
+      {
+        "kind": "AtLeastOnceQueue",
+        "relation": "Required reference: the queue to consume. A separate queue may receive exhausted messages.",
+        "ja": "必須の参照：受信するキューです。再試行を使い切ったメッセージの転送先には、別のキューを指定できます。"
+      },
+      {
+        "kind": "ModuleWorker",
+        "relation": "Required reference: the Worker whose queue handler receives batches.",
+        "ja": "必須の参照：queueハンドラーでバッチを受け取るWorkerです。"
+      },
+      {
+        "kind": "WorkerVersion",
+        "relation": "Code prerequisite: active versions export queue; producer bindings are a separate sending capability.",
+        "ja": "コードの前提：有効なバージョンがqueueを公開します。producer Bindingは別の送信能力です。"
+      }
+    ],
+    "useCase": "Configure batch delivery and retry handling for a background Worker. Separate this receiver from any Worker that only sends jobs."
   },
   "ActorNamespace": {
     "version": "0.1.0",
     "purpose": "Define a namespace for actors that keep per-ID state and process calls one at a time.",
-    "ja": { "purpose": "IDごとに状態を保存し、処理を順番に実行するActorの名前空間を定義します。", "note": "たとえばチャットの部屋ごとにActorを使えます。このFormで指定するのはWorkerとクラス名です。個々のActorは実行時にIDで呼び出し、最初の呼び出しで作られます。部屋ごとにFormリソースを作るものではありません。トラフィックの重みが付いたすべてのWorkerVersionで、そのクラスをエクスポートする必要があります。" },
+    "ja": {
+      "purpose": "IDごとに状態を保存し、処理を順番に実行するActorの名前空間を定義します。",
+      "note": "たとえばチャットの部屋ごとにActorを使えます。このFormで指定するのはWorkerとクラス名です。個々のActorは実行時にIDで呼び出し、最初の呼び出しで作られます。部屋ごとにFormリソースを作るものではありません。トラフィックの重みが付いたすべてのWorkerVersionで、そのクラスをエクスポートする必要があります。",
+      "useCase": "チャットの部屋IDごとに状態を保存し、呼び出しを順番に扱うときに使います。部屋ごとにインフラのリソースを作る必要はありません。"
+    },
     "note": "For example, a chat application can use one actor per room. This Form selects the Worker and class; individual actors are addressed by ID at runtime and created on first delivery, not provisioned as a Form Resource for each room. Every traffic-weighted WorkerVersion must export the class.",
-    "related": ["ModuleWorker", "WorkerVersion", "WorkerDeployment"]
+    "related": [
+      {
+        "kind": "ModuleWorker",
+        "relation": "Required reference: the Worker serving the actor class.",
+        "ja": "必須の参照：Actorクラスを実行するWorkerです。"
+      },
+      {
+        "kind": "WorkerVersion",
+        "relation": "Code and caller: serving versions export the class; callers use a typed actor binding.",
+        "ja": "コードと呼び出し側：実行するバージョンはクラスを公開し、呼び出し側は型付きActor Bindingを使います。"
+      },
+      {
+        "kind": "WorkerDeployment",
+        "relation": "Serving code selection: the active deployment chooses versions, not an actor-specific code snapshot.",
+        "ja": "実行コードの選択：Actor専用のコード固定ではなく、有効なデプロイがバージョンを選びます。"
+      }
+    ],
+    "useCase": "Keep one chat room’s state and coordinate calls by room ID, instead of creating one infrastructure resource per room."
   },
   "DurableWorkflow": {
     "version": "0.1.0",
-    "purpose": "Make a Worker's durable workflow class available.",
-    "ja": { "purpose": "Workerの永続的なワークフロークラスを利用可能にします。", "note": "トラフィックの重みが付いたすべてのWorkerVersionで、そのクラスをエクスポートする必要があります。ワークフローのインスタンスは実行時のデータです。このFormは実行ごとではなく、ワークフローの能力を表します。" },
-    "note": "Every traffic-weighted WorkerVersion must export the class. Workflow instances are runtime data; this Form represents the workflow capability, not each run.",
-    "related": ["ModuleWorker", "WorkerVersion", "WorkerDeployment"]
+    "purpose": "Define a durable, multi-step workflow whose instances can resume after process death.",
+    "ja": {
+      "purpose": "プロセスが終了しても、インスタンスの処理を再開できる複数段階のワークフローを定義します。",
+      "note": "完了したステップの結果を記録し、再開時にはその結果を使います。ただし結果の記録前に同じステップの副作用が複数回起こり得るため、再試行しても結果が重複しないようにします。1回だけの実行を保証するものではありません。待機時間とイベント待ちには上限があります。トラフィックの重みが付いたすべてのバージョンでクラスを公開し、進行中のインスタンスの再実行との互換性を保つ必要があります。このFormが表すのはワークフローの能力で、実行ごとのインスタンスは実行時のデータです。",
+      "useCase": "レポート生成、承認待ち、結果の配信のような複数段階の処理を、プロセスが再起動しても進捗を保って続けるときに使います。"
+    },
+    "note": "Completed step results are recorded and replayed. A step’s side effects may occur more than once before its result is recorded: design retries to be idempotent, not exactly-once. Sleeps and event waits have finite bounds. All traffic-weighted versions must export the class and preserve replay compatibility for ongoing instances. This Form identifies a workflow capability; each run is runtime data, not another Form Resource.",
+    "related": [
+      {
+        "kind": "ModuleWorker",
+        "relation": "Required reference: the Worker serving the workflow class.",
+        "ja": "必須の参照：ワークフロークラスを実行するWorkerです。"
+      },
+      {
+        "kind": "WorkerVersion",
+        "relation": "Code and caller: serving versions export the class; callers use a typed workflow binding.",
+        "ja": "コードと呼び出し側：実行するバージョンはクラスを公開し、呼び出し側は型付きWorkflow Bindingを使います。"
+      },
+      {
+        "kind": "WorkerDeployment",
+        "relation": "Serving code selection: changes also affect ongoing instances, so keep replay compatibility.",
+        "ja": "実行コードの選択：変更は進行中のインスタンスにも関わるため、再実行との互換性を保ちます。"
+      }
+    ],
+    "useCase": "Run a multi-step process such as generating a report, waiting for approval and delivering the result, with durable progress across process restarts."
   }
 }

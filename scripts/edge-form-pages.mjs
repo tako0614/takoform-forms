@@ -71,11 +71,27 @@ export function buildEdgeFormPages({
       form.guide.version !== form.formRef.definitionVersion ||
       !form.guide.purpose ||
       !form.guide.note ||
+      typeof form.guide.useCase !== "string" ||
+      !form.guide.useCase.trim() ||
       typeof form.guide.ja?.purpose !== "string" ||
       !form.guide.ja.purpose.trim() ||
       typeof form.guide.ja?.note !== "string" ||
       !form.guide.ja.note.trim() ||
-      !form.guide.related.every((kind) => guide[kind])
+      typeof form.guide.ja?.useCase !== "string" ||
+      !form.guide.ja.useCase.trim() ||
+      !Array.isArray(form.guide.related) ||
+      !form.guide.related.length ||
+      new Set(form.guide.related.map((entry) => entry.kind)).size !==
+        form.guide.related.length ||
+      !form.guide.related.every(
+        (entry) =>
+          guide[entry.kind] &&
+          entry.kind !== form.formRef.kind &&
+          typeof entry.relation === "string" &&
+          entry.relation.trim() &&
+          typeof entry.ja === "string" &&
+          entry.ja.trim(),
+      )
     )
       throw new Error(
         `${form.formRef.kind}: reading guide requires review for this exact definition version`,
@@ -90,9 +106,10 @@ export function buildEdgeFormPages({
   if (identities.size !== forms.length)
     throw new Error("duplicate versioned page identity");
   for (const form of forms) {
-    form.related = (form.guide?.related ?? []).map((kind) =>
-      current.find((entry) => entry.formRef.kind === kind),
-    );
+    form.related = (form.guide?.related ?? []).map((relation) => ({
+      ...relation,
+      form: current.find((entry) => entry.formRef.kind === relation.kind),
+    }));
     form.versions = forms.filter(
       (entry) => entry.formRef.kind === form.formRef.kind && entry !== form,
     );

@@ -201,6 +201,53 @@ describe("publisher-owned Edge Form pages", () => {
       expect(worker).toContain("fixtures/desired.json");
       expect(root).toContain("Settings, examples and package references");
       expect(root).toContain("ModuleWorker → WorkerVersion → WorkerDeployment");
+      for (const anchor of [
+        "choose-by-task",
+        "queue-workflow-actor",
+        "composition",
+      ]) {
+        expect(root).toContain(`id="${anchor}"`);
+      }
+      expect(root).toContain(
+        "WorkerVersion producer binding → AtLeastOnceQueue → QueueConsumer → ModuleWorker queue handler",
+      );
+      expect(root).toContain("side effects before recording may repeat");
+      const guide = JSON.parse(readFileSync("site/reading-guide.json", "utf8"));
+      for (const form of plan.forms) {
+        for (const prefix of ["", "ja/"]) {
+          const content = readFileSync(
+            path.join(
+              first,
+              prefix,
+              "forms",
+              form.formRef.kind,
+              form.formRef.definitionVersion,
+              "index.html",
+            ),
+            "utf8",
+          );
+          expect(content).toContain('id="connections"');
+          expect(content).toContain('id="next-steps"');
+          expect(content).toContain(
+            `https://takoform.com/${prefix ? "" : "en/"}client/`,
+          );
+          expect(content).not.toContain("undefined");
+          const heading = prefix
+            ? "組み合わせと比較対象"
+            : "Connections and alternatives";
+          expect(content).toContain(heading);
+          for (const relation of guide[form.kind].related) {
+            const target = plan.forms.find(
+              (entry) => entry.kind === relation.kind,
+            );
+            expect(content).toContain(
+              `href="/${prefix}forms/${target.kind}/${target.formRef.definitionVersion}/"`,
+            );
+            expect(typeof relation.relation).toBe("string");
+            expect(typeof relation.ja).toBe("string");
+          }
+        }
+      }
       expect(existsSync(path.join(first, "sitemap.xml"))).toBe(true);
       expect(existsSync(path.join(first, "404.html"))).toBe(true);
       expect(
