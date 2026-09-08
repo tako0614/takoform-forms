@@ -90,12 +90,9 @@ func renderInterfaceContract(name, version string, definition any) (RenderedCont
 // InterfaceRefFor resolves the exact digest-bound InterfaceRef of one catalog
 // Interface at generation time.
 func InterfaceRefFor(name, version string) (formpackage.InterfaceRef, error) {
-	definition, err := interfaceDefinitionByName(name)
+	definition, err := interfaceDefinitionByExactIdentity(name, version)
 	if err != nil {
 		return formpackage.InterfaceRef{}, err
-	}
-	if definition.Version != version {
-		return formpackage.InterfaceRef{}, fmt.Errorf("interface %s is version %s, not %s", name, definition.Version, version)
 	}
 	rendered, err := renderInterfaceContract(name, version, definition)
 	if err != nil {
@@ -114,11 +111,8 @@ func BindingRefFor(name, version string) (formpackage.BindingRef, error) {
 		return formpackage.BindingRef{}, err
 	}
 	for _, definition := range definitions {
-		if definition.Name != name {
+		if definition.Name != name || definition.Version != version {
 			continue
-		}
-		if definition.Version != version {
-			return formpackage.BindingRef{}, fmt.Errorf("binding %s is version %s, not %s", name, definition.Version, version)
 		}
 		rendered, err := renderContract(name, version, definition)
 		if err != nil {
@@ -128,7 +122,7 @@ func BindingRefFor(name, version string) (formpackage.BindingRef, error) {
 			APIVersion: BindingAPIVersion, Name: name, Version: version, SchemaDigest: rendered.SchemaDigest,
 		}, nil
 	}
-	return formpackage.BindingRef{}, fmt.Errorf("binding %q is not in the catalog", name)
+	return formpackage.BindingRef{}, fmt.Errorf("binding %s@%s is not in the catalog", name, version)
 }
 
 // targetContractResolver resolves the exact identities a reference-shaped

@@ -25,6 +25,17 @@ Core v1.1.0. The root and inventory pages describe the Core-derived locator,
 external OIDC signing handoff, create-only trust set, and publication
 condition; official and external publishers use the same API v1 contracts.
 
+## Unaccepted proposals
+
+- [Portable actor execution](proposals/actor-runtime.md): the missing class
+  execution and WebSocket contract, with decisions needed before a forward
+  definition can be authored. This is not a published specification, package,
+  version allocation, or claim of Host support.
+- [Concrete actor contract proposal](proposals/actor-execution-contract.md):
+  class/SQL/alarm/socket signatures, event and transport lifetime, and the
+  exact forward-reference graph. Error vocabulary and candidate limits remain
+  adoption work; the current published contracts remain unchanged.
+
 ## Useful checks
 
 ```console
