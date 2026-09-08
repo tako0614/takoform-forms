@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 
-// Verify the extracted data without consulting the predecessor checkout. The
-// baseline is a checked-in byte map; generation and Go validators provide the
-// semantic checks layered on top of it.
+// Keep extraction-history evidence fixed while current candidates can advance
+// under new identities. Generation and Go validators check the current source;
+// the published snapshot refuses reidentification of existing versions.
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifyPublishedBaseline } from "./published-contract-history.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const baselinePath = path.join(root, "integrity", "source-baseline.json");
-const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+const baseline = verifyPublishedBaseline(root);
 const failures = [];
 const abandonedPrepublicationRelative =
   "forms/trust/abandoned-prepublication.json";
@@ -68,9 +68,20 @@ for (const relative of expectedPaths) {
     failures.push(`${relative}: baseline path is not a regular file`);
     continue;
   }
-  const bytes = readFileSync(absolute);
-  if (bytes.length !== expected.bytes || digest(bytes) !== expected.sha256) {
-    failures.push(`${relative}: source-baseline byte digest drift`);
+  // These historical corpus/inventory documents do not yet have a forward
+  // writer/append-only proof. Keep their exact guard until that owner path is
+  // implemented; only the reproducibly generated candidate trees advance here.
+  if (
+    ![
+      "forms/candidates/",
+      "interfaces/candidates/",
+      "bindings/candidates/",
+    ].some((prefix) => relative.startsWith(prefix))
+  ) {
+    const bytes = readFileSync(absolute);
+    if (bytes.length !== expected.bytes || digest(bytes) !== expected.sha256) {
+      failures.push(`${relative}: fixed corpus/inventory byte digest drift`);
+    }
   }
 }
 
@@ -484,5 +495,5 @@ if (
 if (failures.length)
   throw new Error(`source integrity check failed:\n${failures.join("\n")}`);
 console.log(
-  `source baseline matches ${expectedPaths.length} canonical files; ${formCount} Forms, ${interfaceSet.interfaces.length} Interfaces, ${bindingSet.bindings.length} Bindings`,
+  `published baseline preserves ${expectedPaths.length} canonical files; current structure has ${formCount} Forms, ${interfaceSet.interfaces.length} Interfaces, ${bindingSet.bindings.length} Bindings (exact current bytes are checked by check:generation)`,
 );

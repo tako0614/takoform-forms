@@ -513,6 +513,7 @@ export function validatePublisherPathMetadata(source) {
     ["Interface", source.interfaces],
     ["Binding", source.bindings],
   ]) {
+    const seenNames = new Set();
     for (const contract of contracts) {
       if (
         typeof contract?.name !== "string" ||
@@ -523,6 +524,12 @@ export function validatePublisherPathMetadata(source) {
       ) {
         throw new Error(`unsafe ${kind} path metadata`);
       }
+      if (seenNames.has(contract.name)) {
+        throw new Error(
+          `${kind} source contains duplicate contract name ${JSON.stringify(contract.name)} at ${contract.name}@${contract.version}`,
+        );
+      }
+      seenNames.add(contract.name);
     }
   }
 }

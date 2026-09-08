@@ -296,11 +296,17 @@ error; `get` returns null for an ID not owned by this live actor connection set.
 Attachment reads/writes copy bytes; successful writes survive ordinary context
 eviction of that same live connection.
 
-Proposed portable minimum capacities are 64 connections per actor, 64 KiB per
-text/binary message and 2 KiB per attachment. Hosts may accept more. These are
-candidate values, not established native limits. Message overflow, invalid
-values and transport overload need explicit error/close behavior in the forward
-Definition; unbounded application mailbox accumulation is not an implementation.
+The initial 64 KiB message-capacity candidate is rejected. Existing consumers
+accept event data approaching 1 MiB before envelope overhead and signaling
+descriptions of up to 100,000 characters. A 64-connection floor also does not
+prove behavior for consumers whose configured connection caps are 1,000 or
+10,000. Those application caps are not an upstream transport guarantee, but a
+smaller portable limit cannot silently substitute for the full consumer goal.
+Frame/connection limits and the 2 KiB attachment candidate remain unresolved
+until complete encoded frames and both backend implementations are checked.
+Message overflow, invalid values and transport overload need explicit
+error/close behavior; unbounded application mailbox accumulation is not an
+implementation. No new limit is adopted from a native provider by implication.
 
 Normal hibernation/reconstruction preserves the live connection and attachment.
 Process/broker loss may disconnect it; reconnect creates a new connection ID.
@@ -321,7 +327,7 @@ while they run. It must not claim long-body concurrency that it does not offer.
 
 Before adoption, select all new error codes and capacity/deadline values,
 including the provisional socket queue bound. Preserve the old identity byte
-closures and implement the version-aware authoring/retention prerequisite below. Then author
+closures and finish the forward authoring prerequisites below. Then author
 the new Definitions and one executable conformance bundle outside data-only
 Form Packages, followed by independent Host implementations and consumer E2E.
 This proposal alone does not permit Host support advertising.
@@ -355,13 +361,23 @@ to select a new Form is a separate software change.
 The authoring sources are `internal/edgeformcatalog/interfaces.go`,
 `bindings.go` and `catalog.go`. `render.go` resolves exact references, and
 `scripts/current-form-families.mjs` builds candidate sets and their aggregate
-index. Currently the catalog/writer has one selected Interface/Binding per
-name, not a complete multi-version retained source tree. The current
-`integrity/source-baseline.json` also locks existing candidate and corpus bytes.
-Do not bypass that guard to replace published identities with this draft.
-Forward authoring needs explicit current selection and retained exact old
-closures, including their transitive reference bytes. Updating only the actor
-definition or only a version label does not close this graph.
+index. Keep one explicitly selected Interface/Binding per name. A second local
+multi-version archive is unnecessary: the old exact Definitions already exist
+at immutable publisher source `e7f8a39311dd011b8467e97e7f300cabb9a6b06c`,
+whose set tag resolves to `3231633605b737ce5279d7fc020b4780568e7091`.
+Old references must resolve against that exact source, not today's named
+candidate. This source/set relationship was checked locally; this proposal
+does not itself claim a fresh remote readback or authorize a publication.
+
+The original `integrity/source-baseline.json` stays byte-identical and is now
+verified against that historical Git snapshot. Same-version reidentification
+is refused; exact current generation is a separate check. The fixed legacy
+corpus and retained Form inventory still need forward authoring/append-only
+verification before new candidates can be selected and published. Preserve all
+old package roots and reference closures, including the nine current Forms
+that would leave current selection. The next published source must also be
+protected before subsequent editing. Updating only the actor definition or
+only a version label does not close this graph.
 
 ## Evidence versus proposed behavior
 

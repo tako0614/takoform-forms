@@ -20,6 +20,23 @@ Go catalogs under `internal/` are the authoring source. The JSON trees under
 generated candidate output. `forms/releases/` contains content-addressed
 copies checked against those candidates before publication.
 
+The current composition selects one version per Interface/Binding name. The
+generator refuses two versions that would share its name-based output path;
+an old exact contract is acquired from its immutable Git source, not replaced
+by whichever version is current.
+
+`check:integrity` preserves the extraction baseline against published source
+`e7f8a39311dd011b8467e97e7f300cabb9a6b06c` and refuses changed bytes for a
+published definition's same version, including the retained Form identities.
+`check:generation` separately verifies exact current candidate bytes. Checks
+need Git with `--no-lazy-fetch` support (2.45 or newer) and that exact source's
+objects locally; missing history is an error, with no automatic fetch or fallback.
+CI already checks out full history. The fixed legacy corpus and retained
+inventory still require their existing byte guards until their forward writer
+and append-only proof are implemented. Before later releases are edited, their
+published identities must also enter the historical protection set; the initial
+snapshot alone is not a complete future-publication policy.
+
 Form Packages and publisher trust evidence are verified with the pinned public
 Core v1.1.0. The root and inventory pages describe the Core-derived locator,
 external OIDC signing handoff, create-only trust set, and publication
