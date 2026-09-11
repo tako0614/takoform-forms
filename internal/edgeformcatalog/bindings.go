@@ -45,13 +45,14 @@ type BindingLifecycle struct {
 }
 
 type bindingSpec struct {
-	name        string
-	version     string
-	title       string
-	description string
-	iface       string
-	targetKind  string
-	operations  []string // empty projects every interface operation
+	name         string
+	version      string
+	title        string
+	description  string
+	iface        string
+	ifaceVersion string
+	targetKind   string
+	operations   []string // empty projects every interface operation
 }
 
 // Every binding description states the JAVASCRIPT SURFACE the binding projects,
@@ -81,8 +82,9 @@ var bindingSpecs = []bindingSpec{
 			"with an Error whose name is the edge.kv error code. Reads are EVENTUALLY CONSISTENT and this " +
 			"binding promises no read-your-writes: a get immediately after a resolved put by the same isolate " +
 			"may resolve to the previous value, or to null, until replication converges.",
-		iface:      "edge.kv",
-		targetKind: "EdgeKVNamespace",
+		iface:        "edge.kv",
+		ifaceVersion: "1.0.0",
+		targetKind:   "EdgeKVNamespace",
 	},
 	{
 		name:    "module-worker.object-bucket",
@@ -133,8 +135,9 @@ var bindingSpecs = []bindingSpec{
 			"keys resolve null; a failed precondition rejects with an Error named precondition_failed, an " +
 			"unsatisfiable range with range_not_satisfiable, and every other host failure with an Error named for " +
 			"its edge.objects code. A get, head, or list after a resolved put or delete observes it.",
-		iface:      "edge.objects",
-		targetKind: "ObjectBucket",
+		iface:        "edge.objects",
+		ifaceVersion: "1.0.0",
+		targetKind:   "ObjectBucket",
 	},
 	{
 		name:  "module-worker.sqlite",
@@ -155,8 +158,9 @@ var bindingSpecs = []bindingSpec{
 			"schema-migration path. Errors reject with an Error whose name is the edge.sql error code; unsafe or " +
 			"non-finite numbers reject as numeric_out_of_range, busy is the retryable outcome, and retrying re-runs " +
 			"the whole call.",
-		iface:      "edge.sql",
-		targetKind: "SQLiteDatabase",
+		iface:        "edge.sql",
+		ifaceVersion: "1.0.0",
+		targetKind:   "SQLiteDatabase",
 	},
 	{
 		name:  "module-worker.queue-producer",
@@ -172,9 +176,10 @@ var bindingSpecs = []bindingSpec{
 			"send means ACCEPTED and durable, not delivered — delivery is at-least-once and unordered, so the " +
 			"consumer may see duplicates and must be idempotent. Errors reject with an Error named for the " +
 			"edge.queue code.",
-		iface:      "edge.queue",
-		targetKind: "AtLeastOnceQueue",
-		operations: []string{"send", "sendBatch"},
+		iface:        "edge.queue",
+		ifaceVersion: "1.0.0",
+		targetKind:   "AtLeastOnceQueue",
+		operations:   []string{"send", "sendBatch"},
 	},
 	{
 		name:  "module-worker.service",
@@ -191,8 +196,9 @@ var bindingSpecs = []bindingSpec{
 			"response rather than rejecting, so a caller distinguishes callee failure by status, not by " +
 			"catch. The promise rejects only when the call could not be made at all, with an Error named " +
 			"backend_unavailable. A response reflects every effect the callee completed before responding.",
-		iface:      "worker.service",
-		targetKind: "ModuleWorker",
+		iface:        "worker.service",
+		ifaceVersion: "1.0.0",
+		targetKind:   "ModuleWorker",
 	},
 	{
 		name:  "module-worker.workflow",
@@ -212,9 +218,10 @@ var bindingSpecs = []bindingSpec{
 			"consumes it, and rejects against a terminal instance. Every rejection carries an Error named for " +
 			"the contract's closed per-operation code; a call rejects only when the operation could not be " +
 			"performed.",
-		iface:      "worker.workflow",
-		targetKind: "DurableWorkflow",
-		operations: []string{"create", "get", "status", "sendEvent", "terminate"},
+		iface:        "worker.workflow",
+		ifaceVersion: "1.0.0",
+		targetKind:   "DurableWorkflow",
+		operations:   []string{"create", "get", "status", "sendEvent", "terminate"},
 	},
 	{
 		name:  "module-worker.actor",
@@ -234,9 +241,10 @@ var bindingSpecs = []bindingSpec{
 			"throw in the actor is its host-generated 500 and this promise RESOLVES with it; it rejects only " +
 			"when the call could not be made, with an Error named backend_unavailable — which is what an " +
 			"unserved namespace produces.",
-		iface:      "worker.actor",
-		targetKind: "ActorNamespace",
-		operations: []string{"idFromName", "newUniqueId", "fetch"},
+		iface:        "worker.actor",
+		ifaceVersion: "1.0.0",
+		targetKind:   "ActorNamespace",
+		operations:   []string{"idFromName", "newUniqueId", "fetch"},
 	},
 }
 
@@ -246,11 +254,11 @@ var bindingSpecs = []bindingSpec{
 func BindingDefinitions() ([]BindingDefinition, error) {
 	out := make([]BindingDefinition, 0, len(bindingSpecs))
 	for _, spec := range bindingSpecs {
-		iface, err := interfaceDefinitionByName(spec.iface)
+		iface, err := interfaceDefinitionByExactIdentity(spec.iface, spec.ifaceVersion)
 		if err != nil {
 			return nil, fmt.Errorf("binding %s: %w", spec.name, err)
 		}
-		ref, err := InterfaceRefFor(spec.iface, iface.Version)
+		ref, err := InterfaceRefFor(spec.iface, spec.ifaceVersion)
 		if err != nil {
 			return nil, fmt.Errorf("binding %s: %w", spec.name, err)
 		}
@@ -295,6 +303,15 @@ func interfaceDefinitionByName(name string) (InterfaceDefinition, error) {
 		}
 	}
 	return InterfaceDefinition{}, fmt.Errorf("interface %q is not in the catalog", name)
+}
+
+func interfaceDefinitionByExactIdentity(name, version string) (InterfaceDefinition, error) {
+	for _, candidate := range InterfaceDefinitions() {
+		if candidate.Name == name && candidate.Version == version {
+			return candidate, nil
+		}
+	}
+	return InterfaceDefinition{}, fmt.Errorf("interface %s@%s is not in the catalog", name, version)
 }
 
 func interfaceHasOperation(iface InterfaceDefinition, name string) bool {
