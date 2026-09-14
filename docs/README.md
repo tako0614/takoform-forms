@@ -30,6 +30,13 @@ Core v1.1.0. The root and inventory pages describe the Core-derived locator,
 external OIDC signing handoff, create-only trust set, and publication
 condition; all publishers use the same API v1 contracts.
 
+## Local forward candidates
+
+- [Workflow execution candidate](proposals/workflow-execution-contract.md):
+  plain-JavaScript class, retry and replay semantics with a separate exact
+  Form/Interface/Binding closure. This is not published or advertised as Host
+  support; current package definitions remain unchanged.
+
 ## Useful checks
 
 ```console
