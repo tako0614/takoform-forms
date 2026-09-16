@@ -3,6 +3,11 @@
 This repository is the provider-neutral source and package publisher for the
 Edge Form family.
 
+- [Read the Edge Form reference](https://edge.forms.takoform.com/): choose a
+  contract, inspect fields and exact examples, and follow related Forms.
+- [Site and reader guide](site.md): the resource model, examples versus runnable
+  deployments, current/retained history, quality checks and publication.
+
 - [Root README](../README.md): what the project is, its four building blocks,
   commands, and scope.
 - [Form inventory](../forms/README.md): the complete Edge Form list, the two
@@ -40,7 +45,14 @@ snapshot alone is not a complete future-publication policy.
 Form Packages and publisher trust evidence are verified with the pinned public
 Core v1.1.0. The root and inventory pages describe the Core-derived locator,
 external OIDC signing handoff, create-only trust set, and publication
-condition; official and external publishers use the same API v1 contracts.
+condition; all publishers use the same API v1 contracts.
+
+## Local forward candidates
+
+- [Workflow execution candidate](proposals/workflow-execution-contract.md):
+  plain-JavaScript class, retry and replay semantics with a separate exact
+  Form/Interface/Binding closure. This is not published or advertised as Host
+  support; current package definitions remain unchanged.
 
 ## Unaccepted proposals
 

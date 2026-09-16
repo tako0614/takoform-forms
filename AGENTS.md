@@ -6,7 +6,8 @@
 
 - Scope: Standalone Edge-first Takoform Form publisher for 17 current data-only packages in edge.forms.takoform.com plus immutable retained package history.
 - Repository kind: `product`
-- Direct sibling dependencies: `takoform`
+- Direct sibling dependencies: なし
+- Published contracts consumed: `github.com/tako0614/takoform` (takoform, go-module)
 - Repository gate: `bun run check`
 - Canonical docs: [README.md](README.md), [forms/README.md](forms/README.md), [docs/README.md](docs/README.md)
 
