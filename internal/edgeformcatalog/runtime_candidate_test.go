@@ -50,6 +50,12 @@ func TestRuntimeCandidateRendersOneCoreValidatedClosure(t *testing.T) {
 	if candidate.Actor.Interface.Version != ActorCandidateInterfaceVersion || candidate.Actor.Binding.Version != ActorCandidateBindingVersion {
 		t.Fatalf("actor contract identities = %s@%s and %s@%s", candidate.Actor.Interface.Name, candidate.Actor.Interface.Version, candidate.Actor.Binding.Name, candidate.Actor.Binding.Version)
 	}
+	if candidate.Workflow.Interface.Name != RuntimeWorkflowCandidateInterfaceName || candidate.Workflow.Interface.Version != RuntimeWorkflowCandidateInterfaceVersion {
+		t.Fatalf("aggregate workflow Interface identity = %s@%s", candidate.Workflow.Interface.Name, candidate.Workflow.Interface.Version)
+	}
+	if candidate.Workflow.Binding.Name != RuntimeWorkflowCandidateBindingName || candidate.Workflow.Binding.Version != RuntimeWorkflowCandidateBindingVersion {
+		t.Fatalf("aggregate workflow Binding identity = %s@%s", candidate.Workflow.Binding.Name, candidate.Workflow.Binding.Version)
+	}
 	if candidate.WorkerVersion.Definition.DefinitionVersion != RuntimeCandidateWorkerVersionVersion ||
 		candidate.WorkerDeployment.Definition.DefinitionVersion != RuntimeCandidateWorkerDeploymentVersion {
 		t.Fatalf("aggregate worker identities = %s and %s", candidate.WorkerVersion.Definition.DefinitionVersion, candidate.WorkerDeployment.Definition.DefinitionVersion)
@@ -232,19 +238,101 @@ func TestRuntimeCandidatePreservesRegisteredCatalogAndRejectsStaleClosure(t *tes
 	}
 }
 
+func TestRuntimeWorkflowCandidateUsesRuntimeTwoWithoutRewritingStandaloneDraft(t *testing.T) {
+	standalone := WorkflowCandidateInterface()
+	aggregate := RuntimeWorkflowCandidateInterface()
+	standaloneJSON, err := json.Marshal(standalone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	aggregateJSON, err := json.Marshal(aggregate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if standalone.Version != WorkflowCandidateInterfaceVersion || !strings.Contains(string(standaloneJSON), "worker.runtime@1.1.0") {
+		t.Fatalf("standalone workflow draft changed unexpectedly: %s", standalone.Version)
+	}
+	if aggregate.Version != RuntimeWorkflowCandidateInterfaceVersion || strings.Contains(string(aggregateJSON), "worker.runtime@1.1.0") {
+		t.Fatalf("aggregate workflow retains stale runtime prose: %s", aggregate.Version)
+	}
+	if !strings.Contains(string(aggregateJSON), "worker.runtime@2.0.0") {
+		t.Fatal("aggregate workflow does not state the runtime@2.0.0 requirement")
+	}
+	candidate, err := RenderRuntimeCandidate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if candidate.Workflow.Interface.Version == standalone.Version || candidate.Workflow.Interface.SchemaDigest == "" {
+		t.Fatalf("aggregate workflow did not receive a distinct digest-bound identity: %#v", candidate.Workflow.Interface)
+	}
+	var binding BindingDefinition
+	if err := json.Unmarshal([]byte(candidate.Workflow.Binding.DefinitionJSON), &binding); err != nil {
+		t.Fatal(err)
+	}
+	if binding.TargetInterface.Version != RuntimeWorkflowCandidateInterfaceVersion ||
+		binding.TargetInterface.SchemaDigest != candidate.Workflow.Interface.SchemaDigest {
+		t.Fatalf("aggregate workflow Binding target = %#v, want exact aggregate Interface", binding.TargetInterface)
+	}
+}
+
 func TestActorCandidateCarriesResolvedSocketAndReservationRules(t *testing.T) {
 	definition := ActorCandidateInterface()
+	if err := ValidateInterfaceDefinitions([]InterfaceDefinition{definition}); err != nil {
+		t.Fatalf("actor candidate violates Interface authoring limits: %v", err)
+	}
+	contractText := definition.Description
+	for _, operation := range definition.Operations {
+		contractText += "\n" + operation.Description
+	}
 	for _, phrase := range []string{
 		"constructor(context, env)", "socketMessage", "socketClose", "socketError",
 		"transport_error", "new Response(upgrade.body, upgrade)", "clone throws TypeError",
-		"unbranded status-101", "HTTP 502", "before any 101", "no independent 30-second",
-		"10000", "33554432", "16384", "123 UTF-8",
+		"unbranded status-101", "HTTP 502", "before any 101", "no independent reservation timer",
+		"10000", "33554432", "16384", "123 UTF-8", "provisional sockets", "list returns",
+		"Attachments are copied", "send returns after local broker acceptance", "3000-4999",
+		"No callback replay", "absent or exactly one token offered by the original client", "one-shot reservation",
+		"outer response without its reservation", "outer throw", "head-send failure",
+		"oversized initial/replacement value rejects as attachment_too_large and leaves the old value unchanged",
+		"Error name and code are readonly and share one stable snake-case value",
+		"accept invalid_upgrade/connection_limit_exceeded/attachment_too_large",
+		"null clears", "outbound overflow throws transport_overloaded without a partial frame",
 	} {
-		if !strings.Contains(definition.Description, phrase) {
-			t.Errorf("actor candidate Interface description missing %q", phrase)
+		if !strings.Contains(contractText, phrase) {
+			t.Errorf("actor candidate Interface prose missing %q", phrase)
 		}
 	}
-	if !strings.Contains(definition.Description, "conflicting reserved") || !strings.Contains(definition.Description, "abandons") {
+	if !strings.Contains(definition.Description, "conflicting Connection") || !strings.Contains(definition.Description, "abandons") {
 		t.Fatal("actor candidate does not state fail-closed handshake conflict semantics")
+	}
+	fetch, ok := func() (InterfaceOperation, bool) {
+		for _, operation := range definition.Operations {
+			if operation.Name == "fetch" {
+				return operation, true
+			}
+		}
+		return InterfaceOperation{}, false
+	}()
+	if !ok {
+		t.Fatal("actor candidate has no fetch operation")
+	}
+	for _, phrase := range []string{
+		"Global Interface rules, not fetch-only", "including inherited application methods",
+		"Accessors and per-instance replacements are refused",
+		"Constructor captures context/env synchronously and starts no asynchronous work",
+		"start is awaited before delivery, repeats after eviction and must be idempotent",
+		"After execution begins", "or facade failure yields", "complete generic 500",
+		"body exposes no tenant exception details",
+	} {
+		if !strings.Contains(fetch.Description, phrase) {
+			t.Errorf("actor candidate fetch description missing global rule %q", phrase)
+		}
+	}
+	if strings.Contains(contractText, "failure after start") {
+		t.Fatal("actor candidate narrows constructor/start HTTP failure handling to after start")
+	}
+	if !reflect.DeepEqual(fetch.Errors, []string{
+		"request_too_large", "request_aborted", "response_aborted", "backend_unavailable",
+	}) {
+		t.Fatalf("fetch errors = %#v, want only the four stub-observable HTTP failures", fetch.Errors)
 	}
 }

@@ -12,17 +12,22 @@ proposals are reviewed together.
 
 - the forward `worker.runtime@2.0.0` candidate and its `ModuleWorker` Form;
 - the aligned Actor Form/Interface/Binding pair;
-- the reviewed Workflow Form/Interface/Binding pair;
+- the reviewed aggregate Workflow Form/Interface/Binding pair;
 - the reviewed Vector Form/Interface/Binding pair;
 - the four existing inward-activation Forms whose worker relation genuinely
   requires `worker.runtime`;
 - exactly one aggregate `WorkerVersion` and one aggregate
   `WorkerDeployment`.
 
-The numeric Interface and Binding values are only Core-valid development
-identities. The enclosing Forms use prerelease development identities. Final
-release allocation is a later qualification decision; no value printed here
-is a registry or publication authority.
+The standalone reviewed workflow draft remains `worker.workflow@2.0.0` and
+continues to require `worker.runtime@1.1.0`. The aggregate uses a distinct
+`worker.workflow@3.0.0` and `module-worker.workflow@3.0.0` identity whose
+digest explicitly requires the aggregate `worker.runtime@2.0.0`; the old
+standalone bytes are not implicitly inherited or rewritten. Numeric Interface
+and Binding values are only Core-valid development identities. The enclosing
+Forms use prerelease development identities. Final release allocation is a
+later qualification decision; no value printed here is a registry or
+publication authority.
 
 The aggregate WorkerVersion keeps the seven existing Binding names, replacing
 the `module-worker.actor` and `module-worker.workflow` references by the exact
@@ -56,4 +61,3 @@ the renderer did not invent runtime fields or an empty artifact to fill a
 missing schema seam. Host class execution, socket transport, retirement and
 provider interoperability still require independent qualification before any
 adoption decision.
-

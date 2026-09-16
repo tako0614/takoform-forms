@@ -39,57 +39,64 @@ func ActorCandidateInterface() InterfaceDefinition {
 	definition := workerActorInterface()
 	definition.Version = ActorCandidateInterfaceVersion
 	definition.Title = "Addressable single-context actor with sockets"
-	definition.Description = "Unpublished forward worker.actor contract. An ordinary named class is constructed " +
-		"with constructor(context, env), where context exposes the actor id, private SQL storage, one alarm slot and Host-owned " +
-		"socket facades. The class has callable prototype fetch(request, turn), alarm(turn), socketMessage(socket, data, " +
-		"turn), socketClose(socket, event, turn), and socketError(socket, event, turn) methods; optional start(turn) " +
-		"runs before the creating event. Every weighted WorkerVersion must expose the class with this complete " +
-		"surface. Constructor/start/fetch failures before an HTTP head produce a complete generic 500; failure to " +
-		"begin execution is backend_unavailable, and no alternate weighted Version is tried. The actor's private SQL " +
-		"store is keyed by namespace incarnation and opaque actor id, survives context eviction and code rollback, and " +
-		"admits the existing EdgeSqlValue/result bounds plus actor-owned schema statements. One alarm successor and " +
-		"one unsettled delivery obligation are distinct: set replaces only the successor, clear removes only that " +
-		"successor, and a throw, deadline or owner loss retains the running obligation for retry. There is no actor " +
-		"waitUntil or detached-background-work API. HTTP response heads retain worker.service streaming semantics; " +
-		"same-id admission waits for actor-owned response/request production to finish and for child retirement, while " +
-		"different ids proceed independently. Synchronous construction/start has a 30-second wall deadline; event " +
-		"CPU is capped at 30 seconds, connected HTTP has no independent wall timer while its original caller remains " +
-		"connected, and alarm/message/close/error callbacks have a 15-minute wall deadline. Abort cancels owned " +
-		"streams and terminates the child; a promise rejection, storage fence or boolean is not retirement proof. " +
-		"Socket accept is valid only in the original incoming client-upgrade invocation. It returns a real branded " +
-		"Response with status 101 and null body plus one Host reservation; new Response(upgrade.body, upgrade) aliases " +
-		"that reservation, clone throws TypeError, and an unbranded status-101 Response throws RangeError. Copies, " +
-		"spreads, serialization, service forwarding and another invocation cannot mint or preserve the reservation. " +
-		"conflicting reserved handshake fields are rejected at outer commitment: absent fields may be filled, but a conflicting " +
-		"Connection, Upgrade, Sec-WebSocket-Accept, Sec-WebSocket-Protocol or Sec-WebSocket-Extensions value abandons " +
-		"the reservation and provisional sends and returns HTTP 502 before any 101. There is no independent 30-second " +
-		"reservation timer; its lifetime is the original connected HTTP invocation and abort signal. Socket callbacks " +
-		"are serialized per actor id; exactly one socketClose or socketError is admitted for a terminal event, with " +
-		"transport_error for loss without a usable close code. The candidate bounds connections at 10000, each encoded " +
-		"inbound/outbound frame at 33554432 bytes, attachments at 16384 bytes and each outbound queue at 33554432 " +
-		"bytes. close defaults omitted code/reason to 1000/empty, reason without a code uses 1000, and every reason " +
-		"fits 123 UTF-8 bytes. Errors use the stable transport codes declared by the proposal. A stable Host owner " +
-		"keeps the namespace incarnation, id inventory, admission gate, alarm obligations and socket broker; it must " +
-		"terminate the replaceable child and prove no held completion can resume it before the next same-id event. " +
-		"Namespace deletion advances the epoch, cancels queued work, abandons upgrades, closes connections with 1001 " +
-		"best effort and reports success only after authoritative absence readback. This forward identity is not " +
-		"registered and does not alter worker.actor@1.0.0 or any published bytes."
+	definition.Description = "Unpublished worker.actor; global class/init/HTTP-failure rules are on fetch. " +
+		"Constructable named export: constructor(context, env); pure inspection. context: opaque id, private SQL, one alarm slot, " +
+		"Host sockets. Serialized per id. SQL keyed by incarnation/id survives eviction/rollback and permits actor schema. " +
+		"Alarm: one successor and one unsettled delivery; set/clear change successor only; failure retains delivery; no " +
+		"waitUntil/detached work. HTTP heads complete; same-id waits for request cancel/child retirement. " +
+		"Construction/start wall and event CPU: 30 seconds; connected HTTP has no wall timer; alarm/message/close/error " +
+		"wall: 15 minutes. Abort cancels streams/reservation then terminates child; rejection/storage fence/boolean is no retirement " +
+		"proof. accept requires original WebSocket-upgrade Host chain, not Request identity. Protocol is " +
+		"absent or exactly one token offered by the original client; else accept rejects invalid_upgrade. Returns branded 101/null " +
+		"Response with one-shot reservation; only new Response(upgrade.body, upgrade) aliases it; clone throws TypeError and " +
+		"unbranded status-101 throws RangeError. Non-null body, copy/spread/serialization/forwarding/other invocation cannot " +
+		"preserve/mint it; cross-request/second commit fails. Outer commitment may fill absent reserved fields. A " +
+		"conflicting Connection/Upgrade/Sec-WebSocket-Accept/Sec-WebSocket-Protocol/Sec-WebSocket-Extensions abandons " +
+		"reservation/provisional sends and returns HTTP 502 before any 101. An outer response without its reservation, outer " +
+		"throw or head-send failure abandons reservation/provisional sends; commitment/abort/abandonment settles every alias; " +
+		"no independent reservation timer. " +
+		"After head, callbacks serialize per id and admit exactly one close/error; unusable close code gives transport_error; " +
+		"process/broker loss may prevent a callback. Socket ids persist across eviction/Version changes, are opaque/unique while " +
+		"live/never reused; reconnect gets a new id. list returns committed " +
+		"live/closing sockets lexically; provisional sockets visible only through accept. Terminal callback hides the " +
+		"socket from get/list; send/close/setAttachment fail socket_closed; getAttachment remains until settle. Limits per namespace " +
+		"incarnation/id: 10000 live/provisional connections counted from accept; 33554432 encoded bytes/frame each way; " +
+		"16384-byte attachments; 33554432-byte outbound queues. UTF-8 " +
+		"strings and Uint8Array byteLength count; oversized inbound closes 1009, oversized send " +
+		"throws message_too_large without a partial frame. send returns after local broker acceptance, not peer receipt, " +
+		"persistence or drain; occupancy falls after complete handoff; outbound overflow throws transport_overloaded without a partial frame. " +
+		"close requests the handshake without guaranteeing a close frame. Attachments are copied; null clears; " +
+		"oversized initial/replacement value rejects as attachment_too_large and leaves " +
+		"the old value unchanged. setAttachment is atomic; bytes survive " +
+		"eviction while transport survives and are removed on loss/close/deletion. close defaults omitted/undefined " +
+		"code/reason to 1000/empty, reason without code to 1000 and " +
+		"reason to at most 123 UTF-8 bytes. Application codes are 1000 or 3000-4999; invalid values throw invalid_close. " +
+		"Host closures: 1009 oversized data, 1011 callback failure/deadline, 1012 planned restart and 1001 deletion. " +
+		"Error name and code are readonly and share one stable snake-case value. " +
+		"Facade errors: accept invalid_upgrade/connection_limit_exceeded/attachment_too_large; send message_too_large/transport_overloaded/socket_closed; " +
+		"setAttachment attachment_too_large/socket_closed; close invalid_close/socket_closed. Callback failure/deadline closes 1011; " +
+		"No callback replay after process/broker loss; durable ids/acks enable replay; close is not cleanup. Owner " +
+		"keeps incarnation/id inventory, admission, alarms and broker; terminates child and proves quiescence before next " +
+		"same-id event. Deletion advances epoch, cancels/abandons " +
+		"work/upgrades, closes 1001 best effort and succeeds only after authoritative absence readback."
 
 	// Keep the existing operation descriptions and fixtures as the abstract
 	// actor data-plane witness, but make the changed invocation semantics
 	// visible on the operation that carries the HTTP call.
 	for index := range definition.Operations {
 		if definition.Operations[index].Name == "fetch" {
-			definition.Operations[index].Description = "Invokes the actor fetch(request, turn) method with the actor " +
-				"instance as receiver. Bodies stream in both directions and the call completes at the response head; " +
-				"same-id events remain queued until actor-owned producers finish and the child is retired. An uncaught " +
-				"throw is a host-generated complete 500 and this operation succeeds with it; it fails only when delivery " +
-				"could not begin. A response head with status 101 is committed only through the original Host-tracked " +
-				"upgrade reservation described by this Interface."
+			definition.Operations[index].Description = "Global Interface rules, not fetch-only: every weighted Version has class. " +
+				"Required fetch/alarm/socketMessage/socketClose/socketError and optional start are callable prototype methods, " +
+				"including inherited application methods. Accessors and per-instance replacements are refused. Constructor " +
+				"captures context/env synchronously and starts no asynchronous work; start is awaited before delivery, repeats " +
+				"after eviction and must be idempotent. Handlers share receiver. After execution begins, uncaught constructor/start/fetch " +
+				"or facade failure yields a complete generic 500; its body exposes no tenant " +
+				"exception details; stub fetch returns it. Only failure to begin: backend_unavailable; no alternate Version. Bodies " +
+				"stream both ways; head completes fetch; same-id waits for actor producers/child retirement. Pre-head deadline yields " +
+				"504; post-head unfinished body errors response_aborted; canceled request is request_aborted. A 101 commits only " +
+				"original Host reservation."
 			definition.Operations[index].Errors = []string{
 				"request_too_large", "request_aborted", "response_aborted", "backend_unavailable",
-				"invalid_upgrade", "connection_limit_exceeded", "message_too_large", "attachment_too_large",
-				"transport_overloaded", "socket_closed", "invalid_close",
 			}
 		}
 	}

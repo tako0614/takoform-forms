@@ -3,6 +3,7 @@ package edgeformcatalog
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	model "github.com/tako0614/takoform-forms/internal/currentformmodel"
 	"github.com/tako0614/takoform/formpackage"
@@ -45,9 +46,18 @@ const (
 	RuntimeCandidateInterfaceVersion = "2.0.0"
 
 	RuntimeCandidateModuleWorkerFormVersion = "0.2.0-runtime.1"
-	RuntimeCandidateWorkerVersionVersion    = "0.4.0-runtime.1"
-	RuntimeCandidateWorkerDeploymentVersion = "0.3.0-runtime.1"
-	RuntimeCandidateDependentFormVersion    = "0.1.0-runtime.1"
+	// The aggregate DurableWorkflow Form has a distinct development identity
+	// from the standalone workflow draft because its provided Interface points
+	// at worker.workflow@3.0.0 (the runtime-2 closure).  The prerelease lane is
+	// an unpublished authoring value only; it allocates nothing for release.
+	RuntimeWorkflowCandidateFormVersion      = "0.2.0-runtime.1"
+	RuntimeWorkflowCandidateInterfaceName    = WorkflowCandidateInterfaceName
+	RuntimeWorkflowCandidateInterfaceVersion = "3.0.0"
+	RuntimeWorkflowCandidateBindingName      = WorkflowCandidateBindingName
+	RuntimeWorkflowCandidateBindingVersion   = "3.0.0"
+	RuntimeCandidateWorkerVersionVersion     = "0.4.0-runtime.1"
+	RuntimeCandidateWorkerDeploymentVersion  = "0.3.0-runtime.1"
+	RuntimeCandidateDependentFormVersion     = "0.1.0-runtime.1"
 )
 
 // RuntimeCandidateInterface is the forward Worker runtime identity required
@@ -83,10 +93,56 @@ func RuntimeCandidateInterface() InterfaceDefinition {
 	return definition
 }
 
-// RenderRuntimeCandidate emits one aggregate closure.  It deliberately calls
-// the reviewed Workflow and Vector pair renderers only for their pair
-// artifacts; their independent WorkerVersion/Deployment results are discarded
-// so stale parallel worker closures cannot appear in this output.
+// RuntimeWorkflowCandidateInterface is an explicit aggregate Workflow
+// contract.  The standalone imported draft remains worker.workflow@2.0.0 and
+// deliberately describes worker.runtime@1.1.0; reusing that same identity
+// here would give one name/version two different contracts.  This copy carries
+// the reviewed operation schemas and fixtures under a distinct development
+// identity while changing every runtime requirement to the aggregate's exact
+// worker.runtime@2.0.0 Interface.
+func RuntimeWorkflowCandidateInterface() InterfaceDefinition {
+	definition := WorkflowCandidateInterface()
+	definition.Name = RuntimeWorkflowCandidateInterfaceName
+	definition.Version = RuntimeWorkflowCandidateInterfaceVersion
+	definition.Title = "Aggregate durable workflow class execution"
+	definition.Description = strings.ReplaceAll(definition.Description, "worker.runtime@1.1.0", "worker.runtime@2.0.0")
+	definition.Description = "Unpublished aggregate worker.workflow contract. Its exact runtime requirement is " +
+		"worker.runtime@2.0.0; it is a distinct development identity from the standalone workflow draft. " +
+		definition.Description
+	definition.Operations = append([]InterfaceOperation(nil), definition.Operations...)
+	for index := range definition.Operations {
+		definition.Operations[index].Description = strings.ReplaceAll(
+			definition.Operations[index].Description,
+			"worker.runtime@1.1.0",
+			"worker.runtime@2.0.0",
+		)
+	}
+	return definition
+}
+
+func renderRuntimeWorkflowCandidateInterface() (RenderedContract, error) {
+	definition := RuntimeWorkflowCandidateInterface()
+	if err := ValidateInterfaceDefinitions([]InterfaceDefinition{definition}); err != nil {
+		return RenderedContract{}, fmt.Errorf("aggregate workflow candidate Interface authoring: %w", err)
+	}
+	rendered, err := renderInterfaceContract(definition.Name, definition.Version, definition)
+	if err != nil {
+		return RenderedContract{}, fmt.Errorf("aggregate workflow candidate Interface: %w", err)
+	}
+	if rendered.Name != RuntimeWorkflowCandidateInterfaceName || rendered.Version != RuntimeWorkflowCandidateInterfaceVersion {
+		return RenderedContract{}, fmt.Errorf("aggregate workflow candidate Interface identity drifted to %s@%s", rendered.Name, rendered.Version)
+	}
+	if strings.Contains(rendered.DefinitionJSON, "worker.runtime@1.1.0") {
+		return RenderedContract{}, fmt.Errorf("aggregate workflow candidate Interface retains stale worker.runtime@1.1.0 prose")
+	}
+	return rendered, nil
+}
+
+// RenderRuntimeCandidate emits one aggregate closure.  It derives an explicit
+// aggregate Workflow Interface/Binding identity and uses the reviewed Vector
+// pair renderer only for its pair artifacts; independent WorkerVersion and
+// WorkerDeployment results are never included, so stale parallel closures
+// cannot appear in this output.
 func RenderRuntimeCandidate() (RuntimeCandidate, error) {
 	runtimeContract, err := renderRuntimeCandidateInterface()
 	if err != nil {
@@ -98,15 +154,15 @@ func RenderRuntimeCandidate() (RuntimeCandidate, error) {
 		return RuntimeCandidate{}, err
 	}
 
-	workflowIndependent, err := renderWorkflowCandidatePair()
+	workflowInterface, err := renderRuntimeWorkflowCandidateInterface()
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
-	workflowForm, err := renderRuntimeWorkflowForm(runtimeContract, workflowIndependent.Interface)
+	workflowForm, err := renderRuntimeWorkflowForm(runtimeContract, workflowInterface)
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
-	workflowBindingDefinition, err := workflowCandidateBinding(workflowIndependent.Interface)
+	workflowBindingDefinition, err := runtimeWorkflowCandidateBinding(workflowInterface)
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
@@ -139,7 +195,7 @@ func RenderRuntimeCandidate() (RuntimeCandidate, error) {
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
-	workerVersion, err := renderAggregateWorkerVersion(runtimeContract, actor, workflowIndependent.Interface, workflowBinding, vectorIndependent.Interface, vectorBinding)
+	workerVersion, err := renderAggregateWorkerVersion(runtimeContract, actor, workflowInterface, workflowBinding, vectorIndependent.Interface, vectorBinding)
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
@@ -153,7 +209,7 @@ func RenderRuntimeCandidate() (RuntimeCandidate, error) {
 		ModuleWorker:     moduleWorker,
 		Actor:            actor,
 		Workflow: RuntimeCandidatePair{
-			Form: workflowForm, Interface: workflowIndependent.Interface, Binding: workflowBinding,
+			Form: workflowForm, Interface: workflowInterface, Binding: workflowBinding,
 		},
 		Vector: RuntimeCandidatePair{
 			Form: vectorIndependent.Form, Interface: vectorIndependent.Interface, Binding: vectorBinding,
@@ -192,6 +248,33 @@ func renderCandidateBinding(definition BindingDefinition) (RenderedContract, err
 		return RenderedContract{}, fmt.Errorf("candidate Binding Core validation: %w", err)
 	}
 	return rendered, nil
+}
+
+// runtimeWorkflowCandidateBinding is the aggregate's explicit Binding
+// projection.  The standalone helper remains unchanged for its own
+// worker.workflow@2.0.0 draft; this wrapper gives the runtime-2 Interface a
+// distinct exact Binding identity and digest-bound target.
+func runtimeWorkflowCandidateBinding(iface RenderedContract) (BindingDefinition, error) {
+	definition, err := workflowCandidateBinding(iface)
+	if err != nil {
+		return BindingDefinition{}, err
+	}
+	definition.Name = RuntimeWorkflowCandidateBindingName
+	definition.Version = RuntimeWorkflowCandidateBindingVersion
+	definition.TargetInterface = formpackage.InterfaceRef{
+		APIVersion:   InterfaceAPIVersion,
+		Name:         iface.Name,
+		Version:      iface.Version,
+		SchemaDigest: iface.SchemaDigest,
+	}
+	definition.Description = strings.ReplaceAll(
+		definition.Description,
+		"worker.workflow@2.0.0",
+		"worker.workflow@3.0.0",
+	)
+	definition.Description = "Unpublished aggregate Binding targeting the exact worker.workflow@3.0.0 Interface. " +
+		definition.Description
+	return definition, nil
 }
 
 func renderRuntimeModuleWorker(runtimeContract RenderedContract) (RenderedForm, error) {
@@ -233,9 +316,9 @@ func renderRuntimeWorkflowForm(runtimeContract, workflowInterface RenderedContra
 	if !ok {
 		return RenderedForm{}, fmt.Errorf("current catalog has no DurableWorkflow Form")
 	}
-	candidate := cloneFormForCandidate(base, WorkflowCandidateFormVersion)
+	candidate := cloneFormForCandidate(base, RuntimeWorkflowCandidateFormVersion)
 	candidate.ProvidedInterfaces = nil
-	candidate.Description = "Unpublished forward DurableWorkflow with the exact reviewed worker.workflow@2.0.0 " +
+	candidate.Description = "Unpublished aggregate DurableWorkflow with the exact reviewed worker.workflow@3.0.0 " +
 		"class/replay contract and the aggregate worker.runtime@2.0.0 requirement. Instances remain runtime data, " +
 		"and code comes from the active deployment's weighted WorkerVersion."
 	for index := range candidate.Fields {
