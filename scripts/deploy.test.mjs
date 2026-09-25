@@ -36,7 +36,7 @@ describe("Edge Form Package deploy surface", () => {
       (surface) => surface.surface === RELEASE_SURFACE,
     );
     expect(publication.target).toContain(REPOSITORY_URL);
-    expect(publication.requiresScripts).toEqual(["check", "deploy"]);
+    expect(publication.requiresScripts).toEqual(["check"]);
     expect(publication.triggers).toEqual(["authority", "published-identity"]);
     expect(JSON.stringify(publication.obligations)).not.toContain("unsigned");
     expect(Object.keys(publication.obligations).sort()).toEqual([

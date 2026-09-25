@@ -121,7 +121,7 @@ export const DEPLOY_CONTRACT = Object.freeze({
         "scripts/deploy.mjs",
         ".github/workflows/form-package-signing.yml",
       ],
-      requiresScripts: ["check", "deploy"],
+      requiresScripts: ["check"],
       requiresTools: ["git", "bun", "go"],
       requiresEnv: [],
       triggers: ["authority", "published-identity"],

@@ -17,11 +17,11 @@ export const DOMAIN_CONTRACT = {
   covers: ["scripts/edge-form-domain.mjs", "scripts/deploy.mjs"],
   requiresScripts: ["deploy"],
   requiresTools: ["git", "bun", "wrangler"],
-  requiresEnv: [],
+  requiresEnv: ["CLOUDFLARE_ACCOUNT_ID"],
   triggers: ["authority"],
   obligations: {
     provenance:
-      "One explicit clean source commit equal to public main; pinned Wrangler authenticates in memory. Account and production environment are explicit.",
+      "One explicit clean source commit equal to public main; pinned Wrangler authenticates in memory. Exact CLOUDFLARE_ACCOUNT_ID and production environment are explicit.",
     "post-conditions":
       "Read exact account, active zone, Worker and custom-domain binding from Cloudflare. Then use edge-form-pages --verify for public HTTPS bytes and assets; binding alone is not site completion.",
     reversal:
