@@ -77,11 +77,12 @@ export function renderVitePressPages({
           text: locale === "ja" ? "関連リンク" : "Related links",
           items: [
             {
-              text: "Takoform",
+              text:
+                locale === "ja" ? "TakoformのHost API" : "Takoform Host API",
               link:
                 locale === "ja"
-                  ? "https://takoform.com/"
-                  : "https://takoform.com/en/",
+                  ? "https://takoform.com/host-api/"
+                  : "https://takoform.com/en/host-api/",
             },
             {
               text: "GitHub",
@@ -182,6 +183,11 @@ function status(isPublic, locale = "en") {
 
 function renderIndex(forms, isPublic, locale = "en") {
   const current = forms.filter((form) => !form.retained);
+  const workerVersion = current.find(
+    (form) => form.formRef.kind === "WorkerVersion",
+  );
+  if (!workerVersion) throw new Error("current WorkerVersion Form is required");
+  const workerVersionExample = `${routeFor(workerVersion, locale)}#example-title`;
   if (locale === "ja")
     return `---
 title: Edge Forms
@@ -191,6 +197,10 @@ description: Takoform Edge Formsの設定項目、利用例、パッケージ参
 # Edge Forms
 
 Worker、ストレージ、キュー、ワークフロー、Actorの設定と振る舞いを定めるForm定義です。コードのバージョン、トラフィック、データ、実行のきっかけを分けて組み合わせ、変更したい部分を指定できます。各ページで用途、組み合わせ、設定項目、正確なパッケージ参照を確認できます。
+
+## 共通モデルとAPIの説明先 {#shared-model-and-api}
+
+このサイトでは、Edge Formsの公開元が提供する契約と、パッケージに含まれる正確な例を確認できます。公開元に共通するモデルとHost APIは、別の[Takoformのサイト](https://takoform.com/)と[Host APIリファレンス](https://takoform.com/host-api/)で説明しています。Formごとの\`definitionVersion\`はAPIプロトコルの版とは別です。クライアントライブラリとTerraform/OpenTofuプロバイダーも、それぞれ独立した版で公開されます。これらを同期させる独立した仕様の版はありません。
 
 ## Workerアプリケーション {#worker-applications}
 
@@ -210,6 +220,8 @@ ${current.map((form) => `| ${formLink(form, locale)} | ${literal(form.guide.ja.p
 ## 定義を使う {#using-these-definitions}
 
 Formを選び、利用するHostがその正確なバージョンに対応しているかを確認し、設定のスキーマをクライアントで使います。掲載している例はJSONデータであり、OpenTofuの設定や完全なHost APIリクエストではありません。
+
+まず設定例を見る場合は、パッケージに含まれる[WorkerVersion ${workerVersion.formRef.definitionVersion}のJSON例](${workerVersionExample})をご覧ください。どの例も設定の形を示すデータで、Host APIのリクエストやOpenTofuの設定ではありません。
 
 Hostの対応や受け入れ判断は、パッケージの公開とは別です。パッケージを読むだけでリソースが作成されたり、ホスティングが提供されたりすることはありません。
 検証方法は[Takoformの導入ガイド](https://takoform.com/start/)、クライアントやHostの実装は[実装ガイド](https://takoform.com/guides/)を参照してください。
@@ -234,6 +246,10 @@ description: Settings, examples and package references for Takoform Edge Forms.
 
 Form definitions for the configuration and behavior of workers, storage, queues, workflows and actors. Compose code versions, traffic, data and event entry points separately so you can target the part you want to change. Each page explains use cases, connections, accepted settings and the exact package reference.
 
+## Where the shared model and API live {#shared-model-and-api}
+
+This site documents the Edge Form contracts published here and each package's exact example. The shared model and Host API are documented separately at [Takoform](https://takoform.com/en/) and in the [Host API reference](https://takoform.com/en/host-api/). A Form's \`definitionVersion\` is not the API protocol version; client libraries and Terraform/OpenTofu providers have independent release versions too. No separate specification version synchronizes these releases.
+
 ## Worker applications
 
 ModuleWorker → WorkerVersion → WorkerDeployment: create an application identity, describe a version of its code and configuration, then select the version that receives traffic.
@@ -252,6 +268,8 @@ ${current.map((form) => `| ${formLink(form)} | ${literal(form.guide.purpose)} |`
 ## Using these definitions
 
 Choose a Form, check whether your Host supports that exact version, and use its desired-state schema with your client. The examples here are JSON data, not OpenTofu configurations or complete Host API requests.
+
+For a concrete starting point, open the exact package's [WorkerVersion ${workerVersion.formRef.definitionVersion} JSON example](${workerVersionExample}). Each example shows input data; it is not a Host API request or OpenTofu configuration.
 
 Host support and admission are separate from package publication. Reading a package does not create a resource or provide hosting.
 See [Takoform's getting started guide](https://takoform.com/en/start/) for package verification and [implementation guides](https://takoform.com/en/guides/) for clients and Hosts.
