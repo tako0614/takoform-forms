@@ -219,7 +219,9 @@ describe("publisher-owned Edge Form pages", () => {
       );
       expect(japaneseRoot).toContain("共通モデルとAPIの説明先");
       expect(japaneseRoot).toContain('href="https://takoform.com/host-api/"');
-      expect(japaneseRoot).toContain("これらを同期させる独立した仕様の版はありません");
+      expect(japaneseRoot).toContain(
+        "これらを同期させる独立した仕様の版はありません",
+      );
       expect(japaneseRoot).toContain(
         `href="/ja/forms/WorkerVersion/${workerVersion.formRef.definitionVersion}/#example-title"`,
       );
