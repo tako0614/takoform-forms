@@ -122,7 +122,10 @@ describe("publisher-owned Edge Form pages", () => {
         );
         expect(sidebar).not.toMatch(/class="[^"]*\bcollapsed\b/u);
         expect(sidebar).toContain(
-          `href="https://takoform.com/${japanese ? "" : "en/"}"`,
+          `href="https://takoform.com/${japanese ? "" : "en/"}host-api/"`,
+        );
+        expect(sidebar).toContain(
+          japanese ? "TakoformのHost API" : "Takoform Host API",
         );
         const counterpart = japanese ? route.slice(3) : `/ja${route}`;
         expect(html).toContain(`href="${counterpart}"`);
@@ -201,6 +204,27 @@ describe("publisher-owned Edge Form pages", () => {
       expect(worker).toContain("fixtures/desired.json");
       expect(root).toContain("Settings, examples and package references");
       expect(root).toContain("ModuleWorker → WorkerVersion → WorkerDeployment");
+      expect(root).toContain("Where the shared model and API live");
+      expect(root).toContain('href="https://takoform.com/en/host-api/"');
+      expect(root).toContain("No separate specification version");
+      const workerVersion = plan.forms.find(
+        (form) => form.formRef.kind === "WorkerVersion",
+      );
+      expect(root).toContain(
+        `href="/forms/WorkerVersion/${workerVersion.formRef.definitionVersion}/#example-title"`,
+      );
+      const japaneseRoot = readFileSync(
+        path.join(first, "ja/index.html"),
+        "utf8",
+      );
+      expect(japaneseRoot).toContain("共通モデルとAPIの説明先");
+      expect(japaneseRoot).toContain('href="https://takoform.com/host-api/"');
+      expect(japaneseRoot).toContain(
+        "これらを同期させる独立した仕様の版はありません",
+      );
+      expect(japaneseRoot).toContain(
+        `href="/ja/forms/WorkerVersion/${workerVersion.formRef.definitionVersion}/#example-title"`,
+      );
       for (const anchor of [
         "choose-by-task",
         "queue-workflow-actor",

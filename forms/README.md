@@ -5,16 +5,21 @@ JavaScript edge runtimes.
 For the model, package format, and repository commands, start with the
 [root README](../README.md).
 
-## Versioning
+## Independent version tracks
 
-Takoform has exactly two version axes:
+These versions answer different questions and do not move in lockstep:
 
-| Axis | Meaning |
+| Track | What it versions |
 | --- | --- |
-| API/Core SemVer | `1.x` is the public API release line; compatible releases keep the literal `/v1` wire lane. |
+| Host API protocol | The shared request/response contract and its `/v1` wire lane. See the [Host API reference](https://takoform.com/en/host-api/). |
 | Form definition | Each Form has its own `definitionVersion`; a semantic change creates a new Form identity. |
+| Go client library | The `github.com/tako0614/takoform` module release, published separately from the API protocol and individual Forms. |
+| Terraform/OpenTofu Provider | The provider's own release stream for its Form mappings. |
 
-Other identifiers are pinned metadata, not release clocks.
+There is no separate `Specification` SemVer that synchronizes these tracks.
+Equal version numbers, when they occur, do not imply a coordinated release.
+Other identifiers such as package digests, schema digests and publication tags
+pin specific content; they are not release clocks.
 
 See the [Core Form Package spec](https://github.com/tako0614/takoform/blob/v1.1.0/spec/form-package/README.md)
 and [Core versioning spec](https://github.com/tako0614/takoform/blob/v1.1.0/spec/versioning.md)
@@ -68,5 +73,5 @@ root is immutable and is never rewritten.
 See the [root README](../README.md#preparing-and-publishing-packages) for
 generation, signing, verification, and publication commands. Package tags are
 immutable content identities; the create-only signed publisher set carries
-the exact Sigstore and revocation evidence. Official and external packages use
-the same Core API v1 bytes and verification semantics.
+the exact Sigstore and revocation evidence. Packages from this publisher and
+other publishers use the same Core API v1 bytes and verification semantics.

@@ -121,23 +121,23 @@ describe("portable quality gates and Form version documentation", () => {
     );
   });
 
-  test("documents exactly the public API and Form definition axes", () => {
+  test("documents independent API, Form, client, and provider version tracks", () => {
     const axisRows = readme
       .split("\n")
       .filter(
         (line) =>
-          line.startsWith("| API/Core SemVer |") ||
-          line.startsWith("| Form definition |"),
+          line.startsWith("| Host API protocol |") ||
+          line.startsWith("| Form definition |") ||
+          line.startsWith("| Go client library |") ||
+          line.startsWith("| Terraform/OpenTofu Provider |"),
       );
 
-    expect(readme).toContain("exactly two version axes");
-    expect(axisRows).toHaveLength(2);
+    expect(readme).toContain("## Independent version tracks");
+    expect(axisRows).toHaveLength(4);
     expect(
       axisRows.some(
         (line) =>
-          line.startsWith("| API/Core SemVer |") &&
-          line.includes("`1.x`") &&
-          line.includes("`/v1`"),
+          line.startsWith("| Host API protocol |") && line.includes("`/v1`"),
       ),
     ).toBe(true);
     expect(
@@ -147,5 +147,14 @@ describe("portable quality gates and Form version documentation", () => {
           line.includes("`definitionVersion`"),
       ),
     ).toBe(true);
+    expect(
+      axisRows.some((line) => line.startsWith("| Go client library |")),
+    ).toBe(true);
+    expect(
+      axisRows.some((line) =>
+        line.startsWith("| Terraform/OpenTofu Provider |"),
+      ),
+    ).toBe(true);
+    expect(readme).toContain("There is no separate `Specification` SemVer");
   });
 });
