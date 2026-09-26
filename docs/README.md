@@ -53,6 +53,10 @@ condition; all publishers use the same API v1 contracts.
   plain-JavaScript class, retry and replay semantics with a separate exact
   Form/Interface/Binding closure. This is not published or advertised as Host
   support; current package definitions remain unchanged.
+- [Aggregate runtime candidate](proposals/runtime-candidate.md): one JSON
+  closure that exercises the Actor, Workflow and VectorIndex proposals
+  together (`go run ./cmd/runtime-candidate`). This is not published or
+  advertised as Host support.
 
 ## Unaccepted proposals
 
@@ -64,6 +68,9 @@ condition; all publishers use the same API v1 contracts.
   class/SQL/alarm/socket signatures, event and transport lifetime, and the
   exact forward-reference graph. Error vocabulary and candidate limits remain
   adoption work; the current published contracts remain unchanged.
+- [VectorIndex contract proposal](proposals/vector-index-contract.md): one
+  selected candidate profile for vector index declarations, dated
+  2026-09-09. It allocates no API version, catalog member, or package bytes.
 
 ## Useful checks
 
