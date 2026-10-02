@@ -4,16 +4,16 @@
     {
       "group": "edge.forms.takoform.com",
       "candidateSet": "forms/candidates/edge.forms.takoform.com/candidate-set.json",
-      "sha256": "02dcede7086df8fdf1513c3f47bb4ee011eed8f0812d601d38d942b2d6da5ccf",
+      "sha256": "dfdaa7fa678e5d10fa7740bf615a83a79e109ab68af2fd067b898c993f168387",
       "formCount": 17
     }
   ],
   "interfaceCandidateSet": {
     "path": "interfaces/candidates/v1alpha1/candidate-set.json",
-    "sha256": "2a66a036d0393c4acd37541bdd3ebaa879b897c5bdbe325f02ee2aa69ae4a402"
+    "sha256": "bf58147caa7a06a859bf0f9dce7461b40e6fc39bcc432ab1a3f9fba7b0ec569f"
   },
   "bindingCandidateSet": {
     "path": "bindings/candidates/v1alpha2/candidate-set.json",
-    "sha256": "ed725f798c2079c074a5a19e22d3494d920e5b46f85f11eea6c1e3c098a065fd"
+    "sha256": "e8e336b3bca87ffad568597ea7015c65e41b5c3410bf6d93901b54ba1b3c5420"
   }
 }

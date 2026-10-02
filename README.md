@@ -16,12 +16,14 @@ Worker delivery, capability bindings and SQLite migrations. Older versions stay
 available under **Retained versions**, with their own historical definitions.
 
 The publisher signs 17 current package subjects. The append-only release tree
-contains those 17 current roots, the two explicitly retained historical roots
+contains those 17 selected current roots, the five explicitly retained historical roots
 listed in [`forms/retained-packages.json`](forms/retained-packages.json), and
 three old roots listed in the one-time abandoned prepublication recovery
-manifest. That is 22 local release roots; only the 17 current and two retained
-roots have publishable package tags (19 tags total). The three abandoned roots
-are evidence-only and never receive tags.
+manifest. That is 25 local release roots. The existing public set still has 19
+package tags; after the Workflow successor is signed and published, its 17
+current and five retained roots will have 22 package tags. The three abandoned
+roots are evidence-only and never receive tags. Local source selection alone
+does not publish the new Workflow contract or make a Host support it.
 
 The current `module-worker.object-bucket@1.1.0` Binding projects the
 `edge.objects@1.0.0` API with length-aware streaming: `put` and `uploadPart`
@@ -86,9 +88,11 @@ To inspect one package directly with the released Core verifier:
 go run ./cmd/form-package verify forms/candidates/edge.forms.takoform.com/module-worker
 ```
 
-Focused checks: `bun run check:generation`, `bun run check:publication`, and
-`bun run check:trust`.
-For the human pages, use `bun run build:edge-form-pages` and the explicit browser
+Focused checks: `bun run check:generation`, `bun run check:publication`,
+`bun run check:trust`, and the pre-sign private
+`bun run check:edge-form-pages:source`. This source check does not produce
+publishable pages. After an exact signed set is installed, use the strict
+`bun run check:edge-form-pages` and `bun run build:edge-form-pages`; the explicit browser
 lane `bun run check:edge-form-pages:browser`; see [site maintenance](docs/site.md).
 
 ## Preparing and publishing packages
@@ -103,7 +107,7 @@ forms/<releaseId>/sha256-<digest>
 ```
 
 `bun run write:publication` materializes missing current release directories.
-It does not sign or publish them, and never rewrites the two retained or three
+It does not sign or publish them, and never rewrites the five retained or three
 abandoned evidence-only roots. An exact
 protected-main commit is prepared for
 external keyless signing with:
@@ -139,9 +143,9 @@ bun run deploy -- form-packages-edge --trust-set <source-commit> --verify
 `main` and the matching tags; run `--verify` afterwards for anonymous public
 readback. Existing immutable package tags may point to an older commit only
 when their package paths are byte-identical to the signed source. Anonymous
-readback fetches all 19 publishable current/retained package tags, compares
-their bytes, and reruns Core v1.1.0 over all 22 local release roots (17 current,
-two retained, and three abandoned evidence-only roots). It also verifies the
+readback fetches all 22 publishable current/retained package tags, compares
+their bytes, and reruns Core v1.1.0 over all 25 local release roots (17 current,
+five retained, and three abandoned evidence-only roots). It also verifies the
 signature bundles, pinned publisher policy and trusted root, signed checkpoint,
 and every not-revoked decision. Changing package bytes creates a
 new digest, path, and package tag; changing publisher evidence creates a new

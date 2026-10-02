@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
@@ -14,6 +16,10 @@ import path from "node:path";
 import {
   EDGE_FORM_PAGES_ORIGIN,
   buildEdgeFormPages,
+  checkEdgeFormSourcePages,
+  readPagePackage,
+  selectInstalledPageSet,
+  validatePageGuide,
 } from "./edge-form-pages.mjs";
 import { derivePublicationPlan } from "./form-publication.mjs";
 import { renderForSearch, tokenize } from "../site/.vitepress/search.mjs";
@@ -71,11 +77,21 @@ describe("publisher-owned Edge Form pages", () => {
     const first = mkdtempSync(path.join(tmpdir(), "edge-form-pages-a-"));
     const second = mkdtempSync(path.join(tmpdir(), "edge-form-pages-b-"));
     try {
-      const firstResult = buildEdgeFormPages({
-        outputDirectory: first,
-        plan,
-        trust,
-      });
+      // An ambient source-mode flag must not silently downgrade a signed build.
+      const ambientMode = process.env.EDGE_DOCS_SOURCE_CANDIDATE;
+      let firstResult;
+      try {
+        process.env.EDGE_DOCS_SOURCE_CANDIDATE = "1";
+        firstResult = buildEdgeFormPages({
+          outputDirectory: first,
+          plan,
+          trust,
+        });
+      } finally {
+        if (ambientMode === undefined)
+          delete process.env.EDGE_DOCS_SOURCE_CANDIDATE;
+        else process.env.EDGE_DOCS_SOURCE_CANDIDATE = ambientMode;
+      }
       const secondResult = buildEdgeFormPages({
         outputDirectory: second,
         plan,
@@ -155,6 +171,9 @@ describe("publisher-owned Edge Form pages", () => {
         ).size,
       ).toBe(plan.formCount + plan.retainedPackages.length);
       expect(root).toContain(`${plan.formCount} signed Edge Forms`);
+      expect(root).toContain('rel="canonical"');
+      expect(root).toContain('property="og:url"');
+      expect(root).not.toContain("Unpublished source candidate");
       expect(root).not.toContain("Public package readback verified");
       expect(root).not.toContain("API discovery");
 
@@ -192,7 +211,7 @@ describe("publisher-owned Edge Form pages", () => {
       );
       expect(page).not.toContain("Public package readback verified");
       const worker = readFileSync(
-        path.join(first, "forms/WorkerVersion/0.3.0/index.html"),
+        path.join(first, "forms/WorkerVersion/0.4.0/index.html"),
         "utf8",
       );
       expect(worker).toContain("Required");
@@ -289,6 +308,9 @@ describe("publisher-owned Edge Form pages", () => {
       expect(readFileSync(path.join(first, "_headers"), "utf8")).toContain(
         "no-transform",
       );
+      expect(readFileSync(path.join(first, "robots.txt"), "utf8")).toContain(
+        "Allow: /",
+      );
       expect(firstResult.files.some((file) => file.endsWith(".woff2"))).toBe(
         true,
       );
@@ -370,6 +392,57 @@ describe("publisher-owned Edge Form pages", () => {
       rmSync(output, { recursive: true, force: true });
     }
   });
+
+  test("qualifies unsigned source in a private disposable noindex build only", () => {
+    const result = checkEdgeFormSourcePages();
+    expect(result).toEqual({
+      kind: "takoform.edge-form-pages-source-check@v1",
+      status: "CANDIDATE_ONLY",
+      formCount: 17,
+      retainedCount: 5,
+      routeCount: 46,
+      outputRetained: false,
+    });
+    expect(result).not.toHaveProperty("signedSet");
+    expect(result).not.toHaveProperty("outputDirectory");
+    expect(result).not.toHaveProperty("publicPackageReadback");
+  }, 60_000);
+
+  test("signed selector never falls back to unsigned source", () => {
+    const plan = derivePublicationPlan();
+    const fixture = mkdtempSync(path.join(tmpdir(), "edge-form-empty-signed-"));
+    try {
+      mkdirSync(path.join(fixture, "forms/trust/sets"), { recursive: true });
+      expect(() => selectInstalledPageSet(plan, fixture)).toThrow(
+        "no installed signed set exactly matches the current package closure",
+      );
+      const forbidden = spawnSync(
+        process.execPath,
+        ["scripts/edge-form-pages.mjs", "--check-source", "--output", "unused"],
+        { encoding: "utf8" },
+      );
+      expect(forbidden.status).not.toBe(0);
+      expect(forbidden.stderr).toContain("usage:");
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  test("source qualification shares strict guide-version and Core package checks", () => {
+    const plan = derivePublicationPlan();
+    const guide = JSON.parse(readFileSync("site/reading-guide.json", "utf8"));
+    const current = plan.forms.map((form) => ({ formRef: form.formRef }));
+    guide.DurableWorkflow.version = "0.1.0";
+    expect(() => validatePageGuide(current, guide)).toThrow(
+      /requires review for this exact definition version/,
+    );
+
+    const corrupted = structuredClone(plan.forms[0]);
+    corrupted.formRef.schemaDigest = `sha256:${"0".repeat(64)}`;
+    expect(() => readPagePackage(corrupted, plan.repositoryRoot)).toThrow(
+      /FormRef differs from inventory/,
+    );
+  }, 30_000);
 });
 
 function signedTrustFor(plan) {

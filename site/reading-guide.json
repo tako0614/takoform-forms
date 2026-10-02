@@ -69,14 +69,14 @@
     "useCase": "Identify immutable HTML, CSS and images to serve alongside Worker code. The WorkerVersion assets attachment sets Worker/asset lookup order and missing-path fallback."
   },
   "WorkerVersion": {
-    "version": "0.3.0",
+    "version": "0.4.0",
     "purpose": "Capture one immutable combination of code, handlers and configuration.",
     "ja": {
       "purpose": "コード・ハンドラー・設定の組み合わせを、変更不可のバージョンとして定義します。",
-      "note": "変更する場合は別のバージョンを作成します。機密値は移植する状態に含めず、名前だけを宣言します。この例は設定項目を網羅したもので、最小構成ではありません。compatibility-dateやcompatibility-flagの項目はありません。",
+      "note": "変更する場合は別のバージョンを作成します。Workflow Bindingは新しいworker.workflow@2.0.0を要求し、呼び出し側のcreate・get・status・sendEvent・terminateを公開します。機密値は移植する状態に含めず、名前だけを宣言します。この例は設定項目を網羅したもので、最小構成ではありません。compatibility-dateやcompatibility-flagの項目はありません。",
       "useCase": "まだトラフィックを切り替えずにリリースを準備し、以前のバージョンを戻し先として残すときに使います。"
     },
-    "note": "Changing a revision creates another version. Sensitive values are never portable state: declare their names only. The example is comprehensive, not a minimal deployment. There is no compatibility-date or compatibility-flag field.",
+    "note": "Changing a revision creates another version. Its Workflow Binding requires worker.workflow@2.0.0 and projects only create, get, status, sendEvent and terminate to callers. Sensitive values are never portable state: declare their names only. The example is comprehensive, not a minimal deployment. There is no compatibility-date or compatibility-flag field.",
     "related": [
       {
         "kind": "ModuleWorker",
@@ -132,14 +132,14 @@
     "useCase": "Prepare a release without changing traffic yet; keep the previous version available for rollback."
   },
   "WorkerDeployment": {
-    "version": "0.2.0",
+    "version": "0.3.0",
     "purpose": "Choose which Worker revisions receive traffic.",
     "ja": {
       "purpose": "トラフィックを受け取るWorkerのバージョンを選びます。",
-      "note": "重みはベーシスポイントで指定し、合計を10000にします。ロールバックは重みの変更で行い、変更不可のバージョンを書き換えません。",
+      "note": "重みはベーシスポイントで指定し、合計を10000にします。この定義はWorkerVersion 0.4.0を正確に参照します。Workflowの実行中に選ばれるコードが変わる場合は、記録済みの履歴との互換性が必要です。ロールバックは重みの変更で行い、変更不可のバージョンを書き換えません。",
       "useCase": "準備済みのバージョンへの切り替え、複数バージョンへの配分、以前のバージョンへの切り戻しに使います。"
     },
-    "note": "Weights are basis points and must total exactly 10000. Rollback changes the weights; it never edits an immutable revision.",
+    "note": "Weights are basis points and must total exactly 10000. This definition targets exact WorkerVersion 0.4.0. If selected code changes while a workflow is running, it must remain compatible with recorded history. Rollback changes weights; it never edits an immutable revision.",
     "related": [
       {
         "kind": "ModuleWorker",
@@ -453,14 +453,14 @@
     "useCase": "Keep one chat room’s state and coordinate calls by room ID, instead of creating one infrastructure resource per room."
   },
   "DurableWorkflow": {
-    "version": "0.1.0",
+    "version": "0.2.0",
     "purpose": "Define a durable, multi-step workflow whose instances can resume after process death.",
     "ja": {
       "purpose": "プロセスが終了しても、インスタンスの処理を再開できる複数段階のワークフローを定義します。",
-      "note": "完了したステップの結果を記録し、再開時にはその結果を使います。ただし結果の記録前に同じステップの副作用が複数回起こり得るため、再試行しても結果が重複しないようにします。1回だけの実行を保証するものではありません。待機時間とイベント待ちには上限があります。トラフィックの重みが付いたすべてのバージョンでクラスを公開し、進行中のインスタンスの再実行との互換性を保つ必要があります。このFormが表すのはワークフローの能力で、実行ごとのインスタンスは実行時のデータです。",
+      "note": "名前付きクラスのrunとステップをHostが実行・記録します。完了した結果は再開時に再利用しますが、結果の確定前に副作用が繰り返されるため、コールバックには冪等性が必要です。イベントには任意のeventIdを付けて受理の再試行を重複排除できます。待機・イベント数・実行期間には上限があります。選択されるコードを変更するときは記録済み履歴との互換性が必要です。Formの公開だけではHostの実装・対応を示しません。",
       "useCase": "レポート生成、承認待ち、結果の配信のような複数段階の処理を、プロセスが再起動しても進捗を保って続けるときに使います。"
     },
-    "note": "Completed step results are recorded and replayed. A step’s side effects may occur more than once before its result is recorded: design retries to be idempotent, not exactly-once. Sleeps and event waits have finite bounds. All traffic-weighted versions must export the class and preserve replay compatibility for ongoing instances. This Form identifies a workflow capability; each run is runtime data, not another Form Resource.",
+    "note": "A Host executes and journals a named class run and its steps. Completed results replay, but an effect may repeat before its outcome commits, so callbacks need idempotency. Optional eventId deduplicates uncertain event-admission retries while the instance record is retained. Sleeps, inboxes and lifetime are bounded; selected code must remain replay-compatible with recorded history. Publishing the Form alone does not qualify a Host implementation. Instances are runtime data, not Resources.",
     "related": [
       {
         "kind": "ModuleWorker",

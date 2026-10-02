@@ -93,7 +93,7 @@ describe("Edge Form Package publication materialization", () => {
     });
 
     expect(checked.checked).toHaveLength(17);
-    expect(listPackageRoots(fixture)).toHaveLength(22);
+    expect(listPackageRoots(fixture)).toHaveLength(25);
     for (const snapshot of snapshots) {
       expect(
         snapshotTree(
@@ -138,8 +138,8 @@ describe("Edge Form Package publication materialization", () => {
     expect(() => writePublication({ root: fixture, verifyPackage })).toThrow(
       /retained release root is missing/,
     );
-    expect(listPackageRoots(fixture)).toHaveLength(4);
-    expect(plan.retainedPackageCount).toBe(2);
+    expect(listPackageRoots(fixture)).toHaveLength(7);
+    expect(plan.retainedPackageCount).toBe(5);
   });
 
   test("rejects divergent retained bytes and inventory tags", () => {
@@ -312,35 +312,17 @@ function makeFixtureVerifier(fixture) {
 }
 
 function findHistoricalPackageRoots() {
-  const root = path.join(repositoryRoot, "forms", "releases");
-  const wanted = new Map([
-    ["WorkerVersion", "0.2.0"],
-    ["WorkerDeployment", "0.1.0"],
-  ]);
-  const found = [];
-  for (const releaseId of readdirSync(root)) {
-    const releaseDirectory = path.join(root, releaseId);
-    for (const artifactId of readdirSync(releaseDirectory)) {
-      const source = path.join(releaseDirectory, artifactId);
-      const index = path.join(source, "package-index.json");
-      let formRef;
-      try {
-        formRef = JSON.parse(readFileSync(index, "utf8")).formRef;
-      } catch {
-        continue;
-      }
-      if (wanted.get(formRef?.kind) !== formRef?.definitionVersion) continue;
-      found.push({
-        kind: formRef.kind,
-        source,
-        relative: `${releaseId}/${artifactId}`,
-      });
-    }
-  }
-  if (found.length !== wanted.size) {
-    throw new Error(`historical package roots found: ${found.length}`);
-  }
-  return found;
+  const retained = JSON.parse(
+    readFileSync(
+      path.join(repositoryRoot, "forms/retained-packages.json"),
+      "utf8",
+    ),
+  );
+  return retained.packages.map((entry) => ({
+    kind: entry.formRef.kind,
+    source: path.join(repositoryRoot, entry.sourcePath),
+    relative: entry.sourcePath.slice("forms/releases/".length),
+  }));
 }
 
 function findCurrentPackageRoot(kind) {

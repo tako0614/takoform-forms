@@ -2,12 +2,12 @@
 
 The human-facing reference lives at **edge.forms.takoform.com**. It is owned
 by this publisher, not the neutral Takoform API/Core site. It contains an index,
-17 current Form pages and two retained version pages. Package publication,
+17 selected current Form pages and five retained version pages after regeneration. Package publication,
 Host support, admission and actual hosting are separate concerns.
 
 English keeps the existing root routes; Japanese pages are under `/ja/`. The
 language menu links to the corresponding page and preserves its heading fragment.
-Each locale has the complete 20-page sidebar. Guides and navigation are translated;
+Each locale has the complete 23-page sidebar. Guides and navigation are translated;
 contract descriptions and field descriptions are marked as original English.
 Schema, example and package-reference bytes do not change with language.
 
@@ -67,7 +67,10 @@ real prerequisite resources; the publisher does not invent these.
 - Canonical examples follow the Definition's `conformanceFixtures` declaration
   and must be listed in the package index. Required fields, defaults and limits
   come from `desiredSchema`. The full schema remains inspectable.
-- Current pages are tied to the selected installed signed set. Retained pages
+- Publishable current pages are tied to the selected installed signed set. The
+  portable pre-sign source check instead builds disposable private candidate
+  pages marked unpublished and noindex, with no public canonical or OG URL.
+  It cannot provide a site artifact or bypass the signed build. Retained pages
   come from `forms/retained-packages.json` and keep their original versioned URLs.
   They explicitly do not claim membership in the current signed set. Do not
   replace a retained page's example or schema with the current definition.
@@ -93,6 +96,13 @@ real prerequisite resources; the publisher does not invent these.
 bun install --frozen-lockfile
 go mod download
 bun run check
+```
+
+The portable gate includes `check:edge-form-pages:source`. After an exact
+signed current set is installed, run the signed page lane:
+
+```console
+bun run check:edge-form-pages
 bun run build:edge-form-pages
 bun run check:edge-form-pages:browser
 ```
@@ -104,8 +114,10 @@ caller-selected nonempty directory. For a specific set/destination:
 bun run build:edge-form-pages --trust-set <source-commit> --output <empty-directory>
 ```
 
-The portable gate is read-only and validates exact packages, deterministic HTML,
-fixtures, history labels and the static build. The explicit browser lane needs
+The portable gate is read-only and validates exact packages, guide version pins,
+candidate-only HTML/noindex metadata, history labels and a private static build;
+it deletes the temporary output. The separate signed page check and build still
+require an installed exact signed current closure. The explicit browser lane needs
 installed Chrome/Chromium (`TAKOFORM_BROWSER` overrides its path); it neither
 downloads a browser nor uses a user profile. It checks every current and retained
 page at 320/375/414/768px under the generated CSP, navigation, JSON, semantics,

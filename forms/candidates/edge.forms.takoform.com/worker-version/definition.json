@@ -1,7 +1,7 @@
 {
   "apiVersion": "edge.forms.takoform.com",
   "kind": "WorkerVersion",
-  "definitionVersion": "0.3.0",
+  "definitionVersion": "0.4.0",
   "title": "Worker Version",
   "description": "Immutable executable snapshot of one Module Worker: a bundle, the handlers its module exports, non-secret vars, and the typed capability bindings the code may use. A change is a new Worker Version; traffic moves only through Worker Deployments. The runtime this code runs on is not a field of this Form: it is fixed by the worker.runtime@1.1.0 contract the Module Worker identity provides, so a version carries no compatibility date and no compatibility flag (decision 0019).",
   "role": "revision",
@@ -760,8 +760,8 @@
               "x-takoform-required-interface": {
                 "apiVersion": "interfaces.takoform.com/v1alpha1",
                 "name": "worker.workflow",
-                "schemaDigest": "sha256:6b652dd311975da84469a5ec44f48acbc6db2097d1473988bd5424a85fda4294",
-                "version": "1.0.0"
+                "schemaDigest": "sha256:6751e8ced9bca039edb2090e39cc098189b11c930e0524fe5e486db9a069985c",
+                "version": "2.0.0"
               }
             }
           },
@@ -842,8 +842,8 @@
     {
       "apiVersion": "bindings.takoform.com/v1alpha2",
       "name": "module-worker.workflow",
-      "version": "1.0.0",
-      "schemaDigest": "sha256:208349ee6f07981bde09e4b9ee2020b86a76887540965657ed07590bc2ad5a0e"
+      "version": "2.0.0",
+      "schemaDigest": "sha256:b59c4f3a27c65d1dcd4ed4853e46eb67b662c7888a3714c287093f18a8568bc0"
     },
     {
       "apiVersion": "bindings.takoform.com/v1alpha2",

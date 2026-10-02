@@ -62,8 +62,6 @@ const (
 	revocationSourceCheckpoints    = "forms/revocations/checkpoints"
 )
 
-const expectedRetainedPackageCount = 2
-
 type retainedPackageInventory struct {
 	Format   string                 `json:"format"`
 	Family   string                 `json:"family"`
@@ -1162,9 +1160,6 @@ func verifyRetainedPackageInventory(repositoryRoot string) error {
 	if err := decodeStrict(raw, &inventory); err != nil {
 		return fmt.Errorf("decode retained package inventory: %w", err)
 	}
-	if inventory.Format != "takoform.retained-package-inventory@v1" || inventory.Family != Family || len(inventory.Packages) != expectedRetainedPackageCount {
-		return fmt.Errorf("retained package inventory must contain exactly %d %s roots", expectedRetainedPackageCount, Family)
-	}
 	expected := map[string]retainedPackageEntry{
 		"WorkerDeployment@0.1.0": {
 			FormRef: formpackage.FormRef{
@@ -1188,6 +1183,42 @@ func verifyRetainedPackageInventory(repositoryRoot string) error {
 			Tag:           "forms/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlskzsxe43jn5xa/sha256-63cf4dd3e96f575d1d1631c87d2e0ff0410ca820e142b8d4fa73e30aaa651025",
 			SourcePath:    "forms/releases/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlskzsxe43jn5xa/sha256-63cf4dd3e96f575d1d1631c87d2e0ff0410ca820e142b8d4fa73e30aaa651025",
 		},
+		"DurableWorkflow@0.1.0": {
+			FormRef: formpackage.FormRef{
+				APIVersion: Family, Kind: "DurableWorkflow", DefinitionVersion: "0.1.0",
+				SchemaDigest: "sha256:eed7a1b971e3261df6bc4bafcdfa2fd67e7928f4ec66737d0134df383e7dfc0a",
+			},
+			PackageDigest: "sha256:016ec7ec8a1a8333ab6d6aa63e4eb450fc2df47fca06e262a56cc064171d04d1",
+			ReleaseID:     "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2eovzgcytmmvlw64tlmzwg65y",
+			ArtifactID:    "sha256-016ec7ec8a1a8333ab6d6aa63e4eb450fc2df47fca06e262a56cc064171d04d1",
+			Tag:           "forms/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2eovzgcytmmvlw64tlmzwg65y/sha256-016ec7ec8a1a8333ab6d6aa63e4eb450fc2df47fca06e262a56cc064171d04d1",
+			SourcePath:    "forms/releases/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2eovzgcytmmvlw64tlmzwg65y/sha256-016ec7ec8a1a8333ab6d6aa63e4eb450fc2df47fca06e262a56cc064171d04d1",
+		},
+		"WorkerDeployment@0.2.0": {
+			FormRef: formpackage.FormRef{
+				APIVersion: Family, Kind: "WorkerDeployment", DefinitionVersion: "0.2.0",
+				SchemaDigest: "sha256:3d5174bf2c3f351cf1468607689019e9eaa503a353eceb3095cf3d31bad62081",
+			},
+			PackageDigest: "sha256:a752244c9f90caf18f9b5cec1b6b850fc318e6ec937d5b23eec33169f638c281",
+			ReleaseID:     "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlsirsxa3dppfwwk3tu",
+			ArtifactID:    "sha256-a752244c9f90caf18f9b5cec1b6b850fc318e6ec937d5b23eec33169f638c281",
+			Tag:           "forms/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlsirsxa3dppfwwk3tu/sha256-a752244c9f90caf18f9b5cec1b6b850fc318e6ec937d5b23eec33169f638c281",
+			SourcePath:    "forms/releases/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlsirsxa3dppfwwk3tu/sha256-a752244c9f90caf18f9b5cec1b6b850fc318e6ec937d5b23eec33169f638c281",
+		},
+		"WorkerVersion@0.3.0": {
+			FormRef: formpackage.FormRef{
+				APIVersion: Family, Kind: "WorkerVersion", DefinitionVersion: "0.3.0",
+				SchemaDigest: "sha256:65870343bfab512fe5e7ae6faea8b3dbc48f9c9de0d4d9349dcbfd819f06d365",
+			},
+			PackageDigest: "sha256:21adc2e4e677cd31e905483d38eff60c9eb61112f6c234a01d6a487154980891",
+			ReleaseID:     "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlskzsxe43jn5xa",
+			ArtifactID:    "sha256-21adc2e4e677cd31e905483d38eff60c9eb61112f6c234a01d6a487154980891",
+			Tag:           "forms/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlskzsxe43jn5xa/sha256-21adc2e4e677cd31e905483d38eff60c9eb61112f6c234a01d6a487154980891",
+			SourcePath:    "forms/releases/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlskzsxe43jn5xa/sha256-21adc2e4e677cd31e905483d38eff60c9eb61112f6c234a01d6a487154980891",
+		},
+	}
+	if inventory.Format != "takoform.retained-package-inventory@v1" || inventory.Family != Family || len(inventory.Packages) != len(expected) {
+		return fmt.Errorf("retained package inventory must contain exactly %d %s roots", len(expected), Family)
 	}
 	seen := make(map[string]struct{}, len(inventory.Packages))
 	for _, entry := range inventory.Packages {

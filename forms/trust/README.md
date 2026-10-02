@@ -8,9 +8,10 @@ is explicitly abandoned as `evidence-only`: three package identities changed
 before publication. The exact old ObjectBucket, WorkerDeployment, and
 WorkerVersion roots are listed in
 [`abandoned-prepublication.json`](abandoned-prepublication.json) and remain
-in `forms/releases` for audit/readback only. Together with the two retained
-roots, the local release tree has 22 roots; only 19 current/retained roots
-receive package tags.
+in `forms/releases` for audit/readback only. Together with five retained
+roots, the selected local release tree has 25 roots. The existing public set
+has 19 package tags; publication of the Workflow successor would make 22
+current/retained roots tagged.
 
 The abandoned record is a one-time singleton format. A second abandoned set
 requires a new format and an explicit architecture decision; do not append
@@ -72,9 +73,9 @@ commit and set. See the
 
 The deploy surface requires one installed non-abandoned set and performs the
 same credential-free verification after public readback. It verifies the 17
-current signed package subjects, the two retained release roots, and the three
-untagged abandoned evidence-only roots (22 immutable roots locally; 19
-publishable package tags). The package tags remain
+current signed package subjects, the five retained release roots, and the three
+untagged abandoned evidence-only roots (25 immutable roots locally; 22
+publishable package tags after the successor is published). The package tags remain
 the Core-derived content identities and may retain their older immutable Git
 commit when the tagged package bytes exactly match the signed source.
 `forms/sets/<source-commit>` identifies the signed publisher evidence closure.

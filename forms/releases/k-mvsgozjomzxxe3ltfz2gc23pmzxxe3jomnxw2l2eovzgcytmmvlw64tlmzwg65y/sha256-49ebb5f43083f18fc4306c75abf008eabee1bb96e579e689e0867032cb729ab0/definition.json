@@ -1,0 +1,123 @@
+{
+  "apiVersion": "edge.forms.takoform.com",
+  "kind": "DurableWorkflow",
+  "definitionVersion": "0.2.0",
+  "title": "Durable Workflow",
+  "description": "DurableWorkflow with the exact worker.workflow@2.0.0 portable class execution contract. The worker and className fix identity, not code: each new context uses the active deployment's then-current weighted WorkerVersion. Every weighted version must expose the named constructible class with callable prototype run before Ready. Instances and step journals are runtime data, not Resources. Old DurableWorkflow definitions retain their exact earlier contracts.",
+  "role": "identity",
+  "requiresHostApi": "forms.takoform.com/v1",
+  "constraints": [
+    {
+      "kind": "exclusive",
+      "reference": "/worker",
+      "keyedBy": "/className"
+    }
+  ],
+  "desiredSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "DurableWorkflow with the exact worker.workflow@2.0.0 portable class execution contract. The worker and className fix identity, not code: each new context uses the active deployment's then-current weighted WorkerVersion. Every weighted version must expose the named constructible class with callable prototype run before Ready. Instances and step journals are runtime data, not Resources. Old DurableWorkflow definitions retain their exact earlier contracts.",
+    "properties": {
+      "className": {
+        "description": "Immutable named class export in the serving main ES module. Each weighted version must export a constructible class with callable prototype run; construction takes only the declared env. Absence or incompatible export keeps the workflow from Ready and create fails unsupported_capability; no vendor base class or native context is required.",
+        "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+        "type": "string"
+      },
+      "worker": {
+        "additionalProperties": false,
+        "description": "Module Worker identity whose active deployment serves this workflow class. Changing it replaces the workflow.",
+        "properties": {
+          "apiVersion": {
+            "const": "edge.forms.takoform.com",
+            "type": "string"
+          },
+          "kind": {
+            "const": "ModuleWorker",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 63,
+            "minLength": 1,
+            "pattern": "^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "apiVersion",
+          "kind",
+          "name"
+        ],
+        "type": "object",
+        "x-takoform-required-interface": {
+          "apiVersion": "interfaces.takoform.com/v1alpha1",
+          "name": "worker.runtime",
+          "schemaDigest": "sha256:ed2f8211aac5be94488d391945ca6aca7627a4ecbd261e39790093e887feae08",
+          "version": "1.1.0"
+        }
+      }
+    },
+    "required": [
+      "className",
+      "worker"
+    ],
+    "title": "Durable Workflow desired state",
+    "type": "object"
+  },
+  "immutableFields": [
+    "/className",
+    "/worker"
+  ],
+  "lifecycleCapabilities": [
+    "create",
+    "read",
+    "delete",
+    "import",
+    "observe"
+  ],
+  "providedInterfaces": [
+    {
+      "apiVersion": "interfaces.takoform.com/v1alpha1",
+      "name": "worker.workflow",
+      "version": "2.0.0",
+      "schemaDigest": "sha256:6751e8ced9bca039edb2090e39cc098189b11c930e0524fe5e486db9a069985c"
+    }
+  ],
+  "conformanceFixtures": [
+    {
+      "name": "canonical",
+      "desiredPath": "fixtures/desired.json"
+    }
+  ],
+  "negativeConformanceFixtures": [
+    {
+      "name": "reject-unexpected-property",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-unexpected-property.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-missing-worker",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-missing-worker.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-missing-class-name",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-missing-class-name.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-worker",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-worker.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-class-name",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-class-name.json",
+      "expectedFailure": "schema_validation_failed"
+    }
+  ]
+}

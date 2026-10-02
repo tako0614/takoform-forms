@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 export const ACTIVE_FAMILY = "edge.forms.takoform.com";
 export const EXPECTED_FORM_COUNT = 17;
-export const EXPECTED_RETAINED_PACKAGE_COUNT = 2;
+export const EXPECTED_RETAINED_PACKAGE_COUNT = 5;
 export const EXPECTED_EVIDENCE_ONLY_PACKAGE_COUNT = 3;
 export const RETAINED_PACKAGE_INVENTORY_RELATIVE =
   "forms/retained-packages.json";
@@ -100,7 +100,7 @@ const expectedEvidenceOnlyPackages = Object.freeze([
   }),
 ]);
 
-// These are the only two pre-current package identities that this publisher
+// These are the five pre-current package identities that this publisher
 // is authorized to retain. The inventory is an append-only locator manifest,
 // not a wildcard permit for arbitrary content-addressed roots.
 const expectedRetainedPackages = Object.freeze([
@@ -132,6 +132,50 @@ const expectedRetainedPackages = Object.freeze([
     releaseId: "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlskzsxe43jn5xa",
     artifactId:
       "sha256-63cf4dd3e96f575d1d1631c87d2e0ff0410ca820e142b8d4fa73e30aaa651025",
+  }),
+  Object.freeze({
+    formRef: Object.freeze({
+      apiVersion: ACTIVE_FAMILY,
+      kind: "DurableWorkflow",
+      definitionVersion: "0.1.0",
+      schemaDigest:
+        "sha256:eed7a1b971e3261df6bc4bafcdfa2fd67e7928f4ec66737d0134df383e7dfc0a",
+    }),
+    packageDigest:
+      "sha256:016ec7ec8a1a8333ab6d6aa63e4eb450fc2df47fca06e262a56cc064171d04d1",
+    releaseId:
+      "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2eovzgcytmmvlw64tlmzwg65y",
+    artifactId:
+      "sha256-016ec7ec8a1a8333ab6d6aa63e4eb450fc2df47fca06e262a56cc064171d04d1",
+  }),
+  Object.freeze({
+    formRef: Object.freeze({
+      apiVersion: ACTIVE_FAMILY,
+      kind: "WorkerDeployment",
+      definitionVersion: "0.2.0",
+      schemaDigest:
+        "sha256:3d5174bf2c3f351cf1468607689019e9eaa503a353eceb3095cf3d31bad62081",
+    }),
+    packageDigest:
+      "sha256:a752244c9f90caf18f9b5cec1b6b850fc318e6ec937d5b23eec33169f638c281",
+    releaseId:
+      "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlsirsxa3dppfwwk3tu",
+    artifactId:
+      "sha256-a752244c9f90caf18f9b5cec1b6b850fc318e6ec937d5b23eec33169f638c281",
+  }),
+  Object.freeze({
+    formRef: Object.freeze({
+      apiVersion: ACTIVE_FAMILY,
+      kind: "WorkerVersion",
+      definitionVersion: "0.3.0",
+      schemaDigest:
+        "sha256:65870343bfab512fe5e7ae6faea8b3dbc48f9c9de0d4d9349dcbfd819f06d365",
+    }),
+    packageDigest:
+      "sha256:21adc2e4e677cd31e905483d38eff60c9eb61112f6c234a01d6a487154980891",
+    releaseId: "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2xn5zgwzlskzsxe43jn5xa",
+    artifactId:
+      "sha256-21adc2e4e677cd31e905483d38eff60c9eb61112f6c234a01d6a487154980891",
   }),
 ]);
 

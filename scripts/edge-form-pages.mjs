@@ -19,6 +19,7 @@ import { renderVitePressPages } from "./edge-form-pages-vitepress.mjs";
 import {
   ABANDONED_PREPUBLICATION_SET_ID,
   derivePublicationPlan,
+  verifyPublicationTree,
   verifyWithCore,
 } from "./form-publication.mjs";
 
@@ -56,64 +57,7 @@ export function buildEdgeFormPages({
       root,
     ),
   );
-  const guide = readJSON(path.join(root, "site/reading-guide.json"));
-  if (
-    Object.keys(guide).sort().join() !==
-    current
-      .map((form) => form.formRef.kind)
-      .sort()
-      .join()
-  )
-    throw new Error("reading guide must cover every current Form exactly");
-  for (const form of current) {
-    form.guide = guide[form.formRef.kind];
-    if (
-      form.guide.version !== form.formRef.definitionVersion ||
-      !form.guide.purpose ||
-      !form.guide.note ||
-      typeof form.guide.useCase !== "string" ||
-      !form.guide.useCase.trim() ||
-      typeof form.guide.ja?.purpose !== "string" ||
-      !form.guide.ja.purpose.trim() ||
-      typeof form.guide.ja?.note !== "string" ||
-      !form.guide.ja.note.trim() ||
-      typeof form.guide.ja?.useCase !== "string" ||
-      !form.guide.ja.useCase.trim() ||
-      !Array.isArray(form.guide.related) ||
-      !form.guide.related.length ||
-      new Set(form.guide.related.map((entry) => entry.kind)).size !==
-        form.guide.related.length ||
-      !form.guide.related.every(
-        (entry) =>
-          guide[entry.kind] &&
-          entry.kind !== form.formRef.kind &&
-          typeof entry.relation === "string" &&
-          entry.relation.trim() &&
-          typeof entry.ja === "string" &&
-          entry.ja.trim(),
-      )
-    )
-      throw new Error(
-        `${form.formRef.kind}: reading guide requires review for this exact definition version`,
-      );
-  }
-  const forms = [...current, ...retained];
-  const identities = new Set(
-    forms.map(
-      (form) => `${form.formRef.kind}/${form.formRef.definitionVersion}`,
-    ),
-  );
-  if (identities.size !== forms.length)
-    throw new Error("duplicate versioned page identity");
-  for (const form of forms) {
-    form.related = (form.guide?.related ?? []).map((relation) => ({
-      ...relation,
-      form: current.find((entry) => entry.formRef.kind === relation.kind),
-    }));
-    form.versions = forms.filter(
-      (entry) => entry.formRef.kind === form.formRef.kind && entry !== form,
-    );
-  }
+  const forms = preparePageForms(current, retained, root);
   const isPublic = validatePublicReadback(publicReadback, current, trust);
   if (
     isPublic &&
@@ -166,6 +110,184 @@ export function buildEdgeFormPages({
     files,
     digest: `sha256:${digest.digest("hex")}`,
   };
+}
+
+function preparePageForms(current, retained, root) {
+  const guide = readJSON(path.join(root, "site/reading-guide.json"));
+  validatePageGuide(current, guide);
+  const forms = [...current, ...retained];
+  const identities = new Set(
+    forms.map(
+      (form) => `${form.formRef.kind}/${form.formRef.definitionVersion}`,
+    ),
+  );
+  if (identities.size !== forms.length)
+    throw new Error("duplicate versioned page identity");
+  for (const form of forms) {
+    form.related = (form.guide?.related ?? []).map((relation) => ({
+      ...relation,
+      form: current.find((entry) => entry.formRef.kind === relation.kind),
+    }));
+    form.versions = forms.filter(
+      (entry) => entry.formRef.kind === form.formRef.kind && entry !== form,
+    );
+  }
+  return forms;
+}
+
+export function validatePageGuide(current, guide) {
+  if (
+    Object.keys(guide).sort().join() !==
+    current
+      .map((form) => form.formRef.kind)
+      .sort()
+      .join()
+  )
+    throw new Error("reading guide must cover every current Form exactly");
+  for (const form of current) {
+    form.guide = guide[form.formRef.kind];
+    if (
+      form.guide.version !== form.formRef.definitionVersion ||
+      !form.guide.purpose ||
+      !form.guide.note ||
+      typeof form.guide.useCase !== "string" ||
+      !form.guide.useCase.trim() ||
+      typeof form.guide.ja?.purpose !== "string" ||
+      !form.guide.ja.purpose.trim() ||
+      typeof form.guide.ja?.note !== "string" ||
+      !form.guide.ja.note.trim() ||
+      typeof form.guide.ja?.useCase !== "string" ||
+      !form.guide.ja.useCase.trim() ||
+      !Array.isArray(form.guide.related) ||
+      !form.guide.related.length ||
+      new Set(form.guide.related.map((entry) => entry.kind)).size !==
+        form.guide.related.length ||
+      !form.guide.related.every(
+        (entry) =>
+          guide[entry.kind] &&
+          entry.kind !== form.formRef.kind &&
+          typeof entry.relation === "string" &&
+          entry.relation.trim() &&
+          typeof entry.ja === "string" &&
+          entry.ja.trim(),
+      )
+    )
+      throw new Error(
+        `${form.formRef.kind}: reading guide requires review for this exact definition version`,
+      );
+  }
+}
+
+/**
+ * Qualify unsigned current-source pages before external signing. This lane is
+ * deliberately check-only: it owns and removes its private temporary output,
+ * returns no asset path or signed/public evidence, and cannot be selected by
+ * the deploy surface. The normal builder above remains exact-signed-only.
+ */
+export function checkEdgeFormSourcePages({ root = repositoryRoot } = {}) {
+  const plan = derivePublicationPlan({ root });
+  verifyPublicationTree(plan, { root });
+  const current = plan.forms
+    .map((entry) => readPagePackage(entry, root))
+    .sort((left, right) =>
+      `${left.formRef.kind}@${left.formRef.definitionVersion}`.localeCompare(
+        `${right.formRef.kind}@${right.formRef.definitionVersion}`,
+      ),
+    );
+  const retained = (plan.retainedPackages ?? []).map((entry) =>
+    readPagePackage(
+      {
+        ...entry,
+        locator: { tag: entry.tag, sourcePath: entry.sourcePath },
+        retained: true,
+      },
+      root,
+    ),
+  );
+  const forms = preparePageForms(current, retained, root);
+  const temporary = mkdtempSync(path.join(tmpdir(), "edge-form-source-check-"));
+  const outputDirectory = path.join(temporary, "assets");
+  try {
+    const routes = renderVitePressPages({
+      root,
+      outputDirectory,
+      forms,
+      isPublic: false,
+      sourceCandidate: true,
+      origin: EDGE_FORM_PAGES_ORIGIN,
+    });
+    for (const route of routes) {
+      const html = readFileSync(
+        path.join(outputDirectory, route, "index.html"),
+        "utf8",
+      );
+      const candidateMarker = route.startsWith("/ja/")
+        ? "未公開のソース候補"
+        : "Unpublished source candidate";
+      if (
+        !html.includes(candidateMarker) ||
+        !/name="robots" content="noindex,nofollow"/u.test(html) ||
+        /rel="canonical"|property="og:url"|signed Edge Forms|<td>Signed set<\/td>/u.test(
+          html,
+        )
+      )
+        throw new Error(
+          `${route}: source page build contains publishable or signed metadata`,
+        );
+    }
+    const headers = readFileSync(
+      path.join(outputDirectory, "_headers"),
+      "utf8",
+    );
+    if (
+      !headers.includes("X-Robots-Tag: noindex, nofollow") ||
+      !headers.includes("Cache-Control: private, no-store")
+    )
+      throw new Error("source page build lacks private noindex headers");
+    const robots = readFileSync(
+      path.join(outputDirectory, "robots.txt"),
+      "utf8",
+    );
+    if (
+      !robots.includes("Disallow: /") ||
+      existsSync(path.join(outputDirectory, "sitemap.xml"))
+    )
+      throw new Error("source page build exposes a public sitemap");
+    dryRunPages(root, temporary, outputDirectory);
+    return {
+      kind: "takoform.edge-form-pages-source-check@v1",
+      status: "CANDIDATE_ONLY",
+      formCount: current.length,
+      retainedCount: retained.length,
+      routeCount: routes.length,
+      outputRetained: false,
+    };
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+}
+
+function dryRunPages(root, temporary, outputDirectory) {
+  const wrangler = spawnSync(
+    path.join(root, "node_modules", ".bin", "wrangler"),
+    [
+      "deploy",
+      "--cwd",
+      temporary,
+      "--config",
+      path.join(root, "site", "wrangler.jsonc"),
+      "--assets",
+      outputDirectory,
+      "--dry-run",
+      "--outdir",
+      path.join(temporary, "wrangler"),
+    ],
+    { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+  );
+  if (wrangler.status !== 0)
+    throw new Error(
+      `Wrangler page build dry-run failed${wrangler.stderr ? `:\n${wrangler.stderr.trim()}` : ""}`,
+    );
 }
 
 function assetFiles(directory, prefix = "") {
@@ -223,7 +345,7 @@ export function exactSignedForms(plan, trust, root = repositoryRoot) {
   );
 }
 
-function readPagePackage(entry, root) {
+export function readPagePackage(entry, root) {
   const packageRoot = resolveWithinRoot(root, entry.locator.sourcePath);
   const verified = verifyWithCore(packageRoot, root);
   if (
@@ -326,6 +448,8 @@ function resolveWithinRoot(root, relative) {
 
 function parseCLI(args) {
   if (args.length === 0) return { mode: "build" };
+  if (args.length === 1 && args[0] === "--check-source")
+    return { mode: "check-source" };
   if (
     args.length === 3 &&
     args[0] === "--check" &&
@@ -347,12 +471,18 @@ function parseCLI(args) {
     };
   }
   throw new Error(
-    "usage: bun scripts/edge-form-pages.mjs --check | --trust-set <40-hex-set> --output <directory>",
+    "usage: bun scripts/edge-form-pages.mjs --check-source | --check [--trust-set <40-hex-set>] | --trust-set <40-hex-set> --output <directory>",
   );
 }
 
 function runCLI(args) {
   const invocation = parseCLI(args);
+  if (invocation.mode === "check-source") {
+    process.stdout.write(
+      `${JSON.stringify(checkEdgeFormSourcePages(), null, 2)}\n`,
+    );
+    return;
+  }
   const plan = derivePublicationPlan();
   let setId = invocation.setId;
   let outputDirectory = invocation.outputDirectory;
@@ -366,27 +496,7 @@ function runCLI(args) {
     const trust = readInstalledTrustSet(setId);
     const result = buildEdgeFormPages({ outputDirectory, plan, trust });
     if (invocation.mode === "check") {
-      const wrangler = spawnSync(
-        path.join(repositoryRoot, "node_modules", ".bin", "wrangler"),
-        [
-          "deploy",
-          "--cwd",
-          temporary,
-          "--config",
-          path.join(repositoryRoot, "site", "wrangler.jsonc"),
-          "--assets",
-          outputDirectory,
-          "--dry-run",
-          "--outdir",
-          path.join(temporary, "wrangler"),
-        ],
-        { cwd: repositoryRoot, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
-      );
-      if (wrangler.status !== 0) {
-        throw new Error(
-          `Wrangler page build dry-run failed${wrangler.stderr ? `:\n${wrangler.stderr.trim()}` : ""}`,
-        );
-      }
+      dryRunPages(repositoryRoot, temporary, outputDirectory);
     }
     process.stdout.write(
       `${JSON.stringify({ ...result, outputDirectory }, null, 2)}\n`,
@@ -397,10 +507,8 @@ function runCLI(args) {
   }
 }
 
-function selectInstalledPageSet(plan) {
-  const installed = readdirSync(
-    path.join(repositoryRoot, "forms", "trust", "sets"),
-  )
+export function selectInstalledPageSet(plan, root = repositoryRoot) {
+  const installed = readdirSync(path.join(root, "forms", "trust", "sets"))
     .filter(
       (name) =>
         commitPattern.test(name) && name !== ABANDONED_PREPUBLICATION_SET_ID,
@@ -408,7 +516,7 @@ function selectInstalledPageSet(plan) {
     .sort();
   const matching = [];
   for (const candidate of installed) {
-    const trust = readInstalledTrustSet(candidate);
+    const trust = readInstalledTrustSet(candidate, root);
     try {
       exactSignedForms(plan, trust);
       matching.push(trust);

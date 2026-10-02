@@ -98,6 +98,20 @@ func renderSource() (sourceDocument, error) {
 	if err != nil {
 		return sourceDocument{}, fmt.Errorf("render Edge Forms: %w", err)
 	}
+	// Select only the independently reviewed Workflow successor closure. The
+	// other 14 Forms and every unrelated Interface/Binding keep their published
+	// definitions; the old Workflow versions remain in immutable release roots.
+	workflow, err := edgeformcatalog.RenderWorkflowCandidate()
+	if err != nil {
+		return sourceDocument{}, fmt.Errorf("render Workflow successor: %w", err)
+	}
+	for _, replacement := range []edgeformcatalog.RenderedForm{
+		workflow.Form, workflow.WorkerVersion, workflow.WorkerDeployment,
+	} {
+		if err := replaceFormByKind(edgeForms, replacement); err != nil {
+			return sourceDocument{}, err
+		}
+	}
 	if err := appendFamily(edgeformcatalog.Family.APIVersion(), "internal/edgeformcatalog", edgeForms); err != nil {
 		return sourceDocument{}, err
 	}
@@ -105,12 +119,18 @@ func renderSource() (sourceDocument, error) {
 	if err != nil {
 		return sourceDocument{}, fmt.Errorf("render Edge Interfaces: %w", err)
 	}
+	if err := replaceContractByName(edgeInterfaces, workflow.Interface); err != nil {
+		return sourceDocument{}, err
+	}
 	if err := appendContracts(&document.Interfaces, edgeInterfaces); err != nil {
 		return sourceDocument{}, err
 	}
 	edgeBindings, err := edgeformcatalog.RenderBindings()
 	if err != nil {
 		return sourceDocument{}, fmt.Errorf("render Edge Bindings: %w", err)
+	}
+	if err := replaceContractByName(edgeBindings, workflow.Binding); err != nil {
+		return sourceDocument{}, err
 	}
 	if err := appendContracts(&document.Bindings, edgeBindings); err != nil {
 		return sourceDocument{}, err
@@ -126,6 +146,34 @@ func renderSource() (sourceDocument, error) {
 		}
 	}
 	return document, nil
+}
+
+func replaceFormByKind(forms []edgeformcatalog.RenderedForm, replacement edgeformcatalog.RenderedForm) error {
+	found := 0
+	for index := range forms {
+		if forms[index].Kind == replacement.Kind {
+			forms[index] = replacement
+			found++
+		}
+	}
+	if found != 1 {
+		return fmt.Errorf("Workflow successor Form %s matched %d current Forms, want one", replacement.Kind, found)
+	}
+	return nil
+}
+
+func replaceContractByName(contracts []edgeformcatalog.RenderedContract, replacement edgeformcatalog.RenderedContract) error {
+	found := 0
+	for index := range contracts {
+		if contracts[index].Name == replacement.Name {
+			contracts[index] = replacement
+			found++
+		}
+	}
+	if found != 1 {
+		return fmt.Errorf("Workflow successor contract %s matched %d current contracts, want one", replacement.Name, found)
+	}
+	return nil
 }
 
 func sortExactContracts(contracts []sourceContract) error {

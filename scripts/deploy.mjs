@@ -127,9 +127,9 @@ export const DEPLOY_CONTRACT = Object.freeze({
       triggers: ["authority", "published-identity"],
       obligations: {
         provenance:
-          "The one clean canonical main commit is gated once. Released Core v1.1.0 verifies all 17 exact canonical package-index subjects, the exact publisher policy and trusted root, every Sigstore v0.3 bundle, the bounded signed API v1 checkpoint chain from genesis, every canonical statement digest, and every not-revoked decision. Publication separately verifies the exact local release inventory (17 current roots, two retained immutable roots, and three explicitly listed abandoned evidence-only roots) while only 19 current/retained roots receive publishable package tags. All new evidence reports one protected-main publisher/source/workflow/build commit; package subjects, revocation source, retained inventory, abandoned recovery manifest, and publisher verification code remain byte-exact from that signed commit through publication.",
+          "The one clean canonical main commit is gated once. Released Core v1.1.0 verifies all 17 exact canonical package-index subjects, the exact publisher policy and trusted root, every Sigstore v0.3 bundle, the bounded signed API v1 checkpoint chain from genesis, every canonical statement digest, and every not-revoked decision. Publication separately verifies the exact local release inventory (17 current roots, five retained immutable roots, and three explicitly listed abandoned evidence-only roots) while only 22 current/retained roots receive publishable package tags. All new evidence reports one protected-main publisher/source/workflow/build commit; package subjects, revocation source, retained inventory, abandoned recovery manifest, and publisher verification code remain byte-exact from that signed commit through publication.",
         "post-conditions":
-          "After one ordinary atomic non-force push, credential-free verification reads origin main, all 19 exact publishable release-root tags (17 current package tags plus two retained tags), the three untagged abandoned evidence-only roots from the recovery manifest, the create-only forms/sets/<source-commit> tag, and every immutable forms/revocations/v<statement-version> tag; fetches public commits into fresh storage; compares package and revocation bytes; and replays Core v1.1.0 package, publisher, signature, checkpoint, continuity, and revocation verification.",
+          "After one ordinary atomic non-force push, credential-free verification reads origin main, all 22 exact publishable release-root tags (17 current package tags plus five retained tags), the three untagged abandoned evidence-only roots from the recovery manifest, the create-only forms/sets/<source-commit> tag, and every immutable forms/revocations/v<statement-version> tag; fetches public commits into fresh storage; compares package and revocation bytes; and replays Core v1.1.0 package, publisher, signature, checkpoint, continuity, and revocation verification.",
         reversal:
           "Package tags, release paths, signed trust-set paths, set tags, revocation statements, checkpoints, and revocation tags are immutable and are never deleted, retagged, or overwritten. A bad publication cannot be rolled back in place; forward repair appends one new statement/checkpoint, signs a new source commit, and creates a new set, while changed package bytes also create a new Core-derived package identity.",
         "failure-handling":
@@ -2441,7 +2441,7 @@ export function verifyPublicPublication(
       "PUBLIC_MAIN_READBACK",
       "SIGNED_SET_TAG_READBACK",
       "APPEND_ONLY_REVOCATION_TAG_CHAIN_READBACK",
-      "ALL_22_RELEASE_ROOTS_AND_19_TAGGED_PACKAGE_BYTES_READBACK",
+      `ALL_${plan.formCount + (plan.retainedPackages ?? []).length + (plan.evidenceOnlyPackages ?? []).length}_RELEASE_ROOTS_AND_${plan.formCount + (plan.retainedPackages ?? []).length}_TAGGED_PACKAGE_BYTES_READBACK`,
       "FRESH_TREE_BYTE_COMPARISON",
       "CORE_V1_1_0_PACKAGE_TRUST_REVOCATION_VERIFICATION",
     ],

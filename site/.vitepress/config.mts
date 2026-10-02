@@ -9,6 +9,9 @@ if (!buildRoot)
     "Build verified package pages with bun run build:edge-form-pages",
   );
 const origin = "https://edge.forms.takoform.com";
+// The page builder sets this explicitly for every subprocess. Never inherit a
+// caller's ambient source mode into the signed/public build.
+const sourceCandidate = process.env.EDGE_DOCS_SOURCE_CANDIDATE === "1";
 
 export default defineConfig({
   lang: "en",
@@ -95,6 +98,8 @@ export default defineConfig({
     },
   },
   transformHead({ pageData, title, description }) {
+    if (sourceCandidate)
+      return [["meta", { name: "robots", content: "noindex,nofollow" }]];
     const route = `/${pageData.relativePath.replace(/index\.md$/u, "").replace(/\.md$/u, "")}`;
     return [
       ["link", { rel: "canonical", href: `${origin}${route}` }],

@@ -20,7 +20,12 @@ export function renderVitePressPages({
   trust,
   isPublic,
   origin,
+  sourceCandidate = false,
 }) {
+  if (sourceCandidate && (trust !== undefined || isPublic))
+    throw new Error(
+      "source candidate rendering cannot carry signed or public evidence",
+    );
   const temporary = mkdtempSync(path.join(tmpdir(), "edge-vitepress-source-"));
   const source = path.join(temporary, "docs");
   const routes = ["en", "ja"].flatMap((locale) => [
@@ -41,14 +46,14 @@ export function renderVitePressPages({
       mkdirSync(localeRoot, { recursive: true });
       writeFileSync(
         path.join(localeRoot, "index.md"),
-        renderIndex(forms, isPublic, locale),
+        renderIndex(forms, isPublic, locale, sourceCandidate),
       );
       for (const form of forms) {
         const directory = path.join(source, routeFor(form, locale));
         mkdirSync(directory, { recursive: true });
         writeFileSync(
           path.join(directory, "index.md"),
-          renderForm(form, trust, isPublic, locale),
+          renderForm(form, trust, isPublic, locale, sourceCandidate),
         );
       }
       const sidebar = [
@@ -108,7 +113,11 @@ export function renderVitePressPages({
         cwd: root,
         encoding: "utf8",
         maxBuffer: 64 * 1024 * 1024,
-        env: { ...process.env, EDGE_DOCS_BUILD_ROOT: temporary },
+        env: {
+          ...process.env,
+          EDGE_DOCS_BUILD_ROOT: temporary,
+          EDGE_DOCS_SOURCE_CANDIDATE: sourceCandidate ? "1" : "0",
+        },
       },
     );
     if (result.status !== 0)
@@ -117,15 +126,24 @@ export function renderVitePressPages({
       );
     writeFileSync(
       path.join(outputDirectory, "robots.txt"),
-      `User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\n`,
+      sourceCandidate
+        ? "User-agent: *\nDisallow: /\n"
+        : `User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\n`,
     );
-    writeFileSync(
-      path.join(outputDirectory, "sitemap.xml"),
-      `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${routes.map((route) => `<url><loc>${origin}${route}</loc></url>`).join("")}</urlset>\n`,
-    );
+    if (!sourceCandidate)
+      writeFileSync(
+        path.join(outputDirectory, "sitemap.xml"),
+        `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${routes.map((route) => `<url><loc>${origin}${route}</loc></url>`).join("")}</urlset>\n`,
+      );
+    const headers = headersFor(outputDirectory, routes);
     writeFileSync(
       path.join(outputDirectory, "_headers"),
-      headersFor(outputDirectory, routes),
+      sourceCandidate
+        ? headers.replace(
+            "Cache-Control: public, max-age=0, must-revalidate, no-transform",
+            "Cache-Control: private, no-store\n  X-Robots-Tag: noindex, nofollow",
+          )
+        : headers,
     );
     return routes;
   } finally {
@@ -171,7 +189,11 @@ function json(value) {
   return `${fence}json\n${text}\n${fence}`;
 }
 
-function status(isPublic, locale = "en") {
+function status(isPublic, locale = "en", sourceCandidate = false) {
+  if (sourceCandidate)
+    return locale === "ja"
+      ? "未公開のソース候補です。署名・公開済みパッケージやHost対応を示しません。"
+      : "Unpublished source candidate. No signed package, public readback or Host support is asserted.";
   if (locale === "ja")
     return isPublic
       ? "公開パッケージの内容を取得して検証済みです。"
@@ -181,7 +203,7 @@ function status(isPublic, locale = "en") {
     : "Package contents were verified locally. This build does not assert public readability.";
 }
 
-function renderIndex(forms, isPublic, locale = "en") {
+function renderIndex(forms, isPublic, locale = "en", sourceCandidate = false) {
   const current = forms.filter((form) => !form.retained);
   const workerVersion = current.find(
     (form) => form.formRef.kind === "WorkerVersion",
@@ -200,7 +222,7 @@ Worker、ストレージ、キュー、ワークフロー、Actorの設定と振
 
 ## 共通モデルとAPIの説明先 {#shared-model-and-api}
 
-このサイトでは、Edge Formsの公開元が提供する契約と、パッケージに含まれる正確な例を確認できます。公開元に共通するモデルとHost APIは、別の[Takoformのサイト](https://takoform.com/)と[Host APIリファレンス](https://takoform.com/host-api/)で説明しています。Formごとの\`definitionVersion\`はAPIプロトコルの版とは別です。クライアントライブラリとTerraform/OpenTofuプロバイダーも、それぞれ独立した版で公開されます。これらを同期させる独立した仕様の版はありません。
+${sourceCandidate ? "これは公開前のソース候補を検証する非公開ビルドです。公開済みサイトではありません。" : "このサイトでは、Edge Formsの公開元が提供する契約と、パッケージに含まれる正確な例を確認できます。"}公開元に共通するモデルとHost APIは、別の[Takoformのサイト](https://takoform.com/)と[Host APIリファレンス](https://takoform.com/host-api/)で説明しています。Formごとの\`definitionVersion\`はAPIプロトコルの版とは別です。クライアントライブラリとTerraform/OpenTofuプロバイダーも、それぞれ独立した版で公開されます。これらを同期させる独立した仕様の版はありません。
 
 ## Workerアプリケーション {#worker-applications}
 
@@ -211,7 +233,7 @@ ${renderTaskGuide(current, locale)}
 
 ## 現在のForms {#current-forms}
 
-署名付きのEdge Formsは${current.length}種類です。${status(isPublic, locale)}
+${sourceCandidate ? "未公開の候補" : "署名付き"}のEdge Formsは${current.length}種類です。${status(isPublic, locale, sourceCandidate)}
 
 | Form | 用途 |
 | --- | --- |
@@ -230,7 +252,7 @@ ${nextSteps(locale)}
 
 ## 過去のバージョン {#retained-versions}
 
-以前の定義も元のURLで取得できます。現在の署名セットには含まれません。
+以前の定義も元のURLで取得できます。${sourceCandidate ? "この候補の現在セットには含まれません。" : "現在の署名セットには含まれません。"}
 
 ${forms
   .filter((form) => form.retained)
@@ -248,7 +270,7 @@ Form definitions for the configuration and behavior of workers, storage, queues,
 
 ## Where the shared model and API live {#shared-model-and-api}
 
-This site documents the Edge Form contracts published here and each package's exact example. The shared model and Host API are documented separately at [Takoform](https://takoform.com/en/) and in the [Host API reference](https://takoform.com/en/host-api/). A Form's \`definitionVersion\` is not the API protocol version; client libraries and Terraform/OpenTofu providers have independent release versions too. No separate specification version synchronizes these releases.
+${sourceCandidate ? "This private build checks unpublished current source and retained package history; it is not a published site." : "This site documents the Edge Form contracts published here and each package's exact example."} The shared model and Host API are documented separately at [Takoform](https://takoform.com/en/) and in the [Host API reference](https://takoform.com/en/host-api/). A Form's \`definitionVersion\` is not the API protocol version; client libraries and Terraform/OpenTofu providers have independent release versions too. No separate specification version synchronizes these releases.
 
 ## Worker applications
 
@@ -259,7 +281,7 @@ ${renderTaskGuide(current, locale)}
 
 ## Current Forms
 
-${current.length} signed Edge Forms. ${status(isPublic)}
+${current.length} ${sourceCandidate ? "unpublished candidate" : "signed"} Edge Forms. ${status(isPublic, "en", sourceCandidate)}
 
 | Form | Purpose |
 | --- | --- |
@@ -278,7 +300,7 @@ ${nextSteps(locale)}
 
 ## Retained versions
 
-These older definitions remain available at their original URLs. They are not members of the current signed set.
+These older definitions remain available at their original URLs. They are not members of the ${sourceCandidate ? "candidate current set" : "current signed set"}.
 
 ${forms
   .filter((form) => form.retained)
@@ -287,14 +309,22 @@ ${forms
 `;
 }
 
-function renderForm(form, trust, isPublic, locale = "en") {
+function renderForm(
+  form,
+  trust,
+  isPublic,
+  locale = "en",
+  sourceCandidate = false,
+) {
   const { definition, formRef } = form;
   const t = (en, ja) => (locale === "ja" ? ja : en);
   const link = (entry) => formLink(entry, locale);
   const guide = locale === "ja" ? form.guide?.ja : form.guide;
   const required = new Set(definition.desiredSchema.required ?? []);
   const properties = Object.entries(definition.desiredSchema.properties ?? {});
-  const sourceUrl = `https://github.com/tako0614/takoform-forms/tree/${encodeURIComponent(form.locator.tag)}/${form.locator.sourcePath}`;
+  const sourceUrl = sourceCandidate
+    ? undefined
+    : `https://github.com/tako0614/takoform-forms/tree/${encodeURIComponent(form.locator.tag)}/${form.locator.sourcePath}`;
   const fields = properties
     .map(
       ([name, schema]) =>
@@ -310,7 +340,7 @@ description: ${JSON.stringify(`${formRef.kind} ${formRef.definitionVersion}: ${g
 
 ${literal(guide?.purpose ?? t(`Historical ${definition.title} definition. See the version links below for the current definition.`, `${definition.title}の過去の定義です。現在の定義は下のバージョン一覧から確認できます。`))}
 
-${form.retained ? `::: warning ${t("Retained version", "過去のバージョン")}\n${t("This historical version is not part of the current signed set.", "この過去のバージョンは、現在の署名セットに含まれません。")} ${status(isPublic, locale)}\n:::` : status(isPublic, locale)}
+${form.retained ? `::: warning ${t("Retained version", "過去のバージョン")}\n${sourceCandidate ? t("This historical version is not part of the candidate current set.", "この過去のバージョンは、現在の候補セットに含まれません。") : t("This historical version is not part of the current signed set.", "この過去のバージョンは、現在の署名セットに含まれません。")} ${status(isPublic, locale, sourceCandidate)}\n:::` : status(isPublic, locale, sourceCandidate)}
 
 ${t("Host support and admission are separate from package publication. Check your Host before using this version.", "Hostの対応や受け入れ判断は、パッケージの公開とは別です。このバージョンを使う前に、利用先のHostで確認してください。")}
 
@@ -333,7 +363,7 @@ ${t(`This is the exact ${literal(form.desiredPath)} from this package, not a com
 
 ${json(form.example)}
 
-[${t("Read source fixture", "例の原文を見る")}](${sourceUrl}/${form.desiredPath})
+${sourceCandidate ? t("This unpublished source candidate has no immutable public fixture link.", "この未公開ソース候補には、公開済みの変更不可な例へのリンクはありません。") : `[${t("Read source fixture", "例の原文を見る")}](${sourceUrl}/${form.desiredPath})`}
 
 <div id="desired-schema">
 
@@ -364,11 +394,11 @@ ${(definition.providedInterfaces ?? []).map((entry) => `- ${literal(`${entry.nam
 | Kind | ${literal(formRef.kind)} |
 | Package digest | ${literal(form.packageDigest)} |
 | Schema digest | ${literal(formRef.schemaDigest)} |
-| Tag | ${literal(form.locator.tag)} |
+| ${sourceCandidate && !form.retained ? t("Proposed tag", "公開候補のタグ") : "Tag"} | ${literal(form.locator.tag)} |
 | Source path | ${literal(form.locator.sourcePath)} |
-| ${form.retained ? `${t("History", "履歴")} | ${t("Retained package; not a current signed-set member", "過去のパッケージ。現在の署名セットには含まれません。")}` : `${t("Signed set", "署名セット")} | ${literal(trust.setId)}`} |
+| ${sourceCandidate ? `${t("Status", "状態")} | ${t("Unpublished source candidate; no signed set or public package tag is asserted", "未公開のソース候補。署名セットや公開済みパッケージタグは示しません")}` : form.retained ? `${t("History", "履歴")} | ${t("Retained package; not a current signed-set member", "過去のパッケージ。現在の署名セットには含まれません。")}` : `${t("Signed set", "署名セット")} | ${literal(trust.setId)}`} |
 
-[${t("Open immutable package", "変更不可のパッケージを開く")}](${sourceUrl})
+${sourceCandidate ? t("No immutable public package link exists for this candidate page.", "この候補ページには、公開済みの変更不可なパッケージへのリンクはありません。") : `[${t("Open immutable package", "変更不可のパッケージを開く")}](${sourceUrl})`}
 
 ::: details ${t("Four-field FormRef", "4項目のFormRef")}
 ${json(formRef)}

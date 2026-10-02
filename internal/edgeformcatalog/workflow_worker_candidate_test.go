@@ -92,12 +92,15 @@ func TestWorkflowWorkerCandidateReplacesWorkflowBindingAndRetargetsField(t *test
 	for _, phrase := range []string{
 		"worker.workflow@2.0.0",
 		"callee ABI",
-		"create({id, params})",
+		"create({id?, params?})",
 		"get(id)",
 		"status()",
-		"sendEvent({type, payload})",
+		"sendEvent({type, payload?, eventId?})",
 		"terminate()",
 		"WorkflowInstance.id",
+		"eventId",
+		"event_conflict",
+		"event_queue_full",
 		"not exposed to callers",
 	} {
 		if !strings.Contains(binding.Description, phrase) {

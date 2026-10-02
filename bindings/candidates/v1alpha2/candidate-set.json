@@ -35,8 +35,8 @@
     },
     {
       "name": "module-worker.workflow",
-      "version": "1.0.0",
-      "schemaDigest": "sha256:208349ee6f07981bde09e4b9ee2020b86a76887540965657ed07590bc2ad5a0e"
+      "version": "2.0.0",
+      "schemaDigest": "sha256:b59c4f3a27c65d1dcd4ed4853e46eb67b662c7888a3714c287093f18a8568bc0"
     }
   ]
 }

@@ -2,15 +2,15 @@
   "apiVersion": "bindings.takoform.com/v1alpha2",
   "kind": "BindingDefinition",
   "name": "module-worker.workflow",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "title": "Module Worker durable workflow binding",
-  "description": "Projects the INSTANCE surface of worker.workflow into a Worker Version. The entrypoint half of that contract — run and the step operations — is what the host provides to the workflow CLASS, never to a consumer, so it is deliberately not projected here. Runtime surface: env.NAME is an object with create({id, params}) and get(id), each returning a promise for a WorkflowInstance. create admits an author-chosen instance id and mints one when absent; it rejects with an Error named instance_exists for an id a retained instance still holds, so a retry after a lost response does not silently start a second execution under one name. get rejects with unknown_instance when nothing holds the id. A WorkflowInstance carries id and the methods status(), sendEvent({type, payload}) and terminate(). status resolves to {status, output?, error?} over the closed vocabulary queued, running, sleeping, waiting, complete, errored, terminated — a workflow that THREW is a successful status read reporting errored, not a rejected call. sendEvent resolves once the event is durably retained, which may be before any waitForEvent consumes it, and rejects against a terminal instance. Every rejection carries an Error named for the contract's closed per-operation code; a call rejects only when the operation could not be performed.",
+  "description": "Projects only the caller operations of exact worker.workflow@2.0.0 into a Worker Version; the class run/step callee ABI is not exposed to callers. Runtime surface: env.NAME has create({id?, params?}) and get(id), each returning a Promise<WorkflowInstance>. The handle has WorkflowInstance.id and status(), sendEvent({type, payload?, eventId?}) and terminate() methods. A caller-chosen id is scoped to the DurableWorkflow and makes uncertain create retries observable: a retained id fails instance_exists instead of starting twice. A minted id is not a retry key. get fails unknown_instance if no retained instance holds that id. status resolves to committed {status, output?, error?}; workflow failure is an errored status, not a rejected call. sendEvent resolves only after durable admission. Its optional eventId deduplicates identical canonical events within this retained instance, including after consumption or terminal transition. A conflicting key fails event_conflict, a full inbox fails event_queue_full, and a new event after terminal fails instance_terminal. An unkeyed lost reply may duplicate the event. terminate fences and retires active code before publishing terminated; repeating it on any terminal instance succeeds without changing that outcome. Every operation rejection uses its exact Interface-defined Error.name; the step object is available only to the class, never this Binding.",
   "sourceRole": "revision",
   "targetInterface": {
     "apiVersion": "interfaces.takoform.com/v1alpha1",
     "name": "worker.workflow",
-    "version": "1.0.0",
-    "schemaDigest": "sha256:6b652dd311975da84469a5ec44f48acbc6db2097d1473988bd5424a85fda4294"
+    "version": "2.0.0",
+    "schemaDigest": "sha256:6751e8ced9bca039edb2090e39cc098189b11c930e0524fe5e486db9a069985c"
   },
   "allowedTargetForms": [
     {

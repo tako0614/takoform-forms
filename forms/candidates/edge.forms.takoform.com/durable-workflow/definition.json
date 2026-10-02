@@ -1,9 +1,9 @@
 {
   "apiVersion": "edge.forms.takoform.com",
   "kind": "DurableWorkflow",
-  "definitionVersion": "0.1.0",
+  "definitionVersion": "0.2.0",
   "title": "Durable Workflow",
-  "description": "Long-lived identity of one code-defined durable workflow: a class the worker's active deployment serves, whose instances survive process death. The Form fixes the execution model by identity — the worker.workflow@1.0.0 contract in its providedInterfaces states memoized replay, at-least-once step execution, the closed status vocabulary, and the two bounds that keep an instance finite. It carries NO implementation snapshot: which code answers is whatever the worker's active Worker Deployment selects, so behavior upgrades and rollback ride the deployment like any other traffic change. Instances are runtime data reached through module-worker.workflow bindings, never Resources. One worker carries at most one Durable Workflow per class name.",
+  "description": "DurableWorkflow with the exact worker.workflow@2.0.0 portable class execution contract. The worker and className fix identity, not code: each new context uses the active deployment's then-current weighted WorkerVersion. Every weighted version must expose the named constructible class with callable prototype run before Ready. Instances and step journals are runtime data, not Resources. Old DurableWorkflow definitions retain their exact earlier contracts.",
   "role": "identity",
   "requiresHostApi": "forms.takoform.com/v1",
   "constraints": [
@@ -16,10 +16,10 @@
   "desiredSchema": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
-    "description": "Long-lived identity of one code-defined durable workflow: a class the worker's active deployment serves, whose instances survive process death. The Form fixes the execution model by identity — the worker.workflow@1.0.0 contract in its providedInterfaces states memoized replay, at-least-once step execution, the closed status vocabulary, and the two bounds that keep an instance finite. It carries NO implementation snapshot: which code answers is whatever the worker's active Worker Deployment selects, so behavior upgrades and rollback ride the deployment like any other traffic change. Instances are runtime data reached through module-worker.workflow bindings, never Resources. One worker carries at most one Durable Workflow per class name.",
+    "description": "DurableWorkflow with the exact worker.workflow@2.0.0 portable class execution contract. The worker and className fix identity, not code: each new context uses the active deployment's then-current weighted WorkerVersion. Every weighted version must expose the named constructible class with callable prototype run before Ready. Instances and step journals are runtime data, not Resources. Old DurableWorkflow definitions retain their exact earlier contracts.",
     "properties": {
       "className": {
-        "description": "Class export name the serving module provides, in the JavaScript identifier grammar. Every weighted version of the active deployment must export it; one that does not keeps this workflow from becoming Ready, and creating an instance against it is refused rather than queued.",
+        "description": "Immutable named class export in the serving main ES module. Each weighted version must export a constructible class with callable prototype run; construction takes only the declared env. Absence or incompatible export keeps the workflow from Ready and create fails unsupported_capability; no vendor base class or native context is required.",
         "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
         "type": "string"
       },
@@ -78,8 +78,8 @@
     {
       "apiVersion": "interfaces.takoform.com/v1alpha1",
       "name": "worker.workflow",
-      "version": "1.0.0",
-      "schemaDigest": "sha256:6b652dd311975da84469a5ec44f48acbc6db2097d1473988bd5424a85fda4294"
+      "version": "2.0.0",
+      "schemaDigest": "sha256:6751e8ced9bca039edb2090e39cc098189b11c930e0524fe5e486db9a069985c"
     }
   ],
   "conformanceFixtures": [

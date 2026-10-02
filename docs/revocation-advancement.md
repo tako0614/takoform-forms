@@ -112,7 +112,8 @@ bun run deploy -- form-packages-edge --trust-set <signed-source-commit> --dry-ru
 The dry-run must name:
 
 - the unique previous public set;
-- all 17 current Core-derived package tags and the two retained package tags;
+- all 17 selected current Core-derived package tags and five retained package tags
+  after Workflow publication (the existing public set still has 19 tags);
 - the create-only `forms/sets/<signed-source-commit>` tag; and
 - exactly one new `forms/revocations/v<new-version>` tag.
 

@@ -9,17 +9,18 @@ import (
 )
 
 const (
-	// These are unpublished forward identities. The registered workflow
-	// Binding, WorkerVersion, and WorkerDeployment remain unchanged.
+	// Existing workflow Binding, WorkerVersion, and WorkerDeployment identities
+	// remain immutable; these are distinct successor versions.
 	WorkflowCandidateBindingName             = "module-worker.workflow"
 	WorkflowCandidateBindingVersion          = "2.0.0"
-	WorkflowWorkerVersionCandidateVersion    = "0.4.0-workflow.1"
-	WorkflowWorkerDeploymentCandidateVersion = "0.3.0-workflow.1"
+	WorkflowWorkerVersionCandidateVersion    = "0.4.0"
+	WorkflowWorkerDeploymentCandidateVersion = "0.3.0"
 )
 
 // RenderWorkflowCandidate renders the forward workflow Interface pair and
-// projects it into a new Binding, WorkerVersion, and WorkerDeployment. It does
-// not register any of those artifacts in the current catalog.
+// projects it into a new Binding, WorkerVersion, and WorkerDeployment. The
+// publisher composition selects these exact successors without mutating the
+// base catalog used to derive the historical closure.
 func RenderWorkflowCandidate() (WorkflowCandidate, error) {
 	candidate, err := renderWorkflowCandidatePair()
 	if err != nil {
@@ -185,10 +186,21 @@ func workflowCandidateBinding(iface RenderedContract) (BindingDefinition, error)
 		Version:      iface.Version,
 		SchemaDigest: iface.SchemaDigest,
 	}
-	current.Description = "Unpublished forward Binding targeting the exact worker.workflow@2.0.0 Interface. " +
-		"The callee ABI belongs to that Interface and is not exposed to callers. The following caller " +
-		"projection is preserved, including the returned WorkflowInstance.id; its operation outcomes and " +
-		"status reasons follow the exact new Interface. " + current.Description
+	current.Description = "Projects only the caller operations of exact worker.workflow@2.0.0 into a Worker Version; " +
+		"the class run/step callee ABI is not exposed to callers. Runtime surface: env.NAME has " +
+		"create({id?, params?}) and get(id), each returning a Promise<WorkflowInstance>. The handle has WorkflowInstance.id " +
+		"and status(), sendEvent({type, payload?, eventId?}) and terminate() methods. A caller-chosen id " +
+		"is scoped to the DurableWorkflow and makes uncertain create retries observable: a retained id " +
+		"fails instance_exists instead of starting twice. A minted id is not a retry key. get fails " +
+		"unknown_instance if no retained instance holds that id. status resolves to committed " +
+		"{status, output?, error?}; workflow failure is an errored status, not a rejected call. " +
+		"sendEvent resolves only after durable admission. Its optional eventId deduplicates identical canonical " +
+		"events within this retained instance, including after consumption or terminal transition. A conflicting " +
+		"key fails event_conflict, a full inbox fails event_queue_full, and a new event after terminal " +
+		"fails instance_terminal. An unkeyed lost reply may duplicate the event. terminate fences and retires " +
+		"active code before publishing terminated; repeating it on any terminal instance succeeds without " +
+		"changing that outcome. Every operation rejection uses its exact Interface-defined Error.name; " +
+		"the step object is available only to the class, never this Binding."
 	return current, nil
 }
 

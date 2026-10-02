@@ -31,16 +31,18 @@ an old exact contract is acquired from its immutable Git source, not replaced
 by whichever version is current.
 
 `check:integrity` preserves the extraction baseline against published source
-`e7f8a39311dd011b8467e97e7f300cabb9a6b06c` and refuses changed bytes for a
-published definition's same version, including the retained Form identities.
+`e7f8a39311dd011b8467e97e7f300cabb9a6b06c`. It also compares every
+locally tagged published release root and signed trust-set tree to its Git
+bytes, checks prior Interface/Binding/Form identities against their tagged
+definitions, and requires set tags anchored by the fetched public main.
 `check:generation` separately verifies exact current candidate bytes. Checks
 need Git with `--no-lazy-fetch` support (2.45 or newer) and that exact source's
 objects locally; missing history is an error, with no automatic fetch or fallback.
-CI already checks out full history. The fixed legacy corpus and retained
-inventory still require their existing byte guards until their forward writer
-and append-only proof are implemented. Before later releases are edited, their
-published identities must also enter the historical protection set; the initial
-snapshot alone is not a complete future-publication policy.
+CI already checks out full history. The fixed legacy conformance corpus remains
+byte-guarded. The retained inventory may grow only with exact published tags;
+the offline guard cannot prove a cached remote ref is fresh or authenticate a
+new local tag. The owning publication gate does both against public origin and
+the signed Core trust chain before any immutable mutation.
 
 Form Packages and publisher trust evidence are verified with the pinned public
 Core v1.1.0. The root and inventory pages describe the Core-derived locator,
@@ -49,10 +51,11 @@ condition; all publishers use the same API v1 contracts.
 
 ## Local forward candidates
 
-- [Workflow execution candidate](proposals/workflow-execution-contract.md):
+- [Workflow execution successor](proposals/workflow-execution-contract.md):
   plain-JavaScript class, retry and replay semantics with a separate exact
-  Form/Interface/Binding closure. This is not published or advertised as Host
-  support; current package definitions remain unchanged.
+  Form/Interface/Binding closure selected in local current source. Its new
+  package identities are not yet published or advertised as Host support;
+  the existing public package definitions remain unchanged.
 - [Aggregate runtime candidate](proposals/runtime-candidate.md): one JSON
   closure that exercises the Actor, Workflow and VectorIndex proposals
   together (`go run ./cmd/runtime-candidate`). This is not published or

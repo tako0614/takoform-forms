@@ -32,8 +32,8 @@ for the shared rules.
 | [ModuleWorker](candidates/edge.forms.takoform.com/module-worker/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/module-worker/package-index.json) | identity | `0.1.0` | Worker application identity and handler ABI. |
 | [WorkerBundle](candidates/edge.forms.takoform.com/worker-bundle/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/worker-bundle/package-index.json) | revision | `0.1.0` | Points to a module manifest by `manifestDigest`; the manifest inventories bytes. |
 | [StaticAssetBundle](candidates/edge.forms.takoform.com/static-asset-bundle/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/static-asset-bundle/package-index.json) | revision | `0.1.0` | Points to an asset manifest by `manifestDigest`; the manifest inventories bytes. |
-| [WorkerVersion](candidates/edge.forms.takoform.com/worker-version/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/worker-version/package-index.json) | revision | `0.3.0` | Executable worker snapshot and bindings. |
-| [WorkerDeployment](candidates/edge.forms.takoform.com/worker-deployment/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/worker-deployment/package-index.json) | deployment | `0.2.0` | Traffic weights across worker versions. |
+| [WorkerVersion](candidates/edge.forms.takoform.com/worker-version/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/worker-version/package-index.json) | revision | `0.4.0` | Executable worker snapshot and bindings. |
+| [WorkerDeployment](candidates/edge.forms.takoform.com/worker-deployment/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/worker-deployment/package-index.json) | deployment | `0.3.0` | Traffic weights across worker versions. |
 | [WorkerCustomDomain](candidates/edge.forms.takoform.com/worker-custom-domain/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/worker-custom-domain/package-index.json) | attachment | `0.1.0` | Attach a custom hostname to a worker. |
 | [WorkerEndpoint](candidates/edge.forms.takoform.com/worker-endpoint/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/worker-endpoint/package-index.json) | attachment | `0.1.0` | Give a worker a host-assigned HTTPS address. |
 | [WorkerCronTrigger](candidates/edge.forms.takoform.com/worker-cron-trigger/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/worker-cron-trigger/package-index.json) | attachment | `0.1.0` | Run a worker on a UTC cron schedule. |
@@ -44,7 +44,7 @@ for the shared rules.
 | [SQLiteMigrationApplication](candidates/edge.forms.takoform.com/sqlite-migration-application/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/sqlite-migration-application/package-index.json) | attachment | `0.1.0` | Apply one migration set to one database. |
 | [AtLeastOnceQueue](candidates/edge.forms.takoform.com/at-least-once-queue/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/at-least-once-queue/package-index.json) | identity | `0.1.0` | Unordered queue with at-least-once delivery. |
 | [QueueConsumer](candidates/edge.forms.takoform.com/queue-consumer/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/queue-consumer/package-index.json) | attachment | `0.1.0` | Worker batch consumer and retry policy. |
-| [DurableWorkflow](candidates/edge.forms.takoform.com/durable-workflow/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/durable-workflow/package-index.json) | identity | `0.1.0` | Durable replayed workflow class. |
+| [DurableWorkflow](candidates/edge.forms.takoform.com/durable-workflow/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/durable-workflow/package-index.json) | identity | `0.2.0` | Durable replayed workflow class. |
 | [ActorNamespace](candidates/edge.forms.takoform.com/actor-namespace/definition.json) | [package-index.json](candidates/edge.forms.takoform.com/actor-namespace/package-index.json) | identity | `0.1.0` | Addressable actor class and ID space. |
 
 ## Package identity
@@ -60,15 +60,18 @@ forms/<releaseId>/sha256-<digest>
 ```
 
 The publisher signs 17 current package-index subjects. The append-only
-`forms/releases` tree and release readback cover those 17 current roots, the
-exact historical `WorkerVersion` 0.2.0 and `WorkerDeployment` 0.1.0 roots
-recorded in [`retained-packages.json`](retained-packages.json), and the three
-old roots recorded in the one-time
+`forms/releases` tree and release readback cover those 17 current roots, five
+exact historical roots in [`retained-packages.json`](retained-packages.json)
+(`WorkerVersion` 0.2.0/0.3.0, `WorkerDeployment` 0.1.0/0.2.0, and
+`DurableWorkflow` 0.1.0), and three old roots recorded in the one-time
 [`abandoned-prepublication.json`](trust/abandoned-prepublication.json)
-recovery manifest. The local tree therefore has 22 roots. Only the 17 current
-and two retained roots receive publishable package tags (19 tags); the three
+recovery manifest. The local tree therefore has 25 roots. The existing public
+set has 19 package tags; after this source is signed and published, the 17
+current and five retained roots have 22 publishable package tags. The three
 abandoned roots are evidence-only and never receive tags. Every historical
-root is immutable and is never rewritten.
+root is immutable and is never rewritten. The Workflow successor remains
+unpublished and unsupported until that separate publication and Host
+qualification occur.
 
 See the [root README](../README.md#preparing-and-publishing-packages) for
 generation, signing, verification, and publication commands. Package tags are

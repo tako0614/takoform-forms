@@ -68,10 +68,11 @@ for (const relative of expectedPaths) {
     failures.push(`${relative}: baseline path is not a regular file`);
     continue;
   }
-  // These historical corpus/inventory documents do not yet have a forward
-  // writer/append-only proof. Keep their exact guard until that owner path is
-  // implemented; only the reproducibly generated candidate trees advance here.
+  // Historical conformance corpus stays fixed. The retained inventory may
+  // grow only with exact tagged packages: verifyPublishedBaseline checks every
+  // published set/package tag and its immutable bytes before this loop.
   if (
+    relative !== "forms/retained-packages.json" &&
     ![
       "forms/candidates/",
       "interfaces/candidates/",
@@ -238,7 +239,7 @@ if (!existsSync(retainedInventoryPath)) {
     retainedInventory.format !== "takoform.retained-package-inventory@v1" ||
     retainedInventory.family !== "edge.forms.takoform.com" ||
     !Array.isArray(retainedInventory.packages) ||
-    retainedInventory.packages.length !== 2
+    retainedInventory.packages.length !== 5
   ) {
     failures.push("retained package inventory format/count drift");
   }
@@ -282,7 +283,10 @@ if (!existsSync(retainedInventoryPath)) {
   }
   if (
     !retainedKeys.has("WorkerVersion@0.2.0") ||
-    !retainedKeys.has("WorkerDeployment@0.1.0")
+    !retainedKeys.has("WorkerDeployment@0.1.0") ||
+    !retainedKeys.has("DurableWorkflow@0.1.0") ||
+    !retainedKeys.has("WorkerDeployment@0.2.0") ||
+    !retainedKeys.has("WorkerVersion@0.3.0")
   ) {
     failures.push("retained package inventory identities drift");
   }

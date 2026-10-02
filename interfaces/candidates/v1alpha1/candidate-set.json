@@ -40,8 +40,8 @@
     },
     {
       "name": "worker.workflow",
-      "version": "1.0.0",
-      "schemaDigest": "sha256:6b652dd311975da84469a5ec44f48acbc6db2097d1473988bd5424a85fda4294"
+      "version": "2.0.0",
+      "schemaDigest": "sha256:6751e8ced9bca039edb2090e39cc098189b11c930e0524fe5e486db9a069985c"
     }
   ]
 }

@@ -86,6 +86,75 @@ func TestReadAbandonedPrepublicationRequiresTheExactSingletonRecord(t *testing.T
 	}
 }
 
+func TestRetainedInventoryRequiresEveryExactPublishedPredecessor(t *testing.T) {
+	t.Parallel()
+	repositoryRoot := filepath.Join("..", "..")
+	if err := verifyRetainedPackageInventory(repositoryRoot); err != nil {
+		t.Fatalf("exact retained inventory: %v", err)
+	}
+	raw, err := os.ReadFile(filepath.Join(repositoryRoot, filepath.FromSlash(retainedPackageInventorySource)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var original retainedPackageInventory
+	if err := json.Unmarshal(raw, &original); err != nil {
+		t.Fatal(err)
+	}
+	if len(original.Packages) != 5 {
+		t.Fatalf("retained package count = %d, want 5 exact published identities", len(original.Packages))
+	}
+	for _, test := range []struct {
+		name   string
+		mutate func(*retainedPackageInventory)
+		want   string
+	}{
+		{
+			name: "missing newly retained predecessor",
+			mutate: func(inventory *retainedPackageInventory) {
+				inventory.Packages = inventory.Packages[:len(inventory.Packages)-1]
+			},
+			want: "exactly 5",
+		},
+		{
+			name: "substituted published identity",
+			mutate: func(inventory *retainedPackageInventory) {
+				inventory.Packages[0].FormRef.DefinitionVersion = "9.9.9"
+			},
+			want: "not an exact retained identity",
+		},
+		{
+			name: "changed published digest",
+			mutate: func(inventory *retainedPackageInventory) {
+				inventory.Packages[0].PackageDigest = "sha256:" + strings.Repeat("0", 64)
+			},
+			want: "differs from the exact published identity",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := t.TempDir()
+			inventory := retainedPackageInventory{
+				Format: original.Format, Family: original.Family,
+				Packages: append([]retainedPackageEntry(nil), original.Packages...),
+			}
+			test.mutate(&inventory)
+			mutated, err := json.Marshal(inventory)
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(fixture, filepath.FromSlash(retainedPackageInventorySource))
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, mutated, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := verifyRetainedPackageInventory(fixture); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("invalid inventory error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
 func TestVerifyPublishedSetClassifiesAbandonedEvidenceOnlyPackages(t *testing.T) {
 	t.Parallel()
 	repositoryRoot := filepath.Join("..", "..")
