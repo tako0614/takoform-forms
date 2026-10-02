@@ -1,0 +1,191 @@
+{
+  "apiVersion": "edge.forms.takoform.com",
+  "kind": "ContainerService",
+  "definitionVersion": "0.1.0",
+  "title": "Container Service",
+  "description": "One logical private HTTP Container service identified by an OCI image pinned to a sha256 manifest digest. The Host provisions and operates exact execution revisions using Host Offering-owned capacity and placement; those are never customer desired fields. This Form-only local candidate does not publish caller-facing HTTP invocation; container.http and its Worker Binding remain a separate unresolved contract gap. The service exposes the declared HTTP port and health path. An update starts the exact requested workload revision, verifies health before moving serving traffic, and preserves the previous serving execution revision of the same Resource incarnation if startup or health fails. A lost operation acknowledgement is resolved by readback of the same resource UID, desired generation, and operation identity before retry; a mismatched identity is never adopted. Delete is fenced by the exact observed incarnation. Durable restart recovery reconciles persisted desired/observed generations and operation identity; it is not process-control through the request API. `requiredSensitiveVars` contains names only, never secret values. This initial local executable slice refuses any nonempty requiredSensitiveVars because the current Host API cannot supply secret material. `environment` is classified as ordinary nonsecret desired-state configuration and is persisted/read back as part of ResourceSpec. Callers MUST NOT put secrets in this field; the schema does not automatically detect or reject secret values. A separate sealed, generation-bound secret transport is not available. `outboundInternet` is explicitly false when omitted and becomes true only when requested.",
+  "role": "identity",
+  "requiresHostApi": "forms.takoform.com/v1",
+  "desiredSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "One logical private HTTP Container service identified by an OCI image pinned to a sha256 manifest digest. The Host provisions and operates exact execution revisions using Host Offering-owned capacity and placement; those are never customer desired fields. This Form-only local candidate does not publish caller-facing HTTP invocation; container.http and its Worker Binding remain a separate unresolved contract gap. The service exposes the declared HTTP port and health path. An update starts the exact requested workload revision, verifies health before moving serving traffic, and preserves the previous serving execution revision of the same Resource incarnation if startup or health fails. A lost operation acknowledgement is resolved by readback of the same resource UID, desired generation, and operation identity before retry; a mismatched identity is never adopted. Delete is fenced by the exact observed incarnation. Durable restart recovery reconciles persisted desired/observed generations and operation identity; it is not process-control through the request API. `requiredSensitiveVars` contains names only, never secret values. This initial local executable slice refuses any nonempty requiredSensitiveVars because the current Host API cannot supply secret material. `environment` is classified as ordinary nonsecret desired-state configuration and is persisted/read back as part of ResourceSpec. Callers MUST NOT put secrets in this field; the schema does not automatically detect or reject secret values. A separate sealed, generation-bound secret transport is not available. `outboundInternet` is explicitly false when omitted and becomes true only when requested.",
+    "properties": {
+      "environment": {
+        "additionalProperties": {
+          "maxLength": 4096,
+          "pattern": "^[\\s\\S]*$",
+          "type": "string"
+        },
+        "default": {},
+        "description": "At most 64 ordinary bounded desired-state strings persisted/read back as ResourceSpec. Callers MUST NOT put secrets here; automatic secret-value detection/rejection is not provided.",
+        "maxProperties": 64,
+        "propertyNames": {
+          "pattern": "^[A-Za-z][A-Za-z0-9._-]{0,63}$",
+          "type": "string",
+          "x-takoform-fieldPolicy": "portable-data-only-v1"
+        },
+        "type": "object"
+      },
+      "healthPath": {
+        "description": "Absolute path used by the Host to establish readiness before an update is made serving.",
+        "maxLength": 2048,
+        "pattern": "^/(?:[A-Za-z0-9._~!$&'()*+,;=:@-]|%[0-9A-Fa-f]{2})+(?:/(?:[A-Za-z0-9._~!$&'()*+,;=:@-]|%[0-9A-Fa-f]{2})+)*$|^/$",
+        "type": "string"
+      },
+      "httpPort": {
+        "description": "The private HTTP listener port inside the image; public port mapping and placement are Host-owned.",
+        "maximum": 65535,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "image": {
+        "description": "OCI image reference including its immutable sha256 manifest digest; mutable tags without a digest are refused.",
+        "maxLength": 512,
+        "pattern": "^(?:[a-z0-9]+(?:[.-][a-z0-9]+)*(?::(?:[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?/)?[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})?@sha256:[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "outboundInternet": {
+        "default": false,
+        "description": "Whether this workload may initiate outbound Internet connections. Omission means false.",
+        "type": "boolean"
+      },
+      "requiredSensitiveVars": {
+        "default": [],
+        "description": "Names of required sensitive process variables only; values are supplied outside portable desired state. This initial executable local slice refuses a nonempty set.",
+        "items": {
+          "pattern": "^[A-Za-z][A-Za-z0-9._-]{0,63}$",
+          "type": "string"
+        },
+        "maxItems": 64,
+        "type": "array",
+        "uniqueItems": true
+      },
+      "workloadRevision": {
+        "description": "Author-declared bounded revision identity for this desired workload; it is part of the exact operation fence, not a Host UID or generation.",
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+        "type": "string"
+      }
+    },
+    "required": [
+      "healthPath",
+      "httpPort",
+      "image",
+      "workloadRevision"
+    ],
+    "title": "Container Service desired state",
+    "type": "object"
+  },
+  "lifecycleCapabilities": [
+    "create",
+    "read",
+    "update",
+    "delete",
+    "observe"
+  ],
+  "conformanceFixtures": [
+    {
+      "name": "canonical",
+      "desiredPath": "fixtures/desired.json"
+    }
+  ],
+  "negativeConformanceFixtures": [
+    {
+      "name": "reject-unexpected-property",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-unexpected-property.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-missing-image",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-missing-image.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-missing-http-port",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-missing-http-port.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-missing-health-path",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-missing-health-path.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-missing-workload-revision",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-missing-workload-revision.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-image",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-image.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-http-port",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-http-port.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-health-path",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-health-path.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-environment",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-environment.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-workload-revision",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-workload-revision.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-required-sensitive-vars",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-required-sensitive-vars.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-sensitive-requirement-values-not-names",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-sensitive-requirement-values-not-names.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-http-port-out-of-range",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-http-port-out-of-range.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-environment-value-too-long",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-environment-value-too-long.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-registry-port-out-of-range",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-registry-port-out-of-range.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-health-path-empty-segment",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-health-path-empty-segment.json",
+      "expectedFailure": "schema_validation_failed"
+    }
+  ]
+}

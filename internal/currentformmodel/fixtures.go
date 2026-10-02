@@ -2,6 +2,7 @@ package currentformmodel
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -104,6 +105,15 @@ func (f Form) NegativeCases() ([]NegativeCase, error) {
 		}}
 		appendCase(fixtureToken(field.HCL)+"-invalid-protocol", desired)
 	}
+	for _, item := range f.DeclaredNegativeCases {
+		if !fixtureNamePattern.MatchString(item.Name) {
+			return nil, fmt.Errorf("form %s declares invalid negative case name %q", f.Kind, item.Name)
+		}
+		if item.Desired == nil {
+			return nil, fmt.Errorf("form %s declared negative case %q has no desired document", f.Kind, item.Name)
+		}
+		appendCase(item.Name, cloneValue(item.Desired).(map[string]any))
+	}
 
 	seen := map[string]struct{}{}
 	for _, item := range cases {
@@ -117,6 +127,8 @@ func (f Form) NegativeCases() ([]NegativeCase, error) {
 	}
 	return cases, nil
 }
+
+var fixtureNamePattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
 type namedCounterExample struct {
 	Name  string

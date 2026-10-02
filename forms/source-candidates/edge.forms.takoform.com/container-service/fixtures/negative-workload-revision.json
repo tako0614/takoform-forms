@@ -1,0 +1,12 @@
+{
+  "environment": {
+    "APP.MODE": "production",
+    "APP_MODE": "standard"
+  },
+  "healthPath": "/health",
+  "httpPort": 8080,
+  "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "outboundInternet": false,
+  "requiredSensitiveVars": [],
+  "workloadRevision": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+}

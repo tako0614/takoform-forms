@@ -1,0 +1,129 @@
+{
+  "apiVersion": "edge.forms.takoform.com",
+  "kind": "ContainerEndpoint",
+  "definitionVersion": "0.1.0",
+  "title": "Container Endpoint",
+  "description": "Attaches one stable HTTPS root URL to one exact ContainerService Resource incarnation. The `service` reference pins edge.forms.takoform.com/ContainerService@0.1.0 and is immutable for this endpoint; at most one live endpoint may attach to a service. The host-assigned canonical hostname and root URL both remain immutable for the endpoint's UID. Requests route to the referenced service's health-selected serving generation, so workload-generation cutover does not change the URL. If a service is deleted and recreated under the same name with a new UID, the endpoint MUST NOT retarget to that replacement. Delete the endpoint to detach it; deleting a service while this attachment is live is refused as dependency_in_use, and detaching never deletes the service. HTTPS uses its standard root port 443; no plaintext address is provided. This endpoint is not an authentication, authorization, or secret-delivery contract and declares no Worker Interface or Binding.",
+  "role": "attachment",
+  "requiresHostApi": "forms.takoform.com/v1",
+  "constraints": [
+    {
+      "kind": "exclusive",
+      "reference": "/service"
+    },
+    {
+      "kind": "hostAssigned",
+      "output": "/hostname"
+    },
+    {
+      "kind": "hostAssigned",
+      "output": "/url"
+    }
+  ],
+  "desiredSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Attaches one stable HTTPS root URL to one exact ContainerService Resource incarnation. The `service` reference pins edge.forms.takoform.com/ContainerService@0.1.0 and is immutable for this endpoint; at most one live endpoint may attach to a service. The host-assigned canonical hostname and root URL both remain immutable for the endpoint's UID. Requests route to the referenced service's health-selected serving generation, so workload-generation cutover does not change the URL. If a service is deleted and recreated under the same name with a new UID, the endpoint MUST NOT retarget to that replacement. Delete the endpoint to detach it; deleting a service while this attachment is live is refused as dependency_in_use, and detaching never deletes the service. HTTPS uses its standard root port 443; no plaintext address is provided. This endpoint is not an authentication, authorization, or secret-delivery contract and declares no Worker Interface or Binding.",
+    "properties": {
+      "service": {
+        "additionalProperties": false,
+        "description": "Exact ContainerService resource this endpoint attaches to. The group, kind, definition version, and schema digest are pinned by this Form. It is immutable: use a new endpoint UID to change the service. The relation remains fenced to the resolved service UID; a same-name replacement does not become its target. At most one live ContainerEndpoint may hold this service.",
+        "properties": {
+          "apiVersion": {
+            "const": "edge.forms.takoform.com",
+            "type": "string"
+          },
+          "kind": {
+            "const": "ContainerService",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 63,
+            "minLength": 1,
+            "pattern": "^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "apiVersion",
+          "kind",
+          "name"
+        ],
+        "type": "object",
+        "x-takoform-target-formrefs": [
+          {
+            "apiVersion": "edge.forms.takoform.com",
+            "definitionVersion": "0.1.0",
+            "kind": "ContainerService",
+            "schemaDigest": "sha256:114d452395562573f46d9a879efa889ab42a3e43348d7db244e22df7d6e330e2"
+          }
+        ]
+      }
+    },
+    "required": [
+      "service"
+    ],
+    "title": "Container Endpoint desired state",
+    "type": "object"
+  },
+  "outputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Host-computed values this Form publishes in status.outputs. Every member is returned by a conforming host; the object is closed.",
+    "properties": {
+      "hostname": {
+        "description": "Canonical dotted DNS hostname assigned by the host. It is immutable for the lifetime of this endpoint UID, including service generation cutover, and is not reconstructed from the resource name.",
+        "maxLength": 253,
+        "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$",
+        "type": "string"
+      },
+      "url": {
+        "description": "Absolute HTTPS root URL exactly `https://` plus the assigned canonical hostname plus `/`. The scheme is HTTPS with the standard port 443 and no explicit port; hostname and URL are immutable for this endpoint UID and the URL routes to the referenced service's health-selected generation.",
+        "maxLength": 262,
+        "pattern": "^https://[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+/$",
+        "type": "string"
+      }
+    },
+    "required": [
+      "hostname",
+      "url"
+    ],
+    "title": "Container Endpoint outputs",
+    "type": "object"
+  },
+  "immutableFields": [
+    "/service"
+  ],
+  "lifecycleCapabilities": [
+    "create",
+    "read",
+    "delete",
+    "observe"
+  ],
+  "conformanceFixtures": [
+    {
+      "name": "canonical",
+      "desiredPath": "fixtures/desired.json"
+    }
+  ],
+  "negativeConformanceFixtures": [
+    {
+      "name": "reject-unexpected-property",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-unexpected-property.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-missing-service",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-missing-service.json",
+      "expectedFailure": "schema_validation_failed"
+    },
+    {
+      "name": "reject-service",
+      "stage": "desired",
+      "inputPath": "fixtures/negative-service.json",
+      "expectedFailure": "schema_validation_failed"
+    }
+  ]
+}

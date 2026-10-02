@@ -62,6 +62,23 @@ func TestCatalogIsExactSeventeenFormFamily(t *testing.T) {
 	}
 }
 
+func TestSourceOnlyFormsAreExplicitlySeparateFromTheCurrentSeventeen(t *testing.T) {
+	t.Parallel()
+	if len(Forms) != 17 {
+		t.Fatalf("current Forms = %d, want the unchanged 17-item publication projection", len(Forms))
+	}
+	sourceOnly := SourceOnlyForms()
+	if len(sourceOnly) != 2 {
+		t.Fatalf("source-only Forms = %d, want exactly ContainerService and ContainerEndpoint", len(sourceOnly))
+	}
+	want := []string{"ContainerService", "ContainerEndpoint"}
+	for index, form := range sourceOnly {
+		if form.Kind != want[index] || !form.ExcludeImport {
+			t.Errorf("source-only Form[%d] = %s, excludeImport=%v; want %s and no import", index, form.Kind, form.ExcludeImport, want[index])
+		}
+	}
+}
+
 func TestCatalogHasReviewedSemanticFields(t *testing.T) {
 	t.Parallel()
 	want := map[string][]string{
