@@ -67,10 +67,18 @@ func TestPrepareAdvancementRejectsCallerEvidencePaths(t *testing.T) {
 	}
 }
 
-func TestPrepareContinuationRequiresTwoExplicitReleaseRootsAndACommit(t *testing.T) {
-	_, _, _, _, err := parseContinuation([]string{"--repository", ".", "--previous-set", "e7f8a39311dd011b8467e97e7f300cabb9a6b06c", "--new-release-path", "forms/releases/one", "--output", "/tmp/request"})
+func TestPrepareContinuationRequiresExplicitCompleteRosterAndACommit(t *testing.T) {
+	_, _, _, _, err := parseContinuation([]string{"--repository", ".", "--previous-set", "e7f8a39311dd011b8467e97e7f300cabb9a6b06c", "--output", "/tmp/request"})
 	if !errors.Is(err, errUsage) {
-		t.Fatalf("one new release path = %v, want usage refusal", err)
+		t.Fatalf("missing active release roster = %v, want usage refusal", err)
+	}
+	_, _, paths, _, err := parseContinuation([]string{"--repository", ".", "--previous-set", "e7f8a39311dd011b8467e97e7f300cabb9a6b06c", "--active-release-path", "forms/releases/one", "--active-release-path", "forms/releases/two", "--output", "/tmp/request"})
+	if err != nil || len(paths) != 2 {
+		t.Fatalf("repeatable complete roster flag error = %v, paths = %v", err, paths)
+	}
+	_, _, _, _, err = parseContinuation([]string{"--repository", ".", "--previous-set", "e7f8a39311dd011b8467e97e7f300cabb9a6b06c", "--new-release-path", "forms/releases/one", "--output", "/tmp/request"})
+	if !errors.Is(err, errUsage) {
+		t.Fatalf("obsolete delta-only flag = %v, want usage refusal", err)
 	}
 	_, err = preparePublicContinuation(".", "not-a-commit", []string{"forms/releases/one", "forms/releases/two"}, filepath.Join(t.TempDir(), "request"), publicRepositoryURL)
 	if err == nil || !strings.Contains(err.Error(), "exact lowercase nonzero commit") {

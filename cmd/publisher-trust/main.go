@@ -20,7 +20,7 @@ import (
 
 const publicRepositoryURL = "https://github.com/tako0614/takoform-forms.git"
 
-var errUsage = errors.New("usage: publisher-trust prepare --repository DIR --output DIR | prepare-continuation --repository DIR --previous-set COMMIT --new-release-path PATH --new-release-path PATH --output DIR | prepare-advancement --repository DIR --previous-set COMMIT --statement-version SEMVER --output DIR | verify-evidence --repository DIR --evidence DIR --expected-source-commit COMMIT | install --repository DIR --evidence DIR --expected-source-commit COMMIT | recover-partial-install --repository DIR --set-id COMMIT | verify-set --repository DIR --set DIR | check --repository DIR")
+var errUsage = errors.New("usage: publisher-trust prepare --repository DIR --output DIR | prepare-continuation --repository DIR --previous-set COMMIT --active-release-path PATH [--active-release-path PATH ...] --output DIR | prepare-advancement --repository DIR --previous-set COMMIT --statement-version SEMVER --output DIR | verify-evidence --repository DIR --evidence DIR --expected-source-commit COMMIT | install --repository DIR --evidence DIR --expected-source-commit COMMIT | recover-partial-install --repository DIR --set-id COMMIT | verify-set --repository DIR --set DIR | check --repository DIR")
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout); err != nil {
@@ -161,8 +161,8 @@ func parseContinuation(arguments []string) (string, string, []string, string, er
 	flags.StringVar(&repository, "repository", "", "publisher repository root")
 	flags.StringVar(&previousSet, "previous-set", "", "exact public predecessor set source commit")
 	flags.StringVar(&output, "output", "", "create-only external signing request directory")
-	flags.Func("new-release-path", "exact source-controlled release root; provide twice", func(value string) error { paths = append(paths, value); return nil })
-	if err := flags.Parse(arguments); err != nil || flags.NArg() != 0 || repository == "" || previousSet == "" || output == "" || len(paths) != 2 {
+	flags.Func("active-release-path", "one exact source-controlled release root in the complete active roster; repeat for every active Form", func(value string) error { paths = append(paths, value); return nil })
+	if err := flags.Parse(arguments); err != nil || flags.NArg() != 0 || repository == "" || previousSet == "" || output == "" || len(paths) == 0 {
 		return "", "", nil, "", errUsage
 	}
 	return repository, previousSet, paths, output, nil
