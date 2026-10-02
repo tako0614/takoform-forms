@@ -101,8 +101,17 @@ describe("portable quality gates and Form version documentation", () => {
   });
 
   test("requires Core signature and revocation evidence before public readback", () => {
+    expect(publisherSource).toContain(
+      "return verifyEvidenceWithNewBundleVerifier(repositoryRoot, evidenceRoot, expectedSourceCommit, includesSubjects, packages, trust.VerifyBundle)",
+    );
+    expect(publisherSource).toContain(
+      "return verifyEvidenceWithAncestors(repositoryRoot, setRoot, setID, false, packages, trust.VerifyBundle, ancestors)",
+    );
+    expect(publisherSource).toContain("bundleVerifier := trust.VerifyBundle");
+    expect(publisherSource).toContain(
+      "bundleReport, err := bundleVerifier(subject, bundleRaw, rootRaw, policy)",
+    );
     for (const call of [
-      "trust.VerifyBundle(",
       "trust.VerifyRevocationCheckpoint(",
       ".CheckNotRevoked(",
       "sameProvenance(",
