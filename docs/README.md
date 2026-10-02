@@ -17,6 +17,8 @@ Edge Form family.
 - [Revocation advancement runbook](revocation-advancement.md): append-only
   source, signing, installation, immutable publication, settlement, and safe
   partial-install recovery.
+- [Publisher continuation source note](publisher-continuation.md): the
+  unpublished no-revocation successor preparation path and its release boundary.
 
 ## Source and generated files
 

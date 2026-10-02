@@ -127,6 +127,16 @@ bun run verify:trust -- --evidence <candidate> --expected-source-commit <commit>
 bun run install:trust -- --evidence <candidate> --expected-source-commit <commit>
 ```
 
+The source also has a separate, not-yet-published continuation preparation
+path for adding exactly two Core-verified package roots without a revocation.
+It inherits the latest signed checkpoint bundle and chain byte-for-byte, and
+prepares all 19 package indexes plus one publisher-owned signed lineage
+subject from the same new commit. This does not add the source-only
+Container candidates to the current 17-Form roster or make a 19-package
+release ready. The current publication plan and deploy surface continue to
+require the exact current roster. See the
+[continuation source note](docs/publisher-continuation.md).
+
 The deploy surface requires the imported set's exact signed source commit:
 
 ```console

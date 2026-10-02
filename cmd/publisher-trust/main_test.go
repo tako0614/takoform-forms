@@ -67,6 +67,30 @@ func TestPrepareAdvancementRejectsCallerEvidencePaths(t *testing.T) {
 	}
 }
 
+func TestPrepareContinuationRequiresTwoExplicitReleaseRootsAndACommit(t *testing.T) {
+	_, _, _, _, err := parseContinuation([]string{"--repository", ".", "--previous-set", "e7f8a39311dd011b8467e97e7f300cabb9a6b06c", "--new-release-path", "forms/releases/one", "--output", "/tmp/request"})
+	if !errors.Is(err, errUsage) {
+		t.Fatalf("one new release path = %v, want usage refusal", err)
+	}
+	_, err = preparePublicContinuation(".", "not-a-commit", []string{"forms/releases/one", "forms/releases/two"}, filepath.Join(t.TempDir(), "request"), publicRepositoryURL)
+	if err == nil || !strings.Contains(err.Error(), "exact lowercase nonzero commit") {
+		t.Fatalf("invalid predecessor error = %v", err)
+	}
+}
+
+func TestPublicPredecessorUsesSetLineageNotCheckpointSignerHistory(t *testing.T) {
+	genesis := publishertrust.PreviousCheckpointVerification{SetID: "e7f8a39311dd011b8467e97e7f300cabb9a6b06c", SetTag: "forms/sets/e7f8a39311dd011b8467e97e7f300cabb9a6b06c", CheckpointVersion: "0.0.0"}
+	continuation := publishertrust.PublisherSetVerification{SetID: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", SetTag: "forms/sets/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Mode: publishertrust.ContinuationMode, CheckpointVersion: "0.0.0"}
+	report := publishertrust.VerificationReport{CheckpointHistory: []publishertrust.PreviousCheckpointVerification{genesis}}
+	if got := publisherSetHistory(report); len(got) != 1 || got[0].SetID != genesis.SetID {
+		t.Fatalf("legacy set history = %+v", got)
+	}
+	report.SetHistory = []publishertrust.PublisherSetVerification{{SetID: genesis.SetID, SetTag: genesis.SetTag, Mode: publishertrust.GenesisMode}, continuation}
+	if got := publisherSetHistory(report); len(got) != 2 || got[1].SetID != continuation.SetID || got[0].SetID != genesis.SetID {
+		t.Fatalf("continuation set history = %+v", got)
+	}
+}
+
 func TestCredentialFreeGitEnvironmentScrubsAuthorityAndRepositoryOverrides(t *testing.T) {
 	for key, value := range map[string]string{
 		"GITHUB_TOKEN":        "secret",
