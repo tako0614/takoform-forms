@@ -460,6 +460,14 @@ type Form struct {
 	DefinitionVersion string
 
 	Fields []Field
+	// ExcludeImport withdraws the historical default import capability for a
+	// Form whose adoption identity and fencing semantics are not defined. The
+	// zero value preserves every existing Form's published capability set.
+	ExcludeImport bool
+	// DeclaredNegativeCases adds exact desired-state rejection examples that
+	// cannot be derived from individual field constraints. They are rendered
+	// and package-verified like model-derived negative fixtures.
+	DeclaredNegativeCases []NegativeCase
 
 	// Outputs is the closed set of host-computed values this Form publishes in
 	// `status.outputs`. It is the Form's OUTPUT contract: a host that supports
@@ -552,8 +560,9 @@ func (f Form) MutableFields() []Field {
 func (f Form) DeclaresUpdate() bool { return len(f.MutableFields()) > 0 }
 
 // LifecycleCapabilities derives the closed capability set of this Form. The
-// base set is exactly create, read, delete, import, observe; update is added
-// only when the Form has at least one mutable desired field. The v1beta1 channel
+// historical base set is create, read, delete, import, observe; a Form may
+// explicitly exclude import when adoption identity is not defined. Update is
+// added only when the Form has at least one mutable desired field. The v1beta1 channel
 // has no refresh capability at all: observe is the one read-only host-side
 // re-observation operation (spec/host-api/v1beta1.md).
 func (f Form) LifecycleCapabilities() []string {
@@ -562,7 +571,11 @@ func (f Form) LifecycleCapabilities() []string {
 	if f.DeclaresUpdate() {
 		capabilities = append(capabilities, "update")
 	}
-	return append(capabilities, "delete", "import", "observe")
+	capabilities = append(capabilities, "delete")
+	if !f.ExcludeImport {
+		capabilities = append(capabilities, "import")
+	}
+	return append(capabilities, "observe")
 }
 
 // ImmutableFields lists the JSON Pointers a host must treat as replacement

@@ -61,6 +61,7 @@ function main() {
   if (mode === "--write") {
     for (const target of [
       ...trackedTargets.forms.values(),
+      ...trackedTargets.sourceOnlyForms.values(),
       trackedTargets.familyIndex,
       trackedTargets.interfaces,
       trackedTargets.bindings,
@@ -73,11 +74,16 @@ function main() {
     try {
       const stagedRoots = createOutputRoots(stagingParent, source);
       const generation = generate(stagedRoots, source);
-      verifyPackages(stagedRoots.forms, source);
+      verifyPackages(stagedRoots.forms, source.families);
+      verifyPackages(stagedRoots.sourceOnlyForms, source.sourceOnlyForms);
       installGeneratedOutputs(stagingParent, [
         ...source.families.map(({ group }) => [
           stagedRoots.forms.get(group),
           trackedTargets.forms.get(group),
+        ]),
+        ...source.sourceOnlyForms.map(({ group }) => [
+          stagedRoots.sourceOnlyForms.get(group),
+          trackedTargets.sourceOnlyForms.get(group),
         ]),
         [stagedRoots.familyIndex, trackedTargets.familyIndex],
         [stagedRoots.interfaces, trackedTargets.interfaces],
@@ -85,7 +91,7 @@ function main() {
       ]);
       const formCount = generation.forms.length;
       process.stdout.write(
-        `wrote ${formCount} Forms in ${source.families.length} versionless families, ${source.interfaces.length} interface candidates, ${source.bindings.length} binding candidates, and the current-family index\n`,
+        `wrote ${formCount} current Forms and ${generation.sourceOnlyForms.length} unpublished source-only Forms, ${source.interfaces.length} interface candidates, ${source.bindings.length} binding candidates, and the current-family index\n`,
       );
     } finally {
       rmSync(stagingParent, { recursive: true, force: true });
@@ -104,6 +110,13 @@ function main() {
         `${group} Forms`,
       );
     }
+    for (const { group } of source.sourceOnlyForms) {
+      compareTrees(
+        generatedRoots.sourceOnlyForms.get(group),
+        trackedTargets.sourceOnlyForms.get(group),
+        `${group} source-only Forms`,
+      );
+    }
     compareFile(
       readFileSync(generatedRoots.familyIndex, "utf8"),
       trackedTargets.familyIndex,
@@ -115,9 +128,10 @@ function main() {
       "interfaces",
     );
     compareTrees(generatedRoots.bindings, trackedTargets.bindings, "bindings");
-    verifyPackages(trackedTargets.forms, source);
+    verifyPackages(trackedTargets.forms, source.families);
+    verifyPackages(trackedTargets.sourceOnlyForms, source.sourceOnlyForms);
     process.stdout.write(
-      "Current Form Family candidates are reproducible and valid\n",
+      "Current Form Family and unpublished source-only candidates are reproducible and valid\n",
     );
   } finally {
     rmSync(temporary, { recursive: true, force: true });
@@ -131,6 +145,16 @@ function createTrackedTargets(source) {
       source.families.map(({ group }) => [
         group,
         directChildPath(familyRoot, group, "family group"),
+      ]),
+    ),
+    sourceOnlyForms: new Map(
+      source.sourceOnlyForms.map(({ group }) => [
+        group,
+        directChildPath(
+          path.join(repositoryRoot, "forms", "source-candidates"),
+          group,
+          "source-only family group",
+        ),
       ]),
     ),
     familyIndex: path.join(repositoryRoot, FAMILY_INDEX_PATH),
@@ -153,6 +177,16 @@ function createOutputRoots(root, source) {
         directChildPath(familyRoot, group, "family group"),
       ]),
     ),
+    sourceOnlyForms: new Map(
+      source.sourceOnlyForms.map(({ group }) => [
+        group,
+        directChildPath(
+          path.join(root, "source-only-forms"),
+          group,
+          "source-only family group",
+        ),
+      ]),
+    ),
     familyIndex: path.join(root, "current-family-index.json"),
     interfaces: path.join(root, "interfaces-v1alpha1"),
     bindings: path.join(root, "bindings-v1alpha2"),
@@ -162,6 +196,7 @@ function createOutputRoots(root, source) {
 function generate(outputRoots, source) {
   for (const outputRoot of [
     ...outputRoots.forms.values(),
+    ...outputRoots.sourceOnlyForms.values(),
     path.dirname(outputRoots.familyIndex),
     outputRoots.interfaces,
     outputRoots.bindings,
@@ -179,104 +214,15 @@ function generate(outputRoots, source) {
       publicationStatus: source.publicationStatus,
       authoringSource: sourceFamily.authoringSource,
       authoringPolicy: sourceFamily.authoringPolicy,
-      forms: [],
+      forms: generateFormPackages({
+        outputRoot: outputRoots.forms.get(familyGroup),
+        familyGroup,
+        forms: sourceFamily.forms,
+        packageApiVersion: source.packageApiVersion,
+        pathPrefix: "forms/candidates",
+        sourceLabel: "current family",
+      }),
     };
-    for (const rendered of sourceFamily.forms) {
-      const { kind, slug, role } = rendered;
-      const definition = rendered.definition;
-      if (
-        definition?.kind !== kind ||
-        definition?.apiVersion !== familyGroup ||
-        !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(
-          definition.definitionVersion ?? "",
-        ) ||
-        definition?.role !== role
-      ) {
-        throw new Error(
-          `${familyGroup}/${slug}: family catalog emitted an invalid candidate identity`,
-        );
-      }
-      if ((definition.negativeConformanceFixtures ?? []).length === 0) {
-        throw new Error(
-          `${slug}: every family candidate must carry a negative fixture`,
-        );
-      }
-      if (Object.hasOwn(definition.desiredSchema?.properties ?? {}, "name")) {
-        throw new Error(
-          `${slug}: current desired schemas must not declare a name property`,
-        );
-      }
-
-      const destinationRoot = directChildPath(
-        outputRoots.forms.get(familyGroup),
-        slug,
-        "Form slug",
-      );
-      const fixtureRoot = path.join(destinationRoot, "fixtures");
-      mkdirSync(fixtureRoot, { recursive: true });
-      const fixtureNames = Object.keys(rendered.fixtures).sort();
-      for (const fixtureName of fixtureNames) {
-        writeJson(
-          directChildPath(fixtureRoot, fixtureName, "fixture name"),
-          rendered.fixtures[fixtureName],
-        );
-      }
-
-      // Use the verbatim JSON text emitted by the Go source renderer. Re-
-      // serializing through JavaScript would round large integer schema values
-      // to the nearest float64 and silently change the normative bytes.
-      const definitionRaw = rendered.definitionJson;
-      if (typeof definitionRaw !== "string" || definitionRaw.length === 0) {
-        throw new Error(
-          `${slug}: source renderer emitted no definitionJson text`,
-        );
-      }
-      writeFileSync(
-        path.join(destinationRoot, "definition.json"),
-        definitionRaw,
-      );
-      const payloadPaths = [
-        "definition.json",
-        ...fixtureNames.map((name) => `fixtures/${name}`),
-      ].sort();
-      const files = payloadPaths.map((relative) => {
-        const raw = readFileSync(path.join(destinationRoot, relative));
-        return {
-          path: relative,
-          mediaType:
-            relative === "definition.json"
-              ? "application/vnd.takoform.form-definition.v1+json"
-              : "application/json",
-          size: raw.length,
-          digest: digest(raw),
-        };
-      });
-      const formRef = {
-        apiVersion: familyGroup,
-        kind,
-        // The version is the Form's own, not a catalog generation.
-        definitionVersion: definition.definitionVersion,
-        schemaDigest: digestCanonicalJSON(
-          path.join(destinationRoot, "definition.json"),
-        ),
-      };
-      const index = {
-        apiVersion: source.packageApiVersion,
-        kind: "FormPackage",
-        formRef,
-        definitionPath: "definition.json",
-        files,
-      };
-      const indexPath = path.join(destinationRoot, "package-index.json");
-      writeJson(indexPath, index);
-      manifest.forms.push({
-        kind,
-        role,
-        path: `forms/candidates/${familyGroup}/${slug}`,
-        formRef,
-        packageDigest: digestCanonicalJSON(indexPath),
-      });
-    }
     if (manifest.forms.length === 0) {
       throw new Error(`${familyGroup}: family source contains no Forms`);
     }
@@ -285,6 +231,38 @@ function generate(outputRoots, source) {
       manifest,
     );
     manifests.push(manifest);
+  }
+
+  const sourceOnlySets = [];
+  for (const sourceOnly of source.sourceOnlyForms) {
+    const familyGroup = sourceOnly.group;
+    const candidateSet = {
+      format: "takoform.source-only-form-candidates@v1",
+      family: familyGroup,
+      publicationStatus: "UNPUBLISHED",
+      authoringSource: sourceOnly.authoringSource,
+      forms: generateFormPackages({
+        outputRoot: outputRoots.sourceOnlyForms.get(familyGroup),
+        familyGroup,
+        forms: sourceOnly.forms,
+        packageApiVersion: source.packageApiVersion,
+        pathPrefix: "forms/source-candidates",
+        sourceLabel: "source-only projection",
+      }),
+    };
+    if (candidateSet.forms.length === 0) {
+      throw new Error(
+        `${familyGroup}: source-only projection contains no Forms`,
+      );
+    }
+    writeJson(
+      path.join(
+        outputRoots.sourceOnlyForms.get(familyGroup),
+        "candidate-set.json",
+      ),
+      candidateSet,
+    );
+    sourceOnlySets.push(candidateSet);
   }
 
   writeContractCandidates({
@@ -347,8 +325,107 @@ function generate(outputRoots, source) {
   return {
     families: manifests,
     forms: manifests.flatMap((manifest) => manifest.forms),
+    sourceOnlyForms: sourceOnlySets.flatMap(
+      (candidateSet) => candidateSet.forms,
+    ),
     familyIndex,
   };
+}
+
+function generateFormPackages({
+  outputRoot,
+  familyGroup,
+  forms,
+  packageApiVersion,
+  pathPrefix,
+  sourceLabel,
+}) {
+  const entries = [];
+  for (const rendered of forms) {
+    const { kind, slug, role } = rendered;
+    const definition = rendered.definition;
+    if (
+      definition?.kind !== kind ||
+      definition?.apiVersion !== familyGroup ||
+      !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(
+        definition.definitionVersion ?? "",
+      ) ||
+      definition?.role !== role
+    ) {
+      throw new Error(
+        `${familyGroup}/${slug}: ${sourceLabel} emitted an invalid candidate identity`,
+      );
+    }
+    if ((definition.negativeConformanceFixtures ?? []).length === 0) {
+      throw new Error(`${slug}: every candidate must carry a negative fixture`);
+    }
+    if (Object.hasOwn(definition.desiredSchema?.properties ?? {}, "name")) {
+      throw new Error(
+        `${slug}: desired schemas must not declare a name property`,
+      );
+    }
+
+    const destinationRoot = directChildPath(outputRoot, slug, "Form slug");
+    const fixtureRoot = path.join(destinationRoot, "fixtures");
+    mkdirSync(fixtureRoot, { recursive: true });
+    const fixtureNames = Object.keys(rendered.fixtures).sort();
+    for (const fixtureName of fixtureNames) {
+      writeJson(
+        directChildPath(fixtureRoot, fixtureName, "fixture name"),
+        rendered.fixtures[fixtureName],
+      );
+    }
+
+    // Keep Go-emitted Definition text verbatim so large integers are not
+    // rounded by JavaScript's number representation.
+    const definitionRaw = rendered.definitionJson;
+    if (typeof definitionRaw !== "string" || definitionRaw.length === 0) {
+      throw new Error(
+        `${slug}: source renderer emitted no definitionJson text`,
+      );
+    }
+    writeFileSync(path.join(destinationRoot, "definition.json"), definitionRaw);
+    const payloadPaths = [
+      "definition.json",
+      ...fixtureNames.map((name) => `fixtures/${name}`),
+    ].sort();
+    const files = payloadPaths.map((relative) => {
+      const raw = readFileSync(path.join(destinationRoot, relative));
+      return {
+        path: relative,
+        mediaType:
+          relative === "definition.json"
+            ? "application/vnd.takoform.form-definition.v1+json"
+            : "application/json",
+        size: raw.length,
+        digest: digest(raw),
+      };
+    });
+    const formRef = {
+      apiVersion: familyGroup,
+      kind,
+      definitionVersion: definition.definitionVersion,
+      schemaDigest: digestCanonicalJSON(
+        path.join(destinationRoot, "definition.json"),
+      ),
+    };
+    const indexPath = path.join(destinationRoot, "package-index.json");
+    writeJson(indexPath, {
+      apiVersion: packageApiVersion,
+      kind: "FormPackage",
+      formRef,
+      definitionPath: "definition.json",
+      files,
+    });
+    entries.push({
+      kind,
+      role,
+      path: `${pathPrefix}/${familyGroup}/${slug}`,
+      formRef,
+      packageDigest: digestCanonicalJSON(indexPath),
+    });
+  }
+  return entries;
 }
 
 function writeContractCandidates({
@@ -415,6 +492,7 @@ function renderFamilySources() {
   if (
     !Array.isArray(rendered?.families) ||
     rendered.families.length === 0 ||
+    !Array.isArray(rendered?.sourceOnlyForms) ||
     !Array.isArray(rendered?.interfaces) ||
     !Array.isArray(rendered?.bindings) ||
     typeof rendered.packageApiVersion !== "string" ||
@@ -471,6 +549,7 @@ function renderFamilySources() {
 export function validatePublisherPathMetadata(source) {
   if (
     !Array.isArray(source?.families) ||
+    !Array.isArray(source?.sourceOnlyForms) ||
     !Array.isArray(source?.interfaces) ||
     !Array.isArray(source?.bindings)
   ) {
@@ -509,6 +588,72 @@ export function validatePublisherPathMetadata(source) {
       }
     }
   }
+  const currentKinds = new Set(
+    source.families.flatMap((family) =>
+      family.forms.map((form) => `${family.group}/${form.kind}`),
+    ),
+  );
+  const currentSlugs = new Set(
+    source.families.flatMap((family) =>
+      family.forms.map((form) => `${family.group}/${form.slug}`),
+    ),
+  );
+  const sourceOnlyGroups = new Set();
+  for (const family of source.sourceOnlyForms) {
+    if (
+      typeof family?.group !== "string" ||
+      family.group.length > 253 ||
+      !OFFICIAL_FAMILY_GROUP.test(family.group) ||
+      sourceOnlyGroups.has(family.group) ||
+      family.publicationStatus !== "UNPUBLISHED" ||
+      typeof family.authoringSource !== "string" ||
+      !Array.isArray(family.forms) ||
+      family.forms.length === 0
+    ) {
+      throw new Error(
+        "source-only Form metadata must be a unique unpublished family projection",
+      );
+    }
+    sourceOnlyGroups.add(family.group);
+    const formKinds = new Set();
+    const formSlugs = new Set();
+    for (const form of family.forms) {
+      if (
+        typeof form?.kind !== "string" ||
+        !FORM_KIND.test(form.kind) ||
+        typeof form.slug !== "string" ||
+        form.slug.length > 127 ||
+        !FORM_SLUG.test(form.slug) ||
+        form.fixtures === null ||
+        typeof form.fixtures !== "object" ||
+        Array.isArray(form.fixtures)
+      ) {
+        throw new Error(
+          `${family.group}: unsafe source-only Form path metadata`,
+        );
+      }
+      const identity = `${form.kind}/${form.slug}`;
+      if (
+        formKinds.has(form.kind) ||
+        formSlugs.has(form.slug) ||
+        currentKinds.has(`${family.group}/${form.kind}`) ||
+        currentSlugs.has(`${family.group}/${form.slug}`)
+      ) {
+        throw new Error(
+          `${family.group}: duplicate source-only Form identity ${identity}`,
+        );
+      }
+      formKinds.add(form.kind);
+      formSlugs.add(form.slug);
+      for (const name of Object.keys(form.fixtures)) {
+        if (name.length > 127 || !FIXTURE_NAME.test(name)) {
+          throw new Error(
+            `${family.group}/${form.slug}: unsafe source-only fixture name ${JSON.stringify(name)}`,
+          );
+        }
+      }
+    }
+  }
   for (const [kind, contracts] of [
     ["Interface", source.interfaces],
     ["Binding", source.bindings],
@@ -534,8 +679,8 @@ export function validatePublisherPathMetadata(source) {
   }
 }
 
-function verifyPackages(roots, source) {
-  for (const family of source.families) {
+function verifyPackages(roots, families) {
+  for (const family of families) {
     for (const { slug } of family.forms) {
       const result = spawnSync(
         "go",
@@ -639,13 +784,21 @@ function inventory(root) {
 function assertSafeGeneratedTarget(target, trackedTargets) {
   const expected = [
     ...trackedTargets.forms.values(),
+    ...trackedTargets.sourceOnlyForms.values(),
     trackedTargets.familyIndex,
     trackedTargets.interfaces,
     trackedTargets.bindings,
   ];
   const normalizedTarget = path.resolve(target);
   const familyRoot = path.resolve(repositoryRoot, "forms", "candidates");
+  const sourceOnlyRoot = path.resolve(
+    repositoryRoot,
+    "forms",
+    "source-candidates",
+  );
   const isManagedFamily = path.dirname(normalizedTarget) === familyRoot;
+  const isManagedSourceOnlyFamily =
+    path.dirname(normalizedTarget) === sourceOnlyRoot;
   const isFixedTarget = [
     path.resolve(repositoryRoot, FAMILY_INDEX_PATH),
     path.resolve(repositoryRoot, "interfaces", "candidates", "v1alpha1"),
@@ -653,7 +806,7 @@ function assertSafeGeneratedTarget(target, trackedTargets) {
   ].includes(normalizedTarget);
   if (
     !expected.map((entry) => path.resolve(entry)).includes(normalizedTarget) ||
-    (!isManagedFamily && !isFixedTarget) ||
+    (!isManagedFamily && !isManagedSourceOnlyFamily && !isFixedTarget) ||
     path.dirname(normalizedTarget) === repositoryRoot
   ) {
     throw new Error(`refusing unsafe generated target ${target}`);

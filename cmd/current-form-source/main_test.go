@@ -42,6 +42,54 @@ func TestRenderSourceEmitsOnlyTheCurrentEdgeFamily(t *testing.T) {
 	}
 }
 
+func TestRenderSourceKeepsSourceOnlyFormsOutsideTheCurrentFamilyIndexProjection(t *testing.T) {
+	t.Parallel()
+	document, err := renderSource()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(document.Families) != 1 {
+		t.Fatalf("current families = %d, want unchanged single current family", len(document.Families))
+	}
+	if len(document.SourceOnlyForms) != 1 {
+		t.Fatalf("source-only family projections = %d, want 1", len(document.SourceOnlyForms))
+	}
+	source := document.SourceOnlyForms[0]
+	if source.Group != "edge.forms.takoform.com" || source.PublicationStatus != "UNPUBLISHED" {
+		t.Fatalf("source-only metadata = %+v", source)
+	}
+	var forms []struct {
+		Kind       string `json:"kind"`
+		Slug       string `json:"slug"`
+		Definition struct {
+			LifecycleCapabilities []string `json:"lifecycleCapabilities"`
+		} `json:"definition"`
+	}
+	if err := json.Unmarshal(source.Forms, &forms); err != nil {
+		t.Fatalf("decode source-only Forms: %v", err)
+	}
+	if len(forms) != 2 || forms[0].Kind != "ContainerService" || forms[1].Kind != "ContainerEndpoint" {
+		t.Fatalf("source-only Forms = %+v, want exactly the Container pair", forms)
+	}
+	for _, form := range forms {
+		if form.Slug == "" {
+			t.Errorf("source-only %s has no package slug", form.Kind)
+		}
+		if containsString(form.Definition.LifecycleCapabilities, "import") {
+			t.Errorf("source-only %s advertises import: %v", form.Kind, form.Definition.LifecycleCapabilities)
+		}
+	}
+}
+
+func containsString(items []string, want string) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
+}
+
 func TestRenderSourceBuildsGlobalProviderNeutralContracts(t *testing.T) {
 	document, err := renderSource()
 	if err != nil {

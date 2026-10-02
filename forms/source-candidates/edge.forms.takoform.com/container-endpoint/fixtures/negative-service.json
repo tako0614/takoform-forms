@@ -1,0 +1,7 @@
+{
+  "service": {
+    "apiVersion": "other.forms.takoform.com",
+    "kind": "DifferentService",
+    "name": "container-service"
+  }
+}

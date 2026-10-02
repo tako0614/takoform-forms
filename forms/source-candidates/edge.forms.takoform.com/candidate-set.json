@@ -1,0 +1,32 @@
+{
+  "format": "takoform.source-only-form-candidates@v1",
+  "family": "edge.forms.takoform.com",
+  "publicationStatus": "UNPUBLISHED",
+  "authoringSource": "internal/edgeformcatalog",
+  "forms": [
+    {
+      "kind": "ContainerService",
+      "role": "identity",
+      "path": "forms/source-candidates/edge.forms.takoform.com/container-service",
+      "formRef": {
+        "apiVersion": "edge.forms.takoform.com",
+        "kind": "ContainerService",
+        "definitionVersion": "0.1.0",
+        "schemaDigest": "sha256:114d452395562573f46d9a879efa889ab42a3e43348d7db244e22df7d6e330e2"
+      },
+      "packageDigest": "sha256:0fb3c53940180e3f661268e079f9dbc6667c4d1fbbc74b4561ebb5ffa2740d33"
+    },
+    {
+      "kind": "ContainerEndpoint",
+      "role": "attachment",
+      "path": "forms/source-candidates/edge.forms.takoform.com/container-endpoint",
+      "formRef": {
+        "apiVersion": "edge.forms.takoform.com",
+        "kind": "ContainerEndpoint",
+        "definitionVersion": "0.1.0",
+        "schemaDigest": "sha256:c32e716d9185026fce7ae105d14035d75fa64ec7322483122126b95db902b336"
+      },
+      "packageDigest": "sha256:c5ee452369ddafc1ba15d76adcdcc1611ff558d2e385a3f1f6379a4cce86b288"
+    }
+  ]
+}

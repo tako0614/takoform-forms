@@ -1,0 +1,11 @@
+{
+  "environment": {
+    "APP.MODE": "production",
+    "APP_MODE": "standard"
+  },
+  "healthPath": "/health",
+  "httpPort": 8080,
+  "outboundInternet": false,
+  "requiredSensitiveVars": [],
+  "workloadRevision": "revision-1"
+}

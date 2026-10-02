@@ -1,0 +1,7 @@
+{
+  "service": {
+    "apiVersion": "edge.forms.takoform.com",
+    "kind": "ContainerService",
+    "name": "container-service"
+  }
+}

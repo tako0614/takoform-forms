@@ -23,6 +23,7 @@ function validPublisherSource() {
         ],
       },
     ],
+    sourceOnlyForms: [],
     interfaces: [{ name: "example.runtime", version: "1.0.0" }],
     bindings: [{ name: "example.binding", version: "1.0.0" }],
   };
@@ -59,6 +60,33 @@ describe("publisher composition ownership", () => {
       expect(() => validatePublisherPathMetadata(source)).toThrow();
     }
     expect(() => validatePublisherPathMetadata(valid())).not.toThrow();
+  });
+
+  test("keeps source-only package paths separate and unpublished", () => {
+    const source = validPublisherSource();
+    source.sourceOnlyForms = [
+      {
+        group: "edge.forms.takoform.com",
+        publicationStatus: "UNPUBLISHED",
+        authoringSource: "internal/edgeformcatalog",
+        forms: [
+          {
+            kind: "ContainerService",
+            slug: "container-service",
+            role: "identity",
+            fixtures: { "desired.json": {}, "negative-example.json": {} },
+          },
+        ],
+      },
+    ];
+    expect(() => validatePublisherPathMetadata(source)).not.toThrow();
+
+    source.sourceOnlyForms[0].forms[0].slug = "../../release";
+    expect(() => validatePublisherPathMetadata(source)).toThrow();
+
+    source.sourceOnlyForms[0].forms[0].slug = "container-service";
+    source.sourceOnlyForms[0].publicationStatus = "PUBLISHED";
+    expect(() => validatePublisherPathMetadata(source)).toThrow();
   });
 
   test("rejects duplicate names within each contract namespace", () => {

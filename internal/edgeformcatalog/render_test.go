@@ -1,16 +1,288 @@
 package edgeformcatalog
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
 
 	model "github.com/tako0614/takoform-forms/internal/currentformmodel"
 	"github.com/tako0614/takoform/formpackage"
+	coresnapshot "github.com/tako0614/takoform/snapshot"
 )
+
+func TestNormalSourceOnlyProjectionMatchesFrozenContainerCandidateGoldens(t *testing.T) {
+	t.Parallel()
+	forms, err := RenderSourceOnlyForms()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []struct {
+		kind          string
+		definitionSHA string
+		packageDigest string
+		negativeCount int
+	}{
+		{"ContainerService", "a155c4d52b47f224b4efcdd4b99f3cd1fba6b0cff2096d6b9eed6aefaad64632", "sha256:0fb3c53940180e3f661268e079f9dbc6667c4d1fbbc74b4561ebb5ffa2740d33", 16},
+		{"ContainerEndpoint", "d596eb1403b764d9dceb6bb5ab96fce93a8c8b3a70b84d3cc3c62bd105a0652a", "sha256:c5ee452369ddafc1ba15d76adcdcc1611ff558d2e385a3f1f6379a4cce86b288", 3},
+	}
+	if len(forms) != len(want) {
+		t.Fatalf("source-only rendered Forms = %d, want %d", len(forms), len(want))
+	}
+	for index, form := range forms {
+		form := form
+		t.Run(form.Kind, func(t *testing.T) {
+			if form.Kind != want[index].kind {
+				t.Fatalf("source-only Form[%d] = %s, want %s", index, form.Kind, want[index].kind)
+			}
+			digest := fmt.Sprintf("%x", sha256.Sum256([]byte(form.DefinitionJSON)))
+			if digest != want[index].definitionSHA {
+				t.Fatalf("%s Definition bytes SHA-256 = %s, want frozen candidate %s", form.Kind, digest, want[index].definitionSHA)
+			}
+			if got := len(form.Definition.NegativeFixtures); got != want[index].negativeCount {
+				t.Fatalf("%s negative fixture count = %d, want %d", form.Kind, got, want[index].negativeCount)
+			}
+			packageDigest := sourceOnlyPackageDigest(t, form)
+			if packageDigest != want[index].packageDigest {
+				t.Fatalf("%s package digest = %s, want frozen candidate %s", form.Kind, packageDigest, want[index].packageDigest)
+			}
+			if got := form.Definition.LifecycleCapabilities; form.Kind == "ContainerService" && strings.Join(got, ",") != "create,read,update,delete,observe" {
+				t.Fatalf("ContainerService lifecycle = %v", got)
+			}
+			if got := form.Definition.LifecycleCapabilities; form.Kind == "ContainerEndpoint" && strings.Join(got, ",") != "create,read,delete,observe" {
+				t.Fatalf("ContainerEndpoint lifecycle = %v", got)
+			}
+		})
+	}
+}
+
+func sourceOnlyPackageDigest(t *testing.T, form RenderedForm) string {
+	t.Helper()
+	payloads := map[string][]byte{"definition.json": []byte(form.DefinitionJSON)}
+	fixtureNames := make([]string, 0, len(form.Fixtures))
+	for name := range form.Fixtures {
+		fixtureNames = append(fixtureNames, name)
+	}
+	slices.Sort(fixtureNames)
+	for _, name := range fixtureNames {
+		raw, err := marshalIndented(form.Fixtures[name])
+		if err != nil {
+			t.Fatal(err)
+		}
+		payloads["fixtures/"+name] = []byte(raw)
+	}
+	paths := make([]string, 0, len(payloads))
+	for name := range payloads {
+		paths = append(paths, name)
+	}
+	slices.Sort(paths)
+	files := make([]any, 0, len(paths))
+	for _, name := range paths {
+		mediaType := "application/json"
+		if name == "definition.json" {
+			mediaType = formpackage.DefinitionMediaType
+		}
+		raw := payloads[name]
+		files = append(files, map[string]any{
+			"path": name, "mediaType": mediaType, "size": len(raw), "digest": formpackage.DigestBytes(raw),
+		})
+	}
+	schemaDigest, err := formpackage.DigestCanonicalJSON(payloads["definition.json"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	index := map[string]any{
+		"apiVersion": formpackage.VersionlessFamilyPackageAPIVersion,
+		"kind":       formpackage.PackageKind,
+		"formRef": map[string]any{
+			"apiVersion": form.Definition.APIVersion, "kind": form.Kind,
+			"definitionVersion": form.Definition.DefinitionVersion, "schemaDigest": schemaDigest,
+		},
+		"definitionPath": "definition.json", "files": files,
+	}
+	indexJSON, err := marshalIndented(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest, err := formpackage.DigestCanonicalJSON([]byte(indexJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return digest
+}
+
+func TestSourceOnlyContainerPackagesVerifyAndCompileExactSnapshot(t *testing.T) {
+	t.Parallel()
+	forms, err := RenderSourceOnlyForms()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(forms) != 2 || forms[0].Kind != ContainerServiceKind || forms[1].Kind != ContainerEndpointKind {
+		t.Fatalf("source-only Forms = %v, want exact service/endpoint pair", renderedKinds(forms))
+	}
+	verified := make([]formpackage.VerifiedPackage, 0, len(forms))
+	for _, form := range forms {
+		form := form
+		t.Run(form.Kind, func(t *testing.T) {
+			pkg := verifySourceOnlyPackage(t, form)
+			if got, want := pkg.PackageDigest(), sourceOnlyPackageDigest(t, form); got != want {
+				t.Fatalf("Core verified package digest = %s, generated package digest = %s", got, want)
+			}
+			verified = append(verified, pkg)
+		})
+	}
+	serviceRef := formpackage.FormRef{
+		APIVersion: Family.APIVersion(), Kind: ContainerServiceKind,
+		DefinitionVersion: ContainerServiceVersion, SchemaDigest: ContainerServiceSchemaHash,
+	}
+	endpointSchemaDigest, err := formpackage.DigestCanonicalJSON([]byte(forms[1].DefinitionJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, diagnostics := coresnapshot.Compile(coresnapshot.Input{
+		HostAPI: "forms.takoform.com/v1",
+		Packages: []coresnapshot.PackageArtifact{
+			{Origin: "source-only-container-service", ExpectedDigest: ContainerServicePackageHash, Package: verified[0]},
+			{Origin: "source-only-container-endpoint", ExpectedDigest: "sha256:c5ee452369ddafc1ba15d76adcdcc1611ff558d2e385a3f1f6379a4cce86b288", Package: verified[1]},
+		},
+		DefaultCreates: []coresnapshot.DefaultPin{
+			{Group: Family.APIVersion(), Kind: ContainerServiceKind, Ref: serviceRef},
+			{Group: Family.APIVersion(), Kind: ContainerEndpointKind, Ref: formpackage.FormRef{
+				APIVersion: Family.APIVersion(), Kind: ContainerEndpointKind,
+				DefinitionVersion: ContainerEndpointVersion, SchemaDigest: endpointSchemaDigest,
+			}},
+		},
+	})
+	if len(diagnostics) != 0 || snapshot == nil {
+		t.Fatalf("Core did not compile the exact two-package source Snapshot: snapshot=%v diagnostics=%+v", snapshot, diagnostics)
+	}
+	if got := len(snapshot.Forms()); got != 2 {
+		t.Fatalf("source-only Snapshot Forms = %d, want 2", got)
+	}
+}
+
+func TestSourceOnlyProjectionLeavesExistingSeventeenPackageBytesUnchanged(t *testing.T) {
+	t.Parallel()
+	before, err := RenderForms()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(before) != 17 {
+		t.Fatalf("current Forms before source-only render = %d, want 17", len(before))
+	}
+	if _, err := RenderSourceOnlyForms(); err != nil {
+		t.Fatal(err)
+	}
+	after, err := RenderForms()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(before, after) {
+		t.Fatal("source-only rendering changed the in-memory current 17 Forms")
+	}
+	for _, form := range before {
+		root := filepath.Join("..", "..", "forms", "candidates", Family.APIVersion(), form.Slug)
+		definition, err := os.ReadFile(filepath.Join(root, "definition.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(definition) != form.DefinitionJSON {
+			t.Errorf("current %s Definition bytes differ from the pre-existing package", form.Kind)
+		}
+		for name, document := range form.Fixtures {
+			raw, err := marshalIndented(document)
+			if err != nil {
+				t.Fatal(err)
+			}
+			checkedIn, err := os.ReadFile(filepath.Join(root, "fixtures", name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(checkedIn) != raw {
+				t.Errorf("current %s fixture %s bytes changed", form.Kind, name)
+			}
+		}
+	}
+}
+
+func renderedKinds(forms []RenderedForm) []string {
+	kinds := make([]string, 0, len(forms))
+	for _, form := range forms {
+		kinds = append(kinds, form.Kind)
+	}
+	return kinds
+}
+
+func verifySourceOnlyPackage(t *testing.T, form RenderedForm) formpackage.VerifiedPackage {
+	t.Helper()
+	root := t.TempDir()
+	definitionRaw := []byte(form.DefinitionJSON)
+	if err := os.WriteFile(filepath.Join(root, "definition.json"), definitionRaw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	payloads := map[string][]byte{"definition.json": definitionRaw}
+	for name, document := range form.Fixtures {
+		raw, err := marshalIndented(document)
+		if err != nil {
+			t.Fatal(err)
+		}
+		relative := "fixtures/" + name
+		payloads[relative] = []byte(raw)
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(root, relative)), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, relative), []byte(raw), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	paths := make([]string, 0, len(payloads))
+	for name := range payloads {
+		paths = append(paths, name)
+	}
+	slices.Sort(paths)
+	files := make([]formpackage.PackageFile, 0, len(paths))
+	for _, name := range paths {
+		mediaType := "application/json"
+		if name == "definition.json" {
+			mediaType = formpackage.DefinitionMediaType
+		}
+		raw := payloads[name]
+		files = append(files, formpackage.PackageFile{Path: name, MediaType: mediaType, Size: int64(len(raw)), Digest: formpackage.DigestBytes(raw)})
+	}
+	schemaDigest, err := formpackage.DigestCanonicalJSON(definitionRaw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	indexRaw, err := marshalIndented(formpackage.PackageIndex{
+		APIVersion: formpackage.VersionlessFamilyPackageAPIVersion,
+		Kind:       formpackage.PackageKind,
+		FormRef: formpackage.FormRef{
+			APIVersion: form.Definition.APIVersion, Kind: form.Kind,
+			DefinitionVersion: form.Definition.DefinitionVersion, SchemaDigest: schemaDigest,
+		},
+		DefinitionPath: "definition.json", Files: files,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, formpackage.PackageIndexFilename), []byte(indexRaw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	report, err := formpackage.VerifyDirectory(root)
+	if err != nil {
+		t.Fatalf("Core rejected source-only %s package or its fixtures: %v", form.Kind, err)
+	}
+	verified, ok := report.VerifiedPackage()
+	if !ok {
+		t.Fatalf("Core verification issued no package for %s", form.Kind)
+	}
+	return verified
+}
 
 // TestConstraintsSurviveRenderedDefinitionRoundTrip pins the whole
 // authoring boundary: the rich model renders every kind-specific member, the

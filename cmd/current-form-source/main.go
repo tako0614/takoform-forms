@@ -14,15 +14,23 @@ import (
 )
 
 type sourceDocument struct {
-	PackageAPIVersion        string           `json:"packageApiVersion"`
-	FamilyIndexFormat        string           `json:"familyIndexFormat"`
-	FormMaturity             string           `json:"formMaturity"`
-	PublicationStatus        string           `json:"publicationStatus"`
-	InterfaceAuthoringSource string           `json:"interfaceAuthoringSource"`
-	BindingAuthoringSource   string           `json:"bindingAuthoringSource"`
-	Families                 []sourceFamily   `json:"families"`
-	Interfaces               []sourceContract `json:"interfaces"`
-	Bindings                 []sourceContract `json:"bindings"`
+	PackageAPIVersion        string             `json:"packageApiVersion"`
+	FamilyIndexFormat        string             `json:"familyIndexFormat"`
+	FormMaturity             string             `json:"formMaturity"`
+	PublicationStatus        string             `json:"publicationStatus"`
+	InterfaceAuthoringSource string             `json:"interfaceAuthoringSource"`
+	BindingAuthoringSource   string             `json:"bindingAuthoringSource"`
+	Families                 []sourceFamily     `json:"families"`
+	SourceOnlyForms          []sourceOnlyFamily `json:"sourceOnlyForms"`
+	Interfaces               []sourceContract   `json:"interfaces"`
+	Bindings                 []sourceContract   `json:"bindings"`
+}
+
+type sourceOnlyFamily struct {
+	Group             string          `json:"group"`
+	AuthoringSource   string          `json:"authoringSource"`
+	PublicationStatus string          `json:"publicationStatus"`
+	Forms             json.RawMessage `json:"forms"`
 }
 
 type sourceFamily struct {
@@ -101,6 +109,18 @@ func renderSource() (sourceDocument, error) {
 	if err := appendFamily(edgeformcatalog.Family.APIVersion(), "internal/edgeformcatalog", edgeForms); err != nil {
 		return sourceDocument{}, err
 	}
+	sourceOnlyForms, err := edgeformcatalog.RenderSourceOnlyForms()
+	if err != nil {
+		return sourceDocument{}, fmt.Errorf("render source-only Container Forms: %w", err)
+	}
+	sourceOnlyRaw, err := json.Marshal(sourceOnlyForms)
+	if err != nil {
+		return sourceDocument{}, fmt.Errorf("marshal source-only Container Forms: %w", err)
+	}
+	document.SourceOnlyForms = []sourceOnlyFamily{{
+		Group: edgeformcatalog.Family.APIVersion(), AuthoringSource: "internal/edgeformcatalog",
+		PublicationStatus: "UNPUBLISHED", Forms: sourceOnlyRaw,
+	}}
 	edgeInterfaces, err := edgeformcatalog.RenderInterfaces()
 	if err != nil {
 		return sourceDocument{}, fmt.Errorf("render Edge Interfaces: %w", err)

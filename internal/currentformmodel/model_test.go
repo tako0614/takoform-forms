@@ -118,6 +118,20 @@ func TestLifecycleCapabilitiesFollowMutableFields(t *testing.T) {
 	}
 }
 
+func TestLifecycleCapabilitiesCanExplicitlyExcludeImport(t *testing.T) {
+	t.Parallel()
+	legacy := testForm()
+	if got := legacy.LifecycleCapabilities(); !strings.Contains(strings.Join(got, ","), "import") {
+		t.Fatalf("zero-value lifecycle policy = %v, want historical import default", got)
+	}
+	form := testForm()
+	form.ExcludeImport = true
+	want := []string{"create", "read", "delete", "observe"}
+	if got := strings.Join(form.LifecycleCapabilities(), ","); got != strings.Join(want, ",") {
+		t.Fatalf("excluded-import capabilities = %q, want %v", got, want)
+	}
+}
+
 func TestDesiredSchemaOmitsNameAndStaysClosed(t *testing.T) {
 	t.Parallel()
 	form := testForm()
@@ -220,6 +234,31 @@ func TestNegativeCasesDerivation(t *testing.T) {
 	}
 	if len(emptyCases) == 0 {
 		t.Fatal("every Form must derive at least one desired-stage negative case")
+	}
+}
+
+func TestNegativeCasesAppendDeclaredFormCases(t *testing.T) {
+	t.Parallel()
+	form := testForm()
+	form.DeclaredNegativeCases = []NegativeCase{{
+		Name: "external-policy-case", Desired: map[string]any{"retentionSeconds": int64(1)},
+	}}
+	cases, err := form.NegativeCases()
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, item := range cases {
+		if item.Name == "external-policy-case" {
+			found = item.Desired["retentionSeconds"] == int64(1)
+		}
+	}
+	if !found {
+		t.Fatalf("declared negative fixture was not retained: %v", names(cases))
+	}
+	form.DeclaredNegativeCases = append(form.DeclaredNegativeCases, form.DeclaredNegativeCases[0])
+	if _, err := form.NegativeCases(); err == nil || !strings.Contains(err.Error(), "external-policy-case") {
+		t.Fatalf("duplicate declared negative fixture error = %v", err)
 	}
 }
 
