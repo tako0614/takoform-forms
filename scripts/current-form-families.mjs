@@ -251,10 +251,15 @@ function generate(outputRoots, source) {
       }),
     };
     if (candidateSet.forms.length === 0) {
-      throw new Error(`${familyGroup}: source-only projection contains no Forms`);
+      throw new Error(
+        `${familyGroup}: source-only projection contains no Forms`,
+      );
     }
     writeJson(
-      path.join(outputRoots.sourceOnlyForms.get(familyGroup), "candidate-set.json"),
+      path.join(
+        outputRoots.sourceOnlyForms.get(familyGroup),
+        "candidate-set.json",
+      ),
       candidateSet,
     );
     sourceOnlySets.push(candidateSet);
@@ -320,7 +325,9 @@ function generate(outputRoots, source) {
   return {
     families: manifests,
     forms: manifests.flatMap((manifest) => manifest.forms),
-    sourceOnlyForms: sourceOnlySets.flatMap((candidateSet) => candidateSet.forms),
+    sourceOnlyForms: sourceOnlySets.flatMap(
+      (candidateSet) => candidateSet.forms,
+    ),
     familyIndex,
   };
 }
@@ -353,7 +360,9 @@ function generateFormPackages({
       throw new Error(`${slug}: every candidate must carry a negative fixture`);
     }
     if (Object.hasOwn(definition.desiredSchema?.properties ?? {}, "name")) {
-      throw new Error(`${slug}: desired schemas must not declare a name property`);
+      throw new Error(
+        `${slug}: desired schemas must not declare a name property`,
+      );
     }
 
     const destinationRoot = directChildPath(outputRoot, slug, "Form slug");
@@ -371,7 +380,9 @@ function generateFormPackages({
     // rounded by JavaScript's number representation.
     const definitionRaw = rendered.definitionJson;
     if (typeof definitionRaw !== "string" || definitionRaw.length === 0) {
-      throw new Error(`${slug}: source renderer emitted no definitionJson text`);
+      throw new Error(
+        `${slug}: source renderer emitted no definitionJson text`,
+      );
     }
     writeFileSync(path.join(destinationRoot, "definition.json"), definitionRaw);
     const payloadPaths = [
@@ -599,7 +610,9 @@ export function validatePublisherPathMetadata(source) {
       !Array.isArray(family.forms) ||
       family.forms.length === 0
     ) {
-      throw new Error("source-only Form metadata must be a unique unpublished family projection");
+      throw new Error(
+        "source-only Form metadata must be a unique unpublished family projection",
+      );
     }
     sourceOnlyGroups.add(family.group);
     const formKinds = new Set();
@@ -615,7 +628,9 @@ export function validatePublisherPathMetadata(source) {
         typeof form.fixtures !== "object" ||
         Array.isArray(form.fixtures)
       ) {
-        throw new Error(`${family.group}: unsafe source-only Form path metadata`);
+        throw new Error(
+          `${family.group}: unsafe source-only Form path metadata`,
+        );
       }
       const identity = `${form.kind}/${form.slug}`;
       if (
@@ -624,7 +639,9 @@ export function validatePublisherPathMetadata(source) {
         currentKinds.has(`${family.group}/${form.kind}`) ||
         currentSlugs.has(`${family.group}/${form.slug}`)
       ) {
-        throw new Error(`${family.group}: duplicate source-only Form identity ${identity}`);
+        throw new Error(
+          `${family.group}: duplicate source-only Form identity ${identity}`,
+        );
       }
       formKinds.add(form.kind);
       formSlugs.add(form.slug);
