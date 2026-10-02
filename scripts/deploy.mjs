@@ -906,6 +906,20 @@ function readTrustSet(
   return report;
 }
 
+function publisherSetHistory(report) {
+  if (Array.isArray(report.setHistory) && report.setHistory.length > 0) {
+    return report.setHistory;
+  }
+  return report.checkpointHistory.map((checkpoint, index) => ({
+    setId: checkpoint.setId,
+    setTag: checkpoint.setTag,
+    mode: index === 0 ? "genesis" : "advancement",
+    checkpointVersion: checkpoint.checkpointVersion,
+    pin: checkpoint.pin,
+    ...(index === 0 ? {} : { revocationTag: report.revocationTags[index - 1] }),
+  }));
+}
+
 function validateTrustReport(
   report,
   plan,
@@ -932,9 +946,11 @@ function validateTrustReport(
     report.workflowCommit !== trustSet ||
     report.buildConfigCommit !== trustSet ||
     report.publisherIdentity !== PUBLISHER_IDENTITY ||
-    report.packageCount !== 17 ||
+    !Number.isSafeInteger(report.packageCount) ||
+    report.packageCount < 1 ||
+    report.packageCount > 1024 ||
     !Array.isArray(report.packages) ||
-    report.packages.length !== 17 ||
+    report.packages.length !== report.packageCount ||
     report.checkpoint?.status !== "verified" ||
     !Number.isSafeInteger(report.checkpoint?.pin?.sequence) ||
     report.checkpoint.pin.sequence < 0 ||
@@ -952,9 +968,19 @@ function validateTrustReport(
       `trust set ${trustSet} did not return the exact Core v1.1.0 publisher/package/checkpoint report`,
     );
   }
-  if (validateCurrentPackages && plan.formCount !== 17) {
+  const legacySet =
+    !Array.isArray(report.setHistory) || report.setHistory.length === 0;
+  if (
+    legacySet &&
+    (report.packageCount !== 17 || report.mode || report.previousSetId)
+  ) {
     throw new DeployBlocked(
-      "publication plan must contain exactly 17 packages",
+      `trust set ${trustSet} has invalid legacy publisher-set evidence`,
+    );
+  }
+  if (validateCurrentPackages && plan.formCount !== report.packageCount) {
+    throw new DeployBlocked(
+      "publication plan differs from signed package count",
     );
   }
   const expectedTags = validateCurrentPackages
@@ -999,12 +1025,74 @@ function validateTrustReport(
   }
   const currentHistory = report.checkpointHistory.at(-1);
   if (
-    currentHistory.setId !== trustSet ||
     currentHistory.checkpointVersion !== report.checkpoint.checkpointVersion ||
     !pinsEqual(currentHistory.pin, report.checkpoint.pin)
   ) {
     throw new DeployBlocked(
-      `trust set ${trustSet} checkpoint publisher history does not end at the current signed set`,
+      `trust set ${trustSet} checkpoint publisher history does not end at the current checkpoint`,
+    );
+  }
+  const setHistory = publisherSetHistory(report);
+  if (setHistory.length > 1025 || setHistory.length === 0) {
+    throw new DeployBlocked(
+      `trust set ${trustSet} has invalid bounded publisher-set history`,
+    );
+  }
+  const seenSets = new Set();
+  const signedCheckpointHistory = [];
+  for (let index = 0; index < setHistory.length; index += 1) {
+    const historical = setHistory[index];
+    const before = setHistory[index - 1];
+    const isAdvancement = historical?.mode === "advancement";
+    if (
+      !commitPattern.test(historical?.setId ?? "") ||
+      historical.setTag !== `${TRUST_SET_TAG_PREFIX}${historical.setId}` ||
+      seenSets.has(historical.setId) ||
+      historical.pin?.checkpointApiVersion !== "trust.forms.takoform.com/v1" ||
+      !digestPattern.test(historical.pin?.digest ?? "") ||
+      !digestPattern.test(historical.pin?.entriesDigest ?? "") ||
+      (index === 0
+        ? historical.mode !== "genesis" ||
+          historical.pin.sequence !== 0 ||
+          historical.checkpointVersion !== "0.0.0"
+        : !["continuation", "advancement"].includes(historical.mode) ||
+          (isAdvancement
+            ? historical.pin.sequence !== before.pin.sequence + 1 ||
+              historical.revocationTag !==
+                report.revocationTags[historical.pin.sequence - 1]
+            : !pinsEqual(historical.pin, before.pin) ||
+              historical.checkpointVersion !== before.checkpointVersion ||
+              historical.revocationTag))
+    ) {
+      throw new DeployBlocked(
+        `trust set ${trustSet} has invalid publisher-set history at index ${index}`,
+      );
+    }
+    seenSets.add(historical.setId);
+    if (index === 0 || isAdvancement) {
+      signedCheckpointHistory.push({
+        setId: historical.setId,
+        setTag: historical.setTag,
+        checkpointVersion: historical.checkpointVersion,
+        pin: historical.pin,
+      });
+    }
+  }
+  const currentSet = setHistory.at(-1);
+  if (
+    currentSet.setId !== trustSet ||
+    currentSet.mode !==
+      (report.mode || (sequence === 0 ? "genesis" : "advancement")) ||
+    currentSet.checkpointVersion !== report.checkpoint.checkpointVersion ||
+    !pinsEqual(currentSet.pin, report.checkpoint.pin) ||
+    (legacySet
+      ? currentHistory.setId !== trustSet
+      : report.previousSetId !== setHistory.at(-2)?.setId) ||
+    JSON.stringify(signedCheckpointHistory) !==
+      JSON.stringify(report.checkpointHistory)
+  ) {
+    throw new DeployBlocked(
+      `trust set ${trustSet} signed set succession differs from checkpoint signer history`,
     );
   }
   if (sequence === 0) {
@@ -1016,7 +1104,11 @@ function validateTrustReport(
       (report.revocationTag ?? "") !== "" ||
       report.revocationTags.length !== 0 ||
       report.statements.length !== 0 ||
-      !exactPublisherBundle(checkpointBundle, GENESIS_DIGEST, trustSet)
+      !exactPublisherBundle(
+        checkpointBundle,
+        GENESIS_DIGEST,
+        currentHistory.setId,
+      )
     ) {
       throw new DeployBlocked(
         `trust set ${trustSet} does not contain the exact signed Core API v1 genesis`,
@@ -1039,7 +1131,7 @@ function validateTrustReport(
       !exactPublisherBundle(
         checkpointBundle,
         report.checkpoint.pin.digest,
-        trustSet,
+        currentHistory.setId,
       )
     ) {
       throw new DeployBlocked(
@@ -1084,12 +1176,19 @@ function validateTrustReport(
     if (
       report.checkpoint.checkpointVersion !== latest ||
       previous.checkpointVersion !== priorVersion ||
-      report.revocationTag !== `${REVOCATION_TAG_PREFIX}${latest}`
+      (currentSet.mode === "advancement"
+        ? report.revocationTag !== `${REVOCATION_TAG_PREFIX}${latest}`
+        : !!report.revocationTag)
     ) {
       throw new DeployBlocked(
         `trust set ${trustSet} revocation tag/version does not equal its checkpoint head`,
       );
     }
+  }
+  if (sequence === 0 && currentSet.mode !== "genesis" && report.revocationTag) {
+    throw new DeployBlocked(
+      `trust set ${trustSet} continuation cannot create a revocation tag`,
+    );
   }
   for (let index = 0; index < report.packages.length; index += 1) {
     const form = validateCurrentPackages ? plan.forms[index] : null;
@@ -1345,11 +1444,14 @@ function runOwnerGate(dependencies) {
 }
 
 function requirePublicPredecessor(plan, trust, dependencies) {
-  const sequence = trust.checkpoint.pin.sequence;
-  const expectedTags = trust.revocationTags.slice(0, -1);
-  const expectedSetTags = trust.checkpointHistory
-    .slice(0, -1)
-    .map((checkpoint) => checkpoint.setTag);
+  const setHistory = publisherSetHistory(trust);
+  const currentSet = setHistory.at(-1);
+  const previous = setHistory.at(-2);
+  const expectedTags =
+    currentSet.mode === "advancement"
+      ? trust.revocationTags.slice(0, -1)
+      : trust.revocationTags;
+  const expectedSetTags = setHistory.slice(0, -1).map((set) => set.setTag);
   const remoteSetTags = readRemoteTrustSetTags(dependencies);
   assertExactTagNames(
     remoteSetTags,
@@ -1362,11 +1464,10 @@ function requirePublicPredecessor(plan, trust, dependencies) {
     expectedTags,
     "public revocation predecessor",
   );
-  if (sequence === 0) return;
+  if (!previous) return;
 
-  const previous = trust.previousCheckpoint;
   const setTagCommits = new Map();
-  for (const historical of trust.checkpointHistory.slice(0, -1)) {
+  for (const historical of setHistory.slice(0, -1)) {
     setTagCommits.set(
       historical.setTag,
       readRemoteTagCommit(
@@ -1450,7 +1551,7 @@ function requirePublicPredecessor(plan, trust, dependencies) {
       false,
       true,
     );
-    for (const historical of trust.checkpointHistory.slice(0, -1)) {
+    for (const historical of setHistory.slice(0, -1)) {
       const fetchedSetCommit = requireSuccess(
         dependencies,
         "git",
@@ -1533,11 +1634,17 @@ function requirePublicPredecessor(plan, trust, dependencies) {
       JSON.stringify(predecessor.checkpoint.pin) !==
         JSON.stringify(previous.pin) ||
       predecessor.revocationTags.join("\n") !== expectedTags.join("\n") ||
+      JSON.stringify(publisherSetHistory(predecessor)) !==
+        JSON.stringify(setHistory.slice(0, -1)) ||
       JSON.stringify(predecessor.checkpointHistory) !==
-        JSON.stringify(trust.checkpointHistory.slice(0, -1))
+        JSON.stringify(
+          currentSet.mode === "advancement"
+            ? trust.checkpointHistory.slice(0, -1)
+            : trust.checkpointHistory,
+        )
     ) {
       throw new DeployBlocked(
-        `fresh public predecessor ${previous.setTag} does not equal the checkpoint pin signed into ${trust.setTag}`,
+        `fresh public predecessor ${previous.setTag} does not equal the set and checkpoint ancestry signed into ${trust.setTag}`,
       );
     }
   } finally {
@@ -2026,7 +2133,7 @@ export function verifyPublicPublication(
   }
 
   const setTagCommits = readRemoteTrustSetTags(dependencies, mutationStarted);
-  const expectedSetTags = trust.checkpointHistory.map(
+  const expectedSetTags = publisherSetHistory(trust).map(
     (historical) => historical.setTag,
   );
   assertExactTagNames(
@@ -2216,7 +2323,7 @@ export function verifyPublicPublication(
       true,
     );
     try {
-      for (const historical of trust.checkpointHistory) {
+      for (const historical of publisherSetHistory(trust)) {
         const fetchedSetCommit = requireSuccess(
           dependencies,
           "git",
@@ -2395,7 +2502,12 @@ export function verifyPublicPublication(
       sourceCommit: trust.sourceCommit,
       workflowCommit: trust.workflowCommit,
       buildConfigCommit: trust.buildConfigCommit,
+      mode:
+        trust.mode ||
+        (trust.checkpoint.pin.sequence === 0 ? "genesis" : "advancement"),
+      previousSetId: publisherSetHistory(trust).at(-2)?.setId ?? null,
       checkpointPin: trust.checkpoint.pin,
+      setHistory: publisherSetHistory(trust),
       checkpointHistory: trust.checkpointHistory,
       revocationTag: trust.revocationTag || null,
     },
@@ -2441,7 +2553,7 @@ export function verifyPublicPublication(
       "PUBLIC_MAIN_READBACK",
       "SIGNED_SET_TAG_READBACK",
       "APPEND_ONLY_REVOCATION_TAG_CHAIN_READBACK",
-      "ALL_22_RELEASE_ROOTS_AND_19_TAGGED_PACKAGE_BYTES_READBACK",
+      "ALL_RELEASE_ROOTS_AND_TAGGED_PACKAGE_BYTES_READBACK",
       "FRESH_TREE_BYTE_COMPARISON",
       "CORE_V1_1_0_PACKAGE_TRUST_REVOCATION_VERIFICATION",
     ],
@@ -2853,6 +2965,9 @@ function assertTrustReportsEqual(before, after) {
       workflowCommit: report.workflowCommit,
       buildConfigCommit: report.buildConfigCommit,
       checkpoint: report.checkpoint,
+      mode: report.mode ?? null,
+      previousSetId: report.previousSetId ?? null,
+      setHistory: report.setHistory ?? null,
       checkpointHistory: report.checkpointHistory,
       previousCheckpoint: report.previousCheckpoint ?? null,
       revocationTag: report.revocationTag ?? null,
@@ -2878,7 +2993,7 @@ function dryRunEvidence(plan, trust, commit, missingPackageTags) {
       tag: trust.setTag,
       sourceCommit: trust.sourceCommit,
       publisherIdentity: trust.publisherIdentity,
-      previousSetId: trust.previousCheckpoint?.setId ?? null,
+      previousSetId: publisherSetHistory(trust).at(-2)?.setId ?? null,
       revocationTag: trust.revocationTag || null,
     },
     currentPackageCount: plan.formCount,

@@ -1,8 +1,8 @@
 # Publisher-set continuation source path
 
-This is an unpublished source capability of the official Edge Form publisher,
-not a second Takoform trust profile or authorization to sign or release. The
-current default roster remains the same 17 published Forms. The two Container
+This is a source-level continuation path of the Edge Form publisher, not a
+second Takoform trust profile or authorization to sign or release. The
+current selected roster remains the same 17 published Forms. The two Container
 source candidates remain outside that roster and outside released paths.
 
 An eventual no-revocation successor starts from the exact latest public set,
@@ -46,11 +46,26 @@ The preparation route Core-verifies each package closure and checks it against
 the inherited checkpoint before signing. Verification and installation use
 released Core v1.1.0 for every actual Sigstore bundle and the cumulative
 checkpoint capability. Synthetic test signatures cannot pass their public
-entrypoints. A later publication decision must separately promote an exact
-active roster (19 for the first Container proposal), preserve all old released
-identities, connect the signing workflow, and update the publication plan's
-preflight and anonymous readback. Until then, `bun run deploy --
-form-packages-edge` must remain fail-closed for a 19-package continuation.
+entrypoints. The signing workflow has an explicit `transition_mode=continuation`
+input with `previous_set=<latest verified public set>` and a blank
+`statement_version`. It obtains the complete active release-root list from
+`bun scripts/form-publication.mjs --signing-roster`, which verifies the
+digest-pinned current selection and release closure. It signs each new active
+package index and the lineage subject, but never the inherited checkpoint.
+Blank `transition_mode` preserves the existing genesis/real-advancement input
+pair; continuation is never inferred from `previous_set` alone.
+
+A later publication decision must separately promote an exact active roster
+(19 for the first Container proposal) in the owning candidate set and pinned
+current-family index. The current unpromoted 19-path request still fails.
+The publication plan admits old release roots only from Core-verified prior
+signed sets (plus the two pinned retained identities), verifies their exact
+Core locators and bytes, and requires their existing immutable public tags
+before a new publication. Abandoned evidence-only roots never become signed
+or tagged packages. The public readback checks the signed set history and the
+checkpoint-signer history independently; a repeated continuation adds a set
+tag, not a revocation tag. None of these source paths dispatches signing or
+publishes a release by itself.
 
 Another no-revocation successor may follow a continuation or a real
 advancement and select a new active Form version. The old package can leave

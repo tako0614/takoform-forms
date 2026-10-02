@@ -1,22 +1,26 @@
 # Revocation advancement runbook
 
-This is the operator procedure for the official Edge Form Package publisher.
+This is the operator procedure for the Edge Form Package publisher.
 It advances one append-only Core API v1 revocation checkpoint and publishes
 one immutable revocation tag. It does not authorize signing or publication:
 the protected GitHub environment, an independent review, and the operator are
 separate authority boundaries.
 
-The workflow always signs 18 subjects: the new cumulative checkpoint and the
-current 17 canonical package indexes. It does not invent a statement
+For a legacy 17-package predecessor, the workflow signs 18 subjects: the new
+cumulative checkpoint and the 17 canonical package indexes. A successor of a
+signed-lineage set also signs `publisher-set/lineage.json`, and the package
+count follows the verified active roster. It does not invent a statement
 signature. Released Takoform Core v1.1.0 derives the checkpoint entry from the
 exact RFC 8785 canonical statement bytes; the signed checkpoint therefore
 binds its sequence, `statementVersion`, statement digest, package digest, and
 FormRef.
 
-The signed subject set remains 17 current packages. Publication and anonymous
+The current selected roster remains 17 packages. Publication and anonymous
 readback additionally require the two exact retained package roots recorded in
-`forms/retained-packages.json`, making 19 immutable release roots and tags; the
-retained roots are not extra signing subjects.
+`forms/retained-packages.json`. When the active selection changes, old release
+roots from Core-verified signed sets remain immutable historical roots with
+their old tags; they are not extra signing subjects in the new set. The
+abandoned evidence-only roots are never signed or tagged.
 
 `statementVersion` is an immutable trust-log identifier. It is not a third
 Takoform version axis and does not change API/Core SemVer or any Form's
@@ -71,7 +75,10 @@ statement_version=<new-version>
 
 Blank `previous_set` and `statement_version` are permitted only for the first
 sequence-zero genesis set, while no public set or revocation tags exist. The
-two advancement inputs must otherwise be supplied together.
+two advancement inputs must otherwise be supplied together. An omitted
+`transition_mode` preserves that existing pair; `transition_mode=advancement`
+may also be specified explicitly. `transition_mode=continuation` is a separate
+no-revocation path and must not be used for this statement/checkpoint pair.
 
 Before requesting OIDC signing, `prepare-advancement` performs a fresh
 credential-free clone of canonical public `main`, reads the exact
@@ -95,8 +102,10 @@ bun run install:trust -- --evidence <candidate> --expected-source-commit <commit
 ```
 
 Verification must report the exact new sequence, new statement version,
-previous set ID, complete checkpoint history, 17 packages, and
-`forms/revocations/v<new-version>`. Commit the newly created
+immediate previous set ID, complete set and checkpoint histories, every active
+package, and `forms/revocations/v<new-version>`. After a continuation, the
+immediate predecessor set may differ from the signer of the previous
+checkpoint; both identities must remain exact. Commit the newly created
 `forms/trust/sets/<commit>/` directory normally. Never complete or overwrite a
 pre-existing directory in place.
 
@@ -112,7 +121,8 @@ bun run deploy -- form-packages-edge --trust-set <signed-source-commit> --dry-ru
 The dry-run must name:
 
 - the unique previous public set;
-- all 17 current Core-derived package tags and the two retained package tags;
+- all current Core-derived package tags and all prior published historical
+  package tags;
 - the create-only `forms/sets/<signed-source-commit>` tag; and
 - exactly one new `forms/revocations/v<new-version>` tag.
 
@@ -132,23 +142,24 @@ bun run deploy -- form-packages-edge --trust-set <signed-source-commit> --verify
 The verifier clones public bytes without credentials, requires the exact set
 and revocation tag prefixes, pairs every sequence 1+ revocation tag with its
 atomic checkpoint-set publication, compares every tagged source path, replays
-the bounded Core checkpoint chain, verifies all 19 release roots and their
-tagged bytes, and verifies all 17 current packages are not revoked at the new
-head.
+the bounded Core checkpoint chain, verifies every release root and its tagged
+bytes, and verifies every current package is not revoked at the new head.
 
 ## 5. Settle a lost push acknowledgement
 
 If the atomic push command returns failure after mutation starts, its result is
 indeterminate. Do not delete, recreate, force, or manually move any ref. Rerun
 the exact same deploy command once. If public `main`, every set/revocation tag,
-all 19 package tags and release root bytes, and the signed Core report match exactly, the
-command returns `PUBLISHED_SETTLED` without a second push. Any mismatch remains
-blocked for investigation and forward repair.
+every current and historical published package tag and release-root byte, and
+the signed Core report match exactly, the command returns
+`PUBLISHED_SETTLED` without a second push. Any mismatch remains blocked for
+investigation and forward repair.
 
 Rollback, a second genesis, a forked predecessor, a rewritten prefix, a
 missing tag, an extra tag, retagging, update, or deletion is never repaired in
-place. Append a new statement/checkpoint and publish a new set. Package-byte
-changes also require a new Core-derived package identity.
+place. Investigate before any forward repair; do not invent a revocation to
+advance package versions. Package-byte changes require a new Core-derived
+package identity and a separately selected active roster.
 
 ## Recover an interrupted local install
 

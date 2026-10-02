@@ -21,7 +21,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const ACTIVE_FAMILY = "edge.forms.takoform.com";
-export const EXPECTED_FORM_COUNT = 17;
 export const EXPECTED_RETAINED_PACKAGE_COUNT = 2;
 export const EXPECTED_EVIDENCE_ONLY_PACKAGE_COUNT = 3;
 export const RETAINED_PACKAGE_INVENTORY_RELATIVE =
@@ -138,15 +137,20 @@ const expectedRetainedPackages = Object.freeze([
 if (import.meta.main) {
   try {
     const mode = process.argv[2];
-    if (process.argv.length !== 3 || !["--write", "--check"].includes(mode)) {
+    if (
+      process.argv.length !== 3 ||
+      !["--write", "--check", "--signing-roster"].includes(mode)
+    ) {
       throw new Error(
-        "usage: bun scripts/form-publication.mjs --write|--check",
+        "usage: bun scripts/form-publication.mjs --write|--check|--signing-roster",
       );
     }
     if (mode === "--write") {
       writePublication();
-    } else {
+    } else if (mode === "--check") {
       checkPublication();
+    } else {
+      process.stdout.write(`${JSON.stringify(deriveSigningRoster())}\n`);
     }
   } catch (error) {
     process.stderr.write(
@@ -164,8 +168,9 @@ if (import.meta.main) {
 export function derivePublicationPlan({
   root = repositoryRoot,
   verifyPackage = verifyWithCore,
+  readSignedSets = readVerifiedSignedSets,
 } = {}) {
-  const retainedPackages = readRetainedPackageInventory(root);
+  const baselineRetainedPackages = readRetainedPackageInventory(root);
   const evidenceOnlyPackages = readAbandonedPrepublication(root);
   const familyIndexPath = resolveRepositoryPath(
     root,
@@ -187,10 +192,12 @@ export function derivePublicationPlan({
   if (
     family?.group !== ACTIVE_FAMILY ||
     family.candidateSet !== expectedCandidateSetRelative ||
-    family.formCount !== EXPECTED_FORM_COUNT
+    !Number.isSafeInteger(family.formCount) ||
+    family.formCount < 1 ||
+    family.formCount > 1024
   ) {
     throw new Error(
-      `active family must be ${ACTIVE_FAMILY} with ${EXPECTED_FORM_COUNT} Forms at ${expectedCandidateSetRelative}`,
+      `active family must be ${ACTIVE_FAMILY} with a bounded Form count at ${expectedCandidateSetRelative}`,
     );
   }
 
@@ -207,10 +214,10 @@ export function derivePublicationPlan({
     candidateSet?.format !== "takoform.form-family-candidates@v1" ||
     candidateSet.family !== ACTIVE_FAMILY ||
     !Array.isArray(candidateSet.forms) ||
-    candidateSet.forms.length !== EXPECTED_FORM_COUNT
+    candidateSet.forms.length !== family.formCount
   ) {
     throw new Error(
-      `candidate set must contain exactly ${EXPECTED_FORM_COUNT} Edge Forms`,
+      `candidate set must contain exactly ${family.formCount} Edge Forms`,
     );
   }
 
@@ -237,6 +244,20 @@ export function derivePublicationPlan({
     if (!candidate.path.startsWith(expectedPrefix)) {
       throw new Error(
         `${candidate.kind}: candidate path escapes the Edge candidate root`,
+      );
+    }
+    const candidateIndex = readJSON(
+      path.join(candidatePath, "package-index.json"),
+      `${candidate.kind} candidate package index`,
+    );
+    if (
+      candidate.formRef?.apiVersion !== ACTIVE_FAMILY ||
+      candidate.formRef.kind !== candidate.kind ||
+      JSON.stringify(candidateIndex.formRef) !==
+        JSON.stringify(candidate.formRef)
+    ) {
+      throw new Error(
+        `${candidate.kind}: candidate FormRef differs from the selected package index`,
       );
     }
     const locator = verifyPackage(candidatePath, root);
@@ -294,6 +315,23 @@ export function derivePublicationPlan({
   forms.sort((left, right) =>
     compareStrings(left.locator.tag, right.locator.tag),
   );
+  const abandonedTags = new Set(evidenceOnlyPackages.map((entry) => entry.tag));
+  if (forms.some((form) => abandonedTags.has(form.locator.tag))) {
+    throw new Error(
+      "abandoned evidence-only identity cannot enter the active signing roster",
+    );
+  }
+  const retainedPackages = [
+    ...baselineRetainedPackages,
+    ...readHistoricalSignedPackages(
+      root,
+      forms,
+      baselineRetainedPackages,
+      evidenceOnlyPackages,
+      readSignedSets,
+    ),
+  ];
+  retainedPackages.sort((left, right) => compareStrings(left.tag, right.tag));
   return {
     repositoryRoot: path.resolve(root),
     familyIndexPath,
@@ -310,6 +348,223 @@ export function derivePublicationPlan({
     retainedPackages,
     evidenceOnlyPackages,
   };
+}
+
+/** The signed active roster comes only from the pinned current candidate projection. */
+export function deriveSigningRoster({
+  root = repositoryRoot,
+  verifyPackage = verifyWithCore,
+  readSignedSets = readVerifiedSignedSets,
+} = {}) {
+  const plan = derivePublicationPlan({ root, verifyPackage, readSignedSets });
+  verifyPublicationTree(plan, { root, verifyPackage });
+  return {
+    packageCount: plan.formCount,
+    activeReleasePaths: plan.forms.map((form) => form.locator.sourcePath),
+  };
+}
+
+function readVerifiedSignedSets(root) {
+  const setRoot = resolveRepositoryPath(root, "forms/trust/sets");
+  if (!pathExists(setRoot)) return [];
+  const result = spawnSync(
+    "go",
+    ["run", "./cmd/publisher-trust", "check", "--repository", root],
+    {
+      cwd: root,
+      encoding: "utf8",
+      maxBuffer: 16 * 1024 * 1024,
+      env: credentialFreeEnvironment(),
+    },
+  );
+  if (result.status !== 0) {
+    throw new Error(
+      `Core publisher-set history verification failed: ${String(result.stderr || result.stdout).trim()}`,
+    );
+  }
+  const verified = parseJSON(
+    Buffer.from(result.stdout),
+    "verified publisher-set history",
+  );
+  if (
+    verified?.status !== "verified" ||
+    !Array.isArray(verified.sets) ||
+    verified.setCount !== verified.sets.length
+  ) {
+    throw new Error("Core returned an invalid publisher-set history report");
+  }
+  return verified.sets;
+}
+
+function readHistoricalSignedPackages(
+  root,
+  forms,
+  baselineRetained,
+  evidenceOnly,
+  readSignedSets,
+) {
+  const selected = new Map([
+    ...forms.map((form) => [form.locator.tag, form]),
+    ...baselineRetained.map((entry) => [entry.tag, entry]),
+  ]);
+  const abandonedTags = new Set(evidenceOnly.map((entry) => entry.tag));
+  const byTag = new Map();
+  const byFormRef = new Map();
+  const seenSets = new Set();
+  const reports = readSignedSets(root);
+  if (!Array.isArray(reports) || reports.length > 1025) {
+    throw new Error("verified publisher-set history is not a bounded array");
+  }
+  const publishedReports = reports.filter(
+    (report) =>
+      !(
+        report?.disposition === "evidence-only" &&
+        report.setId === ABANDONED_PREPUBLICATION_SET_ID
+      ),
+  );
+  const lineageIds = (report) =>
+    (Array.isArray(report.setHistory) && report.setHistory.length > 0
+      ? report.setHistory
+      : report.checkpointHistory
+    )?.map((entry) => entry.setId);
+  const head = [...publishedReports].sort(
+    (left, right) => lineageIds(right)?.length - lineageIds(left)?.length,
+  )[0];
+  const headIds = head ? lineageIds(head) : [];
+  if (
+    head &&
+    (!Array.isArray(headIds) ||
+      headIds.length !== publishedReports.length ||
+      new Set(headIds).size !== headIds.length ||
+      publishedReports.some((report) => {
+        const ids = lineageIds(report);
+        return (
+          !Array.isArray(ids) ||
+          ids.at(-1) !== report.setId ||
+          JSON.stringify(ids) !== JSON.stringify(headIds.slice(0, ids.length))
+        );
+      }))
+  ) {
+    throw new Error(
+      "verified publisher sets do not form one complete successor history",
+    );
+  }
+  for (const report of reports) {
+    if (
+      report?.disposition === "evidence-only" &&
+      report.setId === ABANDONED_PREPUBLICATION_SET_ID
+    )
+      continue;
+    if (
+      report?.status !== "verified" ||
+      report.family !== ACTIVE_FAMILY ||
+      !/^[0-9a-f]{40}$/u.test(report.setId ?? "") ||
+      report.disposition ||
+      seenSets.has(report.setId) ||
+      !Array.isArray(report.packages) ||
+      report.packages.length < 1 ||
+      report.packages.length > 1024 ||
+      report.packageCount !== report.packages.length
+    ) {
+      throw new Error(
+        "Core returned invalid or duplicate published-set history",
+      );
+    }
+    seenSets.add(report.setId);
+    for (const entry of report.packages) {
+      const locator = entry?.locator;
+      const formRef = entry?.formRef;
+      const packageDigest = entry?.packageDigest;
+      if (
+        formRef?.apiVersion !== ACTIVE_FAMILY ||
+        typeof formRef.kind !== "string" ||
+        !formRef.kind ||
+        typeof formRef.definitionVersion !== "string" ||
+        !formRef.definitionVersion ||
+        !digestPattern.test(formRef.schemaDigest ?? "") ||
+        !digestPattern.test(packageDigest ?? "") ||
+        !releaseIdPattern.test(locator?.releaseId ?? "") ||
+        locator?.artifactId !== packageDigest.replace(":", "-") ||
+        locator?.apiVersion !== "packages.forms.takoform.com/v1alpha5" ||
+        locator?.tag !== `forms/${locator.releaseId}/${locator.artifactId}` ||
+        locator?.sourcePath !==
+          `${publicationRootRelative}/${locator.releaseId}/${locator.artifactId}`
+      ) {
+        throw new Error(
+          "verified publisher-set package has an invalid release identity",
+        );
+      }
+      resolveRepositoryPath(root, locator.sourcePath);
+      if (abandonedTags.has(locator.tag)) {
+        throw new Error(
+          `abandoned evidence-only package ${locator.tag} cannot enter published history`,
+        );
+      }
+      const refKey = JSON.stringify([
+        formRef.apiVersion,
+        formRef.kind,
+        formRef.definitionVersion,
+      ]);
+      const priorRef = byFormRef.get(refKey);
+      if (
+        priorRef &&
+        (priorRef.tag !== locator.tag ||
+          priorRef.packageDigest !== packageDigest ||
+          priorRef.formRef.schemaDigest !== formRef.schemaDigest)
+      ) {
+        throw new Error(
+          `verified publisher-set history conflicts for FormRef ${refKey}`,
+        );
+      }
+      const historical = {
+        formRef,
+        packageDigest,
+        releaseId: locator.releaseId,
+        artifactId: locator.artifactId,
+        tag: locator.tag,
+        sourcePath: locator.sourcePath,
+        releasePath: resolveRepositoryPath(root, locator.sourcePath),
+      };
+      byFormRef.set(refKey, historical);
+      const priorTag = byTag.get(locator.tag);
+      if (priorTag && JSON.stringify(priorTag) !== JSON.stringify(historical)) {
+        throw new Error(
+          `verified publisher-set history conflicts for tag ${locator.tag}`,
+        );
+      }
+      byTag.set(locator.tag, historical);
+      const selectedEntry = selected.get(locator.tag);
+      if (
+        selectedEntry &&
+        (selectedEntry.packageDigest !== packageDigest ||
+          JSON.stringify(selectedEntry.formRef) !== JSON.stringify(formRef))
+      ) {
+        throw new Error(
+          `verified publisher-set history differs from selected package ${locator.tag}`,
+        );
+      }
+    }
+  }
+  for (const selectedEntry of selected.values()) {
+    const formRef = selectedEntry.formRef;
+    const refKey = JSON.stringify([
+      formRef.apiVersion,
+      formRef.kind,
+      formRef.definitionVersion,
+    ]);
+    const priorRef = byFormRef.get(refKey);
+    if (
+      priorRef &&
+      (priorRef.tag !== (selectedEntry.locator?.tag ?? selectedEntry.tag) ||
+        priorRef.packageDigest !== selectedEntry.packageDigest ||
+        priorRef.formRef.schemaDigest !== formRef.schemaDigest)
+    ) {
+      throw new Error(
+        `selected package conflicts with historical FormRef ${refKey}`,
+      );
+    }
+  }
+  return [...byTag.values()].filter((entry) => !selected.has(entry.tag));
 }
 
 /**
@@ -725,8 +980,9 @@ export function verifyPublicationTree(
 export function writePublication({
   root = repositoryRoot,
   verifyPackage = verifyWithCore,
+  readSignedSets = readVerifiedSignedSets,
 } = {}) {
-  const plan = derivePublicationPlan({ root, verifyPackage });
+  const plan = derivePublicationPlan({ root, verifyPackage, readSignedSets });
   const inspection = inspectPublicationTree(plan, { root });
   const existingPackageRoots = new Set(
     plan.forms
@@ -789,8 +1045,9 @@ export function writePublication({
 export function checkPublication({
   root = repositoryRoot,
   verifyPackage = verifyWithCore,
+  readSignedSets = readVerifiedSignedSets,
 } = {}) {
-  const plan = derivePublicationPlan({ root, verifyPackage });
+  const plan = derivePublicationPlan({ root, verifyPackage, readSignedSets });
   verifyPublicationTree(plan, { root, verifyPackage });
   process.stdout.write(
     `verified ${plan.formCount} current Edge Form Package release directories and ${plan.releaseRootCount ?? plan.formCount} Core-derived release roots\n`,
