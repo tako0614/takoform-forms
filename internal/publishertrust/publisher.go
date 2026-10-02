@@ -6,6 +6,7 @@ package publishertrust
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,6 +31,10 @@ const (
 	VerifiedPublicationStatus          = "verified"
 	GenesisMode                        = "genesis"
 	AdvancementMode                    = "advancement"
+	ContinuationMode                   = "continuation"
+	LineageSubjectPath                 = "publisher-set/lineage.json"
+	LineageBundlePath                  = "publisher-set/lineage.sigstore.json"
+	LineageFormat                      = "takoform.publisher-set-lineage@v1"
 	PublisherRepository                = "https://github.com/tako0614/takoform-forms"
 	PublisherWorkflow                  = PublisherRepository + "/.github/workflows/form-package-signing.yml"
 	PublisherRef                       = "refs/heads/main"
@@ -47,7 +52,9 @@ const (
 	AbandonedPrepublicationDisposition = "evidence-only"
 	AbandonedPrepublicationSetID       = "cdd30b711e2c6857b1b4d247b1471f5676904933"
 	AbandonedPrepublicationSetTag      = "forms/sets/cdd30b711e2c6857b1b4d247b1471f5676904933"
+	originalPublishedSetID             = "e7f8a39311dd011b8467e97e7f300cabb9a6b06c"
 	MaxRevocationSequence              = 1024
+	maxPublisherSetLineageDepth        = 1024
 	setTagPrefix                       = "forms/sets/"
 	revocationTagPrefix                = "forms/revocations/v"
 )
@@ -55,6 +62,7 @@ const (
 const (
 	publisherPolicySource          = "forms/trust/publisher-policy.json"
 	trustedRootSource              = "forms/trust/trusted-root.json"
+	currentFamilyIndexSource       = "forms/candidates/current-family-index.json"
 	candidateSetSource             = "forms/candidates/edge.forms.takoform.com/candidate-set.json"
 	retainedPackageInventorySource = "forms/retained-packages.json"
 	abandonedPrepublicationSource  = AbandonedPrepublicationPath
@@ -107,6 +115,20 @@ type SigningSubject struct {
 	Digest string `json:"digest"`
 }
 
+// SetLineageSubject binds publisher-set succession independently of the Core
+// checkpoint signer. Both successor modes sign this exact package inventory.
+type SetLineageSubject struct {
+	Format                string                              `json:"format"`
+	Family                string                              `json:"family"`
+	Mode                  string                              `json:"mode"`
+	PreviousSetID         string                              `json:"previousSetId"`
+	PreviousCheckpointPin formpackage.RevocationCheckpointPin `json:"previousCheckpointPin"`
+	CurrentCheckpointPin  formpackage.RevocationCheckpointPin `json:"currentCheckpointPin"`
+	Subjects              []SigningSubject                    `json:"subjects"`
+	RevocationTag         string                              `json:"revocationTag,omitempty"`
+	StatementDigest       string                              `json:"statementDigest,omitempty"`
+}
+
 type PreparationReport struct {
 	Status            string           `json:"status"`
 	CoreVersion       string           `json:"coreVersion"`
@@ -135,6 +157,8 @@ type VerificationReport struct {
 	Family               string                                 `json:"family"`
 	SetID                string                                 `json:"setId"`
 	SetTag               string                                 `json:"setTag"`
+	PreviousSetID        string                                 `json:"previousSetId,omitempty"`
+	Mode                 string                                 `json:"mode,omitempty"`
 	Disposition          string                                 `json:"disposition,omitempty"`
 	EvidenceOnlyPackages []AbandonedPrepublicationPackage       `json:"evidenceOnlyPackages,omitempty"`
 	PackageCount         int                                    `json:"packageCount"`
@@ -144,6 +168,7 @@ type VerificationReport struct {
 	BuildConfigCommit    string                                 `json:"buildConfigCommit"`
 	Checkpoint           trust.RevocationCheckpointVerification `json:"checkpoint"`
 	CheckpointHistory    []PreviousCheckpointVerification       `json:"checkpointHistory"`
+	SetHistory           []PublisherSetVerification             `json:"setHistory,omitempty"`
 	PreviousCheckpoint   *PreviousCheckpointVerification        `json:"previousCheckpoint,omitempty"`
 	RevocationTag        string                                 `json:"revocationTag,omitempty"`
 	RevocationTags       []string                               `json:"revocationTags"`
@@ -156,6 +181,18 @@ type PreviousCheckpointVerification struct {
 	SetTag            string                              `json:"setTag"`
 	CheckpointVersion string                              `json:"checkpointVersion"`
 	Pin               formpackage.RevocationCheckpointPin `json:"pin"`
+}
+
+// PublisherSetVerification is set succession, which can advance without a
+// revocation checkpoint advancement. Legacy sets derive this from their
+// checkpoint history; signed lineage successors append to it independently.
+type PublisherSetVerification struct {
+	SetID             string                              `json:"setId"`
+	SetTag            string                              `json:"setTag"`
+	Mode              string                              `json:"mode"`
+	CheckpointVersion string                              `json:"checkpointVersion"`
+	Pin               formpackage.RevocationCheckpointPin `json:"pin"`
+	RevocationTag     string                              `json:"revocationTag,omitempty"`
 }
 
 type RevocationStatementVerification struct {
@@ -185,6 +222,18 @@ type candidateSet struct {
 	AuthoringSource   string             `json:"authoringSource"`
 	AuthoringPolicy   string             `json:"authoringPolicy"`
 	Forms             []packageCandidate `json:"forms"`
+}
+
+type currentFamilyIndex struct {
+	Format   string `json:"format"`
+	Families []struct {
+		Group        string `json:"group"`
+		CandidateSet string `json:"candidateSet"`
+		SHA256       string `json:"sha256"`
+		FormCount    int    `json:"formCount"`
+	} `json:"families"`
+	InterfaceCandidateSet json.RawMessage `json:"interfaceCandidateSet"`
+	BindingCandidateSet   json.RawMessage `json:"bindingCandidateSet"`
 }
 
 type verifiedCandidate struct {
@@ -447,6 +496,210 @@ func PrepareSigningRequest(repositoryRoot, output string) (PreparationReport, er
 	}, nil
 }
 
+// PrepareContinuationSigningRequest signs one explicit complete active release
+// roster without creating revocation evidence. The roster is publisher policy;
+// Core verifies every release root but does not choose which versions are active.
+func PrepareContinuationSigningRequest(repositoryRoot, previousSetRoot string, activeReleasePaths []string, output string) (PreparationReport, error) {
+	if err := requireReleasedCore(); err != nil {
+		return PreparationReport{}, err
+	}
+	var err error
+	repositoryRoot, err = filepath.Abs(repositoryRoot)
+	if err != nil {
+		return PreparationReport{}, err
+	}
+	output, err = filepath.Abs(output)
+	if err != nil {
+		return PreparationReport{}, err
+	}
+	if _, err := os.Lstat(output); err == nil {
+		return PreparationReport{}, fmt.Errorf("refusing to replace existing signing request %s", output)
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return PreparationReport{}, err
+	}
+	previous, err := verifyPublishedSetEvidence(repositoryRoot, previousSetRoot)
+	if err != nil {
+		return PreparationReport{}, fmt.Errorf("verify predecessor publisher set: %w", err)
+	}
+	return prepareContinuationFromVerifiedPredecessor(repositoryRoot, previousSetRoot, activeReleasePaths, output, previous)
+}
+
+// The public entrypoint supplies only a Core-verified predecessor. This
+// post-verification seam lets tests prepare later successors without minting
+// a real Fulcio identity or accepting a serialized report in production.
+func prepareContinuationFromVerifiedPredecessor(repositoryRoot, previousSetRoot string, activeReleasePaths []string, output string, previous verifiedEvidence) (PreparationReport, error) {
+	return prepareContinuationWithRevocationCheck(repositoryRoot, previousSetRoot, activeReleasePaths, output, previous, func(checkpoint trust.RevocationCheckpointVerification, digest string, formRef formpackage.FormRef) error {
+		return checkpoint.CheckNotRevoked(digest, formRef)
+	})
+}
+
+// This private seam can exercise source-only future-checkpoint fixtures. The
+// exported preparation route always calls Core CheckNotRevoked above.
+func prepareContinuationWithRevocationCheck(repositoryRoot, previousSetRoot string, activeReleasePaths []string, output string, previous verifiedEvidence, checkNotRevoked func(trust.RevocationCheckpointVerification, string, formpackage.FormRef) error) (PreparationReport, error) {
+	if len(activeReleasePaths) == 0 {
+		return PreparationReport{}, fmt.Errorf("continuation requires an explicit nonempty active release roster")
+	}
+	if filepath.Base(previousSetRoot) != previous.report.SetID {
+		return PreparationReport{}, fmt.Errorf("verified predecessor set ID differs from its exact set directory")
+	}
+	if previous.report.SetID == AbandonedPrepublicationSetID || previous.report.Disposition != "" {
+		return PreparationReport{}, fmt.Errorf("evidence-only predecessor cannot authorize a continuation")
+	}
+	if previous.report.Mode != "" && previous.report.Mode != ContinuationMode && previous.report.Mode != AdvancementMode {
+		return PreparationReport{}, fmt.Errorf("verified predecessor has unknown publisher-set mode %q", previous.report.Mode)
+	}
+	if err := verifySourceRevocationHistory(repositoryRoot, previous.revocations, true); err != nil {
+		return PreparationReport{}, fmt.Errorf("continuation requires the unchanged exact revocation source: %w", err)
+	}
+	oldPackages, err := discoverPublishedSetPackages(repositoryRoot, previousSetRoot)
+	if err != nil {
+		return PreparationReport{}, err
+	}
+	if err := verifyPredecessorPackageInventory(oldPackages, previous.report.Packages); err != nil {
+		return PreparationReport{}, err
+	}
+	abandoned, err := ReadAbandonedPrepublication(repositoryRoot)
+	if err != nil {
+		return PreparationReport{}, err
+	}
+	for _, sourcePath := range activeReleasePaths {
+		for _, entry := range abandoned.EvidenceOnlyPackages {
+			if sourcePath == entry.SourcePath {
+				return PreparationReport{}, fmt.Errorf("abandoned evidence-only release %s cannot enter the active roster", sourcePath)
+			}
+		}
+	}
+	selected, err := discoverActivePackages(repositoryRoot)
+	if err != nil {
+		return PreparationReport{}, err
+	}
+	if len(activeReleasePaths) != len(selected) {
+		return PreparationReport{}, fmt.Errorf("requested active release roster differs from the current-family index selected %d packages", len(selected))
+	}
+	selectedByPath := make(map[string]verifiedCandidate, len(selected))
+	for _, value := range selected {
+		selectedByPath[value.locator.SourcePath] = value
+	}
+	checkpoint := previous.revocations.checkpoints[len(previous.revocations.checkpoints)-1]
+	packages := make([]verifiedCandidate, 0, len(activeReleasePaths))
+	seenTags := make(map[string]struct{}, len(activeReleasePaths))
+	seenVersions := make(map[string]struct{}, len(activeReleasePaths))
+	for _, sourcePath := range activeReleasePaths {
+		if !safeRelative(sourcePath) || !strings.HasPrefix(sourcePath, "forms/releases/") || len(strings.Split(sourcePath, "/")) != 4 {
+			return PreparationReport{}, fmt.Errorf("active release path %q is not an exact release root", sourcePath)
+		}
+		releaseRoot := filepath.Join(repositoryRoot, filepath.FromSlash(sourcePath))
+		value, err := verifyReleaseCandidate(releaseRoot, sourcePath)
+		if err != nil {
+			return PreparationReport{}, err
+		}
+		selectedValue, selectedPath := selectedByPath[sourcePath]
+		if !selectedPath || selectedValue.locator != value.locator || selectedValue.candidate.FormRef != value.candidate.FormRef || selectedValue.candidate.PackageDigest != value.candidate.PackageDigest || !bytes.Equal(selectedValue.canonicalIndex, value.canonicalIndex) {
+			return PreparationReport{}, fmt.Errorf("active release %s differs from the current-family index selected identity", sourcePath)
+		}
+		if _, duplicate := seenTags[value.locator.Tag]; duplicate {
+			return PreparationReport{}, fmt.Errorf("continuation repeats package identity %s", value.locator.Tag)
+		}
+		seenTags[value.locator.Tag] = struct{}{}
+		versionKey := value.candidate.FormRef.Kind + "@" + value.candidate.FormRef.DefinitionVersion
+		if _, conflicting := seenVersions[versionKey]; conflicting {
+			return PreparationReport{}, fmt.Errorf("continuation has conflicting active Form version %s", versionKey)
+		}
+		seenVersions[versionKey] = struct{}{}
+		if err := checkNotRevoked(checkpoint.verification, value.candidate.PackageDigest, value.candidate.FormRef); err != nil {
+			return PreparationReport{}, fmt.Errorf("Core %s %s active release revocation check: %w", CoreVersion, value.candidate.Kind, err)
+		}
+		packages = append(packages, value)
+	}
+	sort.Slice(packages, func(i, j int) bool { return packages[i].locator.Tag < packages[j].locator.Tag })
+	policyRaw, _, err := readPublisherPolicy(repositoryRoot)
+	if err != nil {
+		return PreparationReport{}, err
+	}
+	rootRaw, err := readRegular(filepath.Join(repositoryRoot, filepath.FromSlash(trustedRootSource)), "trusted root")
+	if err != nil {
+		return PreparationReport{}, err
+	}
+	inventory := make([]SigningSubject, 0, len(packages))
+	for _, value := range packages {
+		inventory = append(inventory, SigningSubject{Role: "package-index", Path: packageSubjectPath(value.locator), Digest: value.candidate.PackageDigest})
+	}
+	sort.Slice(inventory, func(i, j int) bool { return inventory[i].Path < inventory[j].Path })
+	manifest := SetLineageSubject{Format: LineageFormat, Family: Family, Mode: ContinuationMode, PreviousSetID: previous.report.SetID, PreviousCheckpointPin: checkpoint.verification.Pin, CurrentCheckpointPin: checkpoint.verification.Pin, Subjects: inventory}
+	manifestJSON, err := json.Marshal(manifest)
+	if err != nil {
+		return PreparationReport{}, err
+	}
+	manifestRaw, err := formpackage.Canonicalize(manifestJSON)
+	if err != nil {
+		return PreparationReport{}, err
+	}
+	if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
+		return PreparationReport{}, err
+	}
+	if err := os.Mkdir(output, 0o755); err != nil {
+		return PreparationReport{}, fmt.Errorf("create signing output create-only: %w", err)
+	}
+	for relative, raw := range map[string][]byte{PublisherPolicyPath: policyRaw, TrustedRootPath: rootRaw, RevocationCheckpointPath: checkpoint.raw, RevocationBundlePath: checkpoint.bundle, LineageSubjectPath: manifestRaw} {
+		if err := writePublicFile(output, relative, raw); err != nil {
+			return PreparationReport{}, err
+		}
+	}
+	for _, statement := range previous.revocations.statements {
+		if err := writePublicFile(output, revocationStatementEvidencePath(statement.verification.StatementVersion), statement.raw); err != nil {
+			return PreparationReport{}, err
+		}
+	}
+	for _, old := range previous.revocations.checkpoints[:len(previous.revocations.checkpoints)-1] {
+		version := old.verification.CheckpointVersion
+		for relative, raw := range map[string][]byte{revocationHistoryCheckpointPath(version): old.raw, revocationHistoryBundlePath(version): old.bundle} {
+			if err := writePublicFile(output, relative, raw); err != nil {
+				return PreparationReport{}, err
+			}
+		}
+	}
+	subjects := []SigningSubject{{Role: "publisher-set-lineage", Path: LineageSubjectPath, Digest: formpackage.DigestBytes(manifestRaw)}}
+	for _, value := range packages {
+		relative := packageSubjectPath(value.locator)
+		if err := writePublicFile(output, relative, value.canonicalIndex); err != nil {
+			return PreparationReport{}, err
+		}
+		subjects = append(subjects, SigningSubject{Role: "package-index", Path: relative, Digest: value.candidate.PackageDigest})
+	}
+	sort.Slice(subjects, func(i, j int) bool { return subjects[i].Path < subjects[j].Path })
+	return PreparationReport{Status: SigningRequiredStatus, CoreVersion: CoreVersion, Family: Family, Mode: ContinuationMode, Sequence: checkpoint.verification.Pin.Sequence, CheckpointVersion: checkpoint.verification.CheckpointVersion, PreviousSetID: previous.report.SetID, PackageCount: len(packages), Output: output, Subjects: subjects}, nil
+}
+
+func verifyReleaseCandidate(releaseRoot, sourcePath string) (verifiedCandidate, error) {
+	report, err := formpackage.VerifyDirectory(releaseRoot)
+	if err != nil {
+		return verifiedCandidate{}, fmt.Errorf("Core %s new release verification: %w", CoreVersion, err)
+	}
+	capability, ok := report.VerifiedPackage()
+	if !ok {
+		return verifiedCandidate{}, fmt.Errorf("Core did not issue a new package capability")
+	}
+	locator, err := formpackage.PublicationLocatorFor(capability.PackageIndex(), capability.PackageDigest())
+	if err != nil {
+		return verifiedCandidate{}, err
+	}
+	if report.FormRef.APIVersion != Family || locator.SourcePath != sourcePath {
+		return verifiedCandidate{}, fmt.Errorf("new release root differs from its Core locator")
+	}
+	raw, err := readRegular(filepath.Join(releaseRoot, PackageIndexName), "new release package index")
+	if err != nil {
+		return verifiedCandidate{}, err
+	}
+	canonical, err := formpackage.Canonicalize(raw)
+	if err != nil {
+		return verifiedCandidate{}, err
+	}
+	if formpackage.DigestBytes(canonical) != report.PackageDigest {
+		return verifiedCandidate{}, fmt.Errorf("new release package index digest differs from Core identity")
+	}
+	return verifiedCandidate{candidate: packageCandidate{Kind: report.FormRef.Kind, FormRef: report.FormRef, PackageDigest: report.PackageDigest}, locator: locator, releaseRoot: releaseRoot, canonicalIndex: canonical}, nil
+}
+
 // PrepareRevocationSigningRequest creates the next signing request from one
 // already verified predecessor set and one exact source-controlled statement /
 // cumulative checkpoint pair. The request carries the complete bounded signed
@@ -476,10 +729,32 @@ func PrepareRevocationSigningRequest(repositoryRoot, previousSetRoot, statementV
 	if err != nil {
 		return PreparationReport{}, fmt.Errorf("verify predecessor publisher set: %w", err)
 	}
+	return prepareRevocationFromVerifiedPredecessor(repositoryRoot, previousSetRoot, statementVersion, output, previous)
+}
+
+// The public entrypoint obtains previous exclusively through Core verification.
+// Splitting the post-verification step lets synthetic tests exercise the later
+// checkpoint source and set-lineage construction without a live signer.
+func prepareRevocationFromVerifiedPredecessor(repositoryRoot, previousSetRoot, statementVersion, output string, previous verifiedEvidence) (PreparationReport, error) {
+	var err error
 	if len(previous.revocations.checkpoints) == 0 {
 		return PreparationReport{}, fmt.Errorf("verified predecessor publisher set has no checkpoint capability")
 	}
-	packages, err := discoverPackages(repositoryRoot)
+	if filepath.Base(previousSetRoot) != previous.report.SetID {
+		return PreparationReport{}, fmt.Errorf("verified predecessor set ID differs from its exact set directory")
+	}
+	var packages []verifiedCandidate
+	switch previous.report.Mode {
+	case ContinuationMode, AdvancementMode:
+		packages, err = discoverPublishedSetPackages(repositoryRoot, previousSetRoot)
+		if err == nil {
+			err = verifyPredecessorPackageInventory(packages, previous.report.Packages)
+		}
+	case "": // Existing published Core-only sets have no publisher lineage.
+		packages, err = discoverPackages(repositoryRoot)
+	default:
+		return PreparationReport{}, fmt.Errorf("verified predecessor has unknown publisher-set mode %q", previous.report.Mode)
+	}
 	if err != nil {
 		return PreparationReport{}, err
 	}
@@ -560,6 +835,26 @@ func PrepareRevocationSigningRequest(repositoryRoot, previousSetRoot, statementV
 			return PreparationReport{}, err
 		}
 	}
+	var lineageRaw []byte
+	if previous.report.Mode == ContinuationMode || previous.report.Mode == AdvancementMode {
+		inventory := make([]SigningSubject, 0, len(packages))
+		for _, value := range packages {
+			inventory = append(inventory, SigningSubject{Role: "package-index", Path: packageSubjectPath(value.locator), Digest: value.candidate.PackageDigest})
+		}
+		sort.Slice(inventory, func(i, j int) bool { return inventory[i].Path < inventory[j].Path })
+		lineage := SetLineageSubject{Format: LineageFormat, Family: Family, Mode: AdvancementMode, PreviousSetID: previous.report.SetID, PreviousCheckpointPin: previousCheckpoint.Pin, CurrentCheckpointPin: advancement.Pin, Subjects: inventory, RevocationTag: advancement.Tag, StatementDigest: advancement.Entry.StatementDigest}
+		encoded, err := json.Marshal(lineage)
+		if err != nil {
+			return PreparationReport{}, err
+		}
+		lineageRaw, err = formpackage.Canonicalize(encoded)
+		if err != nil {
+			return PreparationReport{}, err
+		}
+		if err := writePublicFile(output, LineageSubjectPath, lineageRaw); err != nil {
+			return PreparationReport{}, err
+		}
+	}
 
 	subjects := make([]SigningSubject, 0, len(packages)+1)
 	subjects = append(subjects, SigningSubject{
@@ -571,6 +866,9 @@ func PrepareRevocationSigningRequest(repositoryRoot, previousSetRoot, statementV
 			return PreparationReport{}, err
 		}
 		subjects = append(subjects, SigningSubject{Role: "package-index", Path: relative, Digest: packageValue.candidate.PackageDigest})
+	}
+	if len(lineageRaw) != 0 {
+		subjects = append(subjects, SigningSubject{Role: "publisher-set-lineage", Path: LineageSubjectPath, Digest: formpackage.DigestBytes(lineageRaw)})
 	}
 	sort.Slice(subjects, func(left, right int) bool { return subjects[left].Path < subjects[right].Path })
 	return PreparationReport{
@@ -588,7 +886,16 @@ func VerifySigningRequest(repositoryRoot, evidenceRoot, expectedSourceCommit str
 	if err := requireReleasedCore(); err != nil {
 		return VerificationReport{}, err
 	}
-	packages, err := discoverPackages(repositoryRoot)
+	_, continuation, err := readOptionalRegular(filepath.Join(evidenceRoot, LineageSubjectPath))
+	if err != nil {
+		return VerificationReport{}, err
+	}
+	var packages []verifiedCandidate
+	if continuation {
+		packages, err = discoverPublishedSetPackages(repositoryRoot, evidenceRoot)
+	} else {
+		packages, err = discoverPackages(repositoryRoot)
+	}
 	if err != nil {
 		return VerificationReport{}, err
 	}
@@ -623,9 +930,14 @@ func classifyAbandonedPrepublication(repositoryRoot string, verified *verifiedEv
 	if record.SetID != verified.report.SetID || record.SetTag != verified.report.SetTag {
 		return fmt.Errorf("abandoned prepublication manifest set identity differs from the verified publisher set")
 	}
-	current, err := discoverCurrentPackageIdentities(repositoryRoot)
+	// Classification is about the fixed abandoned publication episode, not
+	// today's mutable active candidate selection. Otherwise a later ordinary
+	// Form-version replacement could retroactively make old evidence appear
+	// unlisted. The original deployable set is an immutable Core-verified pin.
+	originalRoot := filepath.Join(repositoryRoot, filepath.FromSlash(TrustSetsRelativePath), originalPublishedSetID)
+	original, err := verifyPublishedSetEvidence(repositoryRoot, originalRoot)
 	if err != nil {
-		return err
+		return fmt.Errorf("verify original published set for abandoned classification: %w", err)
 	}
 	if err := verifyRetainedPackageInventory(repositoryRoot); err != nil {
 		return err
@@ -634,9 +946,9 @@ func classifyAbandonedPrepublication(repositoryRoot string, verified *verifiedEv
 	if err != nil {
 		return err
 	}
-	currentKeys := make(map[string]struct{}, len(current))
-	for _, packageValue := range current {
-		currentKeys[packageIdentityKey(packageValue.candidate.FormRef, packageValue.candidate.PackageDigest, packageValue.locator)] = struct{}{}
+	currentKeys := make(map[string]struct{}, len(original.report.Packages))
+	for _, packageValue := range original.report.Packages {
+		currentKeys[packageIdentityKey(packageValue.FormRef, packageValue.PackageDigest, packageValue.Locator)] = struct{}{}
 	}
 	retainedKeys := make(map[string]struct{}, len(retained))
 	for _, entry := range retained {
@@ -678,6 +990,13 @@ func classifyAbandonedPrepublication(repositoryRoot string, verified *verifiedEv
 }
 
 func verifyPublishedSetEvidence(repositoryRoot, setRoot string) (verifiedEvidence, error) {
+	return verifyPublishedSetEvidenceWithAncestors(repositoryRoot, setRoot, make(map[string]struct{}))
+}
+
+func verifyPublishedSetEvidenceWithAncestors(repositoryRoot, setRoot string, ancestors map[string]struct{}) (verifiedEvidence, error) {
+	if len(ancestors) >= maxPublisherSetLineageDepth {
+		return verifiedEvidence{}, fmt.Errorf("publisher-set lineage exceeds replay depth %d", maxPublisherSetLineageDepth)
+	}
 	if err := requireReleasedCore(); err != nil {
 		return verifiedEvidence{}, err
 	}
@@ -693,7 +1012,7 @@ func verifyPublishedSetEvidence(repositoryRoot, setRoot string) (verifiedEvidenc
 	if err != nil {
 		return verifiedEvidence{}, err
 	}
-	return verifyEvidence(repositoryRoot, setRoot, setID, false, packages)
+	return verifyEvidenceWithAncestors(repositoryRoot, setRoot, setID, false, packages, trust.VerifyBundle, ancestors)
 }
 
 // InstallSigningRequest verifies a complete external request before copying
@@ -798,6 +1117,38 @@ func validateCoreBuildInfo(build *debug.BuildInfo) error {
 }
 
 func verifyEvidence(repositoryRoot, evidenceRoot, expectedSourceCommit string, includesSubjects bool, packages []verifiedCandidate) (verifiedEvidence, error) {
+	return verifyEvidenceWithNewBundleVerifier(repositoryRoot, evidenceRoot, expectedSourceCommit, includesSubjects, packages, trust.VerifyBundle)
+}
+
+// The injected verifier is used only for newly issued continuation subjects.
+// Public entrypoints always pass Core's VerifyBundle; the seam permits local
+// synthetic lineage tests without minting a real Fulcio identity or log proof.
+func verifyEvidenceWithNewBundleVerifier(repositoryRoot, evidenceRoot, expectedSourceCommit string, includesSubjects bool, packages []verifiedCandidate, verifyNewBundle func([]byte, []byte, []byte, trust.PublisherPolicy) (trust.BundleVerification, error)) (verifiedEvidence, error) {
+	return verifyEvidenceWithAncestors(repositoryRoot, evidenceRoot, expectedSourceCommit, includesSubjects, packages, verifyNewBundle, make(map[string]struct{}))
+}
+
+func verifyEvidenceWithAncestors(repositoryRoot, evidenceRoot, expectedSourceCommit string, includesSubjects bool, packages []verifiedCandidate, verifyNewBundle func([]byte, []byte, []byte, trust.PublisherPolicy) (trust.BundleVerification, error), ancestors map[string]struct{}) (verifiedEvidence, error) {
+	return verifyEvidenceWithPredecessorVerifierWithAncestors(repositoryRoot, evidenceRoot, expectedSourceCommit, includesSubjects, packages, verifyNewBundle, ancestors, verifyPublishedSetEvidenceWithAncestors)
+}
+
+// Synthetic repeat-successor tests may supply an already verified predecessor
+// whose new Sigstore signatures do not exist. Public callers always recurse
+// through Core via verifyPublishedSetEvidenceWithAncestors above.
+func verifyEvidenceWithPredecessorVerifier(repositoryRoot, evidenceRoot, expectedSourceCommit string, includesSubjects bool, packages []verifiedCandidate, verifyNewBundle func([]byte, []byte, []byte, trust.PublisherPolicy) (trust.BundleVerification, error), verifyPredecessor func(string, string, map[string]struct{}) (verifiedEvidence, error)) (verifiedEvidence, error) {
+	return verifyEvidenceWithPredecessorVerifierWithAncestors(repositoryRoot, evidenceRoot, expectedSourceCommit, includesSubjects, packages, verifyNewBundle, make(map[string]struct{}), verifyPredecessor)
+}
+
+func verifyEvidenceWithPredecessorVerifierWithAncestors(repositoryRoot, evidenceRoot, expectedSourceCommit string, includesSubjects bool, packages []verifiedCandidate, verifyNewBundle func([]byte, []byte, []byte, trust.PublisherPolicy) (trust.BundleVerification, error), ancestors map[string]struct{}, verifyPredecessor func(string, string, map[string]struct{}) (verifiedEvidence, error)) (verifiedEvidence, error) {
+	if expectedSourceCommit != "" {
+		if len(ancestors) >= maxPublisherSetLineageDepth {
+			return verifiedEvidence{}, fmt.Errorf("publisher-set lineage exceeds replay depth %d", maxPublisherSetLineageDepth)
+		}
+		if _, cycle := ancestors[expectedSourceCommit]; cycle {
+			return verifiedEvidence{}, fmt.Errorf("publisher-set lineage contains a cycle at %s", expectedSourceCommit)
+		}
+		ancestors[expectedSourceCommit] = struct{}{}
+		defer delete(ancestors, expectedSourceCommit)
+	}
 	repositoryRoot, err := filepath.Abs(repositoryRoot)
 	if err != nil {
 		return verifiedEvidence{}, fmt.Errorf("resolve repository root: %w", err)
@@ -843,8 +1194,30 @@ func verifyEvidence(repositoryRoot, evidenceRoot, expectedSourceCommit string, i
 	if checkpointValue.Sequence > MaxRevocationSequence {
 		return verifiedEvidence{}, fmt.Errorf("revocation checkpoint sequence %d exceeds publisher replay bound %d", checkpointValue.Sequence, MaxRevocationSequence)
 	}
-	if err := verifyEvidenceInventory(evidenceRoot, packages, includesSubjects, checkpointValue); err != nil {
+	continuationRaw, continuationPresent, err := readOptionalRegular(filepath.Join(evidenceRoot, LineageSubjectPath))
+	if err != nil {
 		return verifiedEvidence{}, err
+	}
+	var continuation SetLineageSubject
+	if continuationPresent {
+		if err := decodeStrict(continuationRaw, &continuation); err != nil {
+			return verifiedEvidence{}, fmt.Errorf("decode continuation subject: %w", err)
+		}
+		canonical, err := formpackage.Canonicalize(continuationRaw)
+		if err != nil || !bytes.Equal(canonical, continuationRaw) {
+			return verifiedEvidence{}, fmt.Errorf("continuation subject must be RFC 8785 canonical JSON")
+		}
+		if continuation.Format != LineageFormat || continuation.Family != Family || (continuation.Mode != ContinuationMode && continuation.Mode != AdvancementMode) || !validCommit(continuation.PreviousSetID) || continuation.PreviousSetID == expectedSourceCommit {
+			return verifiedEvidence{}, fmt.Errorf("invalid continuation predecessor identity")
+		}
+		if err := verifyContinuationInventory(continuation, packages); err != nil {
+			return verifiedEvidence{}, err
+		}
+	}
+	if !continuationPresent {
+		if err := verifyEvidenceInventory(evidenceRoot, packages, includesSubjects, checkpointValue, false); err != nil {
+			return verifiedEvidence{}, err
+		}
 	}
 	checkpointBundle, err := readRegular(filepath.Join(evidenceRoot, filepath.FromSlash(RevocationBundlePath)), "revocation checkpoint signature bundle")
 	if err != nil {
@@ -858,6 +1231,83 @@ func verifyEvidence(repositoryRoot, evidenceRoot, expectedSourceCommit string, i
 		return verifiedEvidence{}, err
 	}
 	checkpoint := revocations.checkpoints[len(revocations.checkpoints)-1].verification
+	var previous verifiedEvidence
+	var newProvenance trust.BundleVerification
+	if continuationPresent {
+		if checkpoint.Pin != continuation.CurrentCheckpointPin {
+			return verifiedEvidence{}, fmt.Errorf("successor checkpoint pin differs from the signed inventory")
+		}
+		// Authenticate this set's predecessor claim before following it. A
+		// malformed or unsigned lineage must not trigger recursive verification
+		// of an attacker-selected chain of otherwise valid old sets.
+		bundleRaw, err := readRegular(filepath.Join(evidenceRoot, LineageBundlePath), "publisher-set lineage signature bundle")
+		if err != nil {
+			return verifiedEvidence{}, err
+		}
+		newProvenance, err = verifyNewBundle(continuationRaw, bundleRaw, rootRaw, policy)
+		if err != nil {
+			return verifiedEvidence{}, fmt.Errorf("Core %s continuation signature verification: %w", CoreVersion, err)
+		}
+		if newProvenance.SubjectDigest != formpackage.DigestBytes(continuationRaw) {
+			return verifiedEvidence{}, fmt.Errorf("continuation signature subject digest differs from the exact manifest")
+		}
+		if err := validateOfficialBundleCommit(newProvenance, expectedSourceCommit); err != nil {
+			return verifiedEvidence{}, err
+		}
+		previousRoot := filepath.Join(repositoryRoot, filepath.FromSlash(TrustSetsRelativePath), continuation.PreviousSetID)
+		previous, err = verifyPredecessor(repositoryRoot, previousRoot, ancestors)
+		if err != nil {
+			return verifiedEvidence{}, fmt.Errorf("verify continuation predecessor: %w", err)
+		}
+		if previous.report.SetID != continuation.PreviousSetID || previous.report.SetID == AbandonedPrepublicationSetID || previous.report.Disposition != "" || previous.report.Checkpoint.Pin != continuation.PreviousCheckpointPin {
+			return verifiedEvidence{}, fmt.Errorf("successor does not extend the exact verified predecessor")
+		}
+		previousCheckpoint := previous.revocations.checkpoints[len(previous.revocations.checkpoints)-1]
+		if continuation.Mode == ContinuationMode {
+			if continuation.RevocationTag != "" || continuation.StatementDigest != "" || continuation.PreviousCheckpointPin != continuation.CurrentCheckpointPin || !bytes.Equal(checkpointRaw, previousCheckpoint.raw) || !bytes.Equal(checkpointBundle, previousCheckpoint.bundle) || len(revocations.checkpoints) != len(previous.revocations.checkpoints) || len(revocations.statements) != len(previous.revocations.statements) {
+				return verifiedEvidence{}, fmt.Errorf("continuation changed inherited checkpoint or revocation history")
+			}
+		} else if (previous.report.Mode != ContinuationMode && previous.report.Mode != AdvancementMode) || len(packages) != len(previous.report.Packages) || len(revocations.checkpoints) != len(previous.revocations.checkpoints)+1 || len(revocations.statements) != len(previous.revocations.statements)+1 || checkpoint.Pin.Sequence != previousCheckpoint.verification.Pin.Sequence+1 || continuation.RevocationTag != revocations.statements[len(revocations.statements)-1].verification.Tag || continuation.StatementDigest != revocations.statements[len(revocations.statements)-1].verification.StatementDigest {
+			return verifiedEvidence{}, fmt.Errorf("revocation successor is not one Core checkpoint extension of the immediate set predecessor")
+		}
+		for index, inherited := range revocations.checkpoints[:len(previous.revocations.checkpoints)] {
+			if !bytes.Equal(inherited.raw, previous.revocations.checkpoints[index].raw) || !bytes.Equal(inherited.bundle, previous.revocations.checkpoints[index].bundle) {
+				return verifiedEvidence{}, fmt.Errorf("successor changed inherited checkpoint history")
+			}
+		}
+		for index, inherited := range revocations.statements[:len(previous.revocations.statements)] {
+			if !bytes.Equal(inherited.raw, previous.revocations.statements[index].raw) {
+				return verifiedEvidence{}, fmt.Errorf("successor changed inherited statement history")
+			}
+		}
+		if continuation.Mode == AdvancementMode && !bytes.Equal(revocations.checkpoints[len(previous.revocations.checkpoints)-1].raw, previousCheckpoint.raw) {
+			return verifiedEvidence{}, fmt.Errorf("revocation successor changed its exact checkpoint predecessor")
+		}
+		if continuation.Mode == AdvancementMode {
+			for _, old := range previous.report.Packages {
+				found := false
+				for _, candidate := range packages {
+					if candidate.locator.Tag == old.Locator.Tag && candidate.candidate.PackageDigest == old.PackageDigest && candidate.candidate.FormRef == old.FormRef {
+						found = true
+						break
+					}
+				}
+				if !found {
+					return verifiedEvidence{}, fmt.Errorf("revocation successor removed or changed active package identity %s", old.Locator.Tag)
+				}
+			}
+		}
+		if continuation.Mode == AdvancementMode {
+			if err := sameProvenance(newProvenance, checkpoint.Bundle); err != nil {
+				return verifiedEvidence{}, fmt.Errorf("revocation checkpoint provenance: %w", err)
+			}
+		}
+	}
+	if continuationPresent {
+		if err := verifyEvidenceInventory(evidenceRoot, packages, includesSubjects, checkpointValue, true); err != nil {
+			return verifiedEvidence{}, err
+		}
+	}
 
 	packageReports := make([]PackageVerification, 0, len(packages))
 	for _, packageValue := range packages {
@@ -876,12 +1326,21 @@ func verifyEvidence(repositoryRoot, evidenceRoot, expectedSourceCommit string, i
 		if err != nil {
 			return verifiedEvidence{}, err
 		}
-		bundleReport, err := trust.VerifyBundle(subject, bundleRaw, rootRaw, policy)
+		bundleVerifier := trust.VerifyBundle
+		if continuationPresent {
+			bundleVerifier = verifyNewBundle
+		}
+		bundleReport, err := bundleVerifier(subject, bundleRaw, rootRaw, policy)
 		if err != nil {
 			return verifiedEvidence{}, fmt.Errorf("Core %s %s package signature verification: %w", CoreVersion, packageValue.candidate.Kind, err)
 		}
 		if bundleReport.SubjectDigest != packageValue.candidate.PackageDigest {
 			return verifiedEvidence{}, fmt.Errorf("%s signed subject digest %s differs from verified package digest %s", packageValue.candidate.Kind, bundleReport.SubjectDigest, packageValue.candidate.PackageDigest)
+		}
+		if continuationPresent {
+			if err := sameProvenance(newProvenance, bundleReport); err != nil {
+				return verifiedEvidence{}, fmt.Errorf("new package provenance: %w", err)
+			}
 		}
 		if err := checkpoint.CheckNotRevoked(packageValue.candidate.PackageDigest, packageValue.candidate.FormRef); err != nil {
 			return verifiedEvidence{}, fmt.Errorf("Core %s %s revocation check: %w", CoreVersion, packageValue.candidate.Kind, err)
@@ -893,9 +1352,14 @@ func verifyEvidence(repositoryRoot, evidenceRoot, expectedSourceCommit string, i
 	}
 
 	provenance := checkpoint.Bundle
-	for _, packageReport := range packageReports {
-		if err := sameProvenance(provenance, packageReport.Bundle); err != nil {
-			return verifiedEvidence{}, fmt.Errorf("%s signature provenance: %w", packageReport.Kind, err)
+	if continuationPresent {
+		provenance = newProvenance
+	}
+	if !continuationPresent {
+		for _, packageReport := range packageReports {
+			if err := sameProvenance(provenance, packageReport.Bundle); err != nil {
+				return verifiedEvidence{}, fmt.Errorf("%s signature provenance: %w", packageReport.Kind, err)
+			}
 		}
 	}
 	if err := validateOfficialBundleCommit(provenance, expectedSourceCommit); err != nil {
@@ -929,10 +1393,33 @@ func verifyEvidence(repositoryRoot, evidenceRoot, expectedSourceCommit string, i
 		BuildConfigCommit: provenance.BuildConfigCommit, Checkpoint: checkpoint, CheckpointHistory: checkpointHistory,
 		RevocationTags: tags, Statements: statements, Packages: packageReports,
 	}
+	if continuationPresent {
+		report.Mode = continuation.Mode
+		report.PreviousSetID = continuation.PreviousSetID
+		revocationTag := ""
+		if continuation.Mode == AdvancementMode {
+			revocationTag = tags[len(tags)-1]
+		}
+		report.SetHistory = append(report.SetHistory, previous.report.SetHistory...)
+		if len(report.SetHistory) == 0 {
+			for index, historical := range previous.report.CheckpointHistory {
+				mode := GenesisMode
+				revocationTag := ""
+				if index > 0 {
+					mode = AdvancementMode
+					revocationTag = previous.report.RevocationTags[index-1]
+				}
+				report.SetHistory = append(report.SetHistory, PublisherSetVerification{SetID: historical.SetID, SetTag: historical.SetTag, Mode: mode, CheckpointVersion: historical.CheckpointVersion, Pin: historical.Pin, RevocationTag: revocationTag})
+			}
+		}
+		report.SetHistory = append(report.SetHistory, PublisherSetVerification{SetID: report.SetID, SetTag: report.SetTag, Mode: continuation.Mode, CheckpointVersion: report.Checkpoint.CheckpointVersion, Pin: report.Checkpoint.Pin, RevocationTag: revocationTag})
+	}
 	if len(revocations.checkpoints) > 1 {
 		previous := checkpointHistory[len(checkpointHistory)-2]
 		report.PreviousCheckpoint = &previous
-		report.RevocationTag = tags[len(tags)-1]
+		if !continuationPresent || continuation.Mode == AdvancementMode {
+			report.RevocationTag = tags[len(tags)-1]
+		}
 	}
 	return verifiedEvidence{report: report, revocations: revocations}, nil
 }
@@ -954,8 +1441,11 @@ func discoverPublishedSetPackages(repositoryRoot, setRoot string) ([]verifiedCan
 			continue
 		}
 		parts := strings.Split(relative, "/")
-		if len(parts) != 4 || parts[3] != PackageBundleName || !safeRelative(parts[1]) || !safeRelative(parts[2]) {
+		if len(parts) != 4 || !safeRelative(parts[1]) || !safeRelative(parts[2]) || (parts[3] != PackageBundleName && parts[3] != PackageIndexName) {
 			return nil, fmt.Errorf("published trust set has invalid package evidence path %s", relative)
+		}
+		if parts[3] == PackageIndexName {
+			continue
 		}
 		releaseID, artifactID := parts[1], parts[2]
 		sourcePath := filepath.ToSlash(filepath.Join("forms", "releases", releaseID, artifactID))
@@ -999,67 +1489,48 @@ func discoverPublishedSetPackages(repositoryRoot, setRoot string) ([]verifiedCan
 			locator: locator, releaseRoot: releaseRoot, canonicalIndex: canonical,
 		})
 	}
-	if len(verified) != ExpectedPackageCount {
-		return nil, fmt.Errorf("published trust set must contain exactly %d package bundles; found %d", ExpectedPackageCount, len(verified))
+	lineageRaw, continuation, err := readOptionalRegular(filepath.Join(setRoot, LineageSubjectPath))
+	if err != nil {
+		return nil, err
+	}
+	expectedCount := ExpectedPackageCount
+	if continuation {
+		var lineage SetLineageSubject
+		if err := decodeStrict(lineageRaw, &lineage); err != nil {
+			return nil, fmt.Errorf("decode published publisher-set lineage: %w", err)
+		}
+		if lineage.Format != LineageFormat || lineage.Family != Family || len(lineage.Subjects) == 0 {
+			return nil, fmt.Errorf("published publisher-set lineage has no valid active package inventory")
+		}
+		expectedCount = len(lineage.Subjects)
+	}
+	if len(verified) != expectedCount {
+		return nil, fmt.Errorf("published trust set must contain exactly %d package bundles; found %d", expectedCount, len(verified))
 	}
 	sort.Slice(verified, func(left, right int) bool { return verified[left].locator.Tag < verified[right].locator.Tag })
 	return verified, nil
 }
 
-// discoverCurrentPackageIdentities verifies only the candidate closures. It
-// intentionally does not require current release roots: abandoned-set
-// classification runs before publication materializes the new identities.
-func discoverCurrentPackageIdentities(repositoryRoot string) ([]verifiedCandidate, error) {
-	raw, err := readRegular(filepath.Join(repositoryRoot, filepath.FromSlash(candidateSetSource)), "Edge candidate set")
-	if err != nil {
-		return nil, err
+// The already verified predecessor, not the current candidate roster,
+// authorizes every package identity in a later lineage advancement.
+func verifyPredecessorPackageInventory(packages []verifiedCandidate, predecessor []PackageVerification) error {
+	if len(packages) != len(predecessor) {
+		return fmt.Errorf("predecessor package inventory differs from its exact verified set")
 	}
-	var candidates candidateSet
-	if err := decodeStrict(raw, &candidates); err != nil {
-		return nil, fmt.Errorf("decode Edge candidate set: %w", err)
+	byTag := make(map[string]PackageVerification, len(predecessor))
+	for _, value := range predecessor {
+		if _, duplicate := byTag[value.Locator.Tag]; duplicate {
+			return fmt.Errorf("verified predecessor repeats package tag %s", value.Locator.Tag)
+		}
+		byTag[value.Locator.Tag] = value
 	}
-	if candidates.Format != "takoform.form-family-candidates@v1" || candidates.Family != Family || len(candidates.Forms) != ExpectedPackageCount {
-		return nil, fmt.Errorf("Edge candidate set must contain exactly %d packages for %s", ExpectedPackageCount, Family)
+	for _, value := range packages {
+		old, ok := byTag[value.locator.Tag]
+		if !ok || old.Locator != value.locator || old.FormRef != value.candidate.FormRef || old.PackageDigest != value.candidate.PackageDigest {
+			return fmt.Errorf("predecessor package inventory differs from its exact verified set at %s", value.locator.Tag)
+		}
 	}
-	seen := make(map[string]struct{}, len(candidates.Forms))
-	verified := make([]verifiedCandidate, 0, len(candidates.Forms))
-	for _, candidate := range candidates.Forms {
-		if candidate.Kind == "" || candidate.Path == "" || !safeRelative(candidate.Path) || !strings.HasPrefix(candidate.Path, "forms/candidates/"+Family+"/") {
-			return nil, fmt.Errorf("%s candidate path is not an exact Edge package path", candidate.Kind)
-		}
-		candidateRoot := filepath.Join(repositoryRoot, filepath.FromSlash(candidate.Path))
-		report, err := formpackage.VerifyDirectory(candidateRoot)
-		if err != nil {
-			return nil, fmt.Errorf("Core %s candidate verification for %s: %w", CoreVersion, candidate.Kind, err)
-		}
-		capability, ok := report.VerifiedPackage()
-		if !ok {
-			return nil, fmt.Errorf("Core %s did not issue a verified package capability for %s", CoreVersion, candidate.Kind)
-		}
-		if report.PackageDigest != candidate.PackageDigest || report.FormRef != candidate.FormRef {
-			return nil, fmt.Errorf("%s candidate identity differs from the candidate set", candidate.Kind)
-		}
-		locator, err := formpackage.PublicationLocatorFor(capability.PackageIndex(), capability.PackageDigest())
-		if err != nil {
-			return nil, fmt.Errorf("Core %s publication locator for %s: %w", CoreVersion, candidate.Kind, err)
-		}
-		key := packageIdentityKey(candidate.FormRef, candidate.PackageDigest, locator)
-		if _, duplicate := seen[key]; duplicate {
-			return nil, fmt.Errorf("duplicate current package identity %s", candidate.Kind)
-		}
-		seen[key] = struct{}{}
-		indexRaw, err := readRegular(filepath.Join(candidateRoot, PackageIndexName), candidate.Kind+" candidate package index")
-		if err != nil {
-			return nil, err
-		}
-		canonical, err := formpackage.Canonicalize(indexRaw)
-		if err != nil {
-			return nil, fmt.Errorf("Core %s canonicalize %s candidate package index: %w", CoreVersion, candidate.Kind, err)
-		}
-		verified = append(verified, verifiedCandidate{candidate: candidate, locator: locator, releaseRoot: candidateRoot, canonicalIndex: canonical})
-	}
-	sort.Slice(verified, func(left, right int) bool { return verified[left].locator.Tag < verified[right].locator.Tag })
-	return verified, nil
+	return nil
 }
 
 func readRetainedPackageEntries(repositoryRoot string) ([]retainedPackageEntry, error) {
@@ -1083,18 +1554,65 @@ func packageIdentityKey(formRef formpackage.FormRef, packageDigest string, locat
 	return string(raw)
 }
 
-func discoverPackages(repositoryRoot string) ([]verifiedCandidate, error) {
+func readSelectedCandidateSet(repositoryRoot string) (candidateSet, error) {
+	indexRaw, err := readRegular(filepath.Join(repositoryRoot, filepath.FromSlash(currentFamilyIndexSource)), "current-family index")
+	if err != nil {
+		return candidateSet{}, err
+	}
+	var index currentFamilyIndex
+	if err := decodeStrict(indexRaw, &index); err != nil {
+		return candidateSet{}, fmt.Errorf("decode current-family index: %w", err)
+	}
+	if index.Format != "takoform.current-family-index@v1" || len(index.Families) != 1 || index.Families[0].Group != Family || index.Families[0].CandidateSet != candidateSetSource || index.Families[0].FormCount <= 0 {
+		return candidateSet{}, fmt.Errorf("current-family index does not select the exact Edge candidate set")
+	}
 	raw, err := readRegular(filepath.Join(repositoryRoot, filepath.FromSlash(candidateSetSource)), "Edge candidate set")
 	if err != nil {
-		return nil, err
+		return candidateSet{}, err
+	}
+	if got := fmt.Sprintf("%x", sha256.Sum256(raw)); got != index.Families[0].SHA256 {
+		return candidateSet{}, fmt.Errorf("current-family index candidate-set digest differs from source bytes")
 	}
 	var candidates candidateSet
 	if err := decodeStrict(raw, &candidates); err != nil {
-		return nil, fmt.Errorf("decode Edge candidate set: %w", err)
+		return candidateSet{}, fmt.Errorf("decode Edge candidate set: %w", err)
 	}
-	if candidates.Format != "takoform.form-family-candidates@v1" || candidates.Family != Family || len(candidates.Forms) != ExpectedPackageCount {
-		return nil, fmt.Errorf("Edge candidate set must contain exactly %d packages for %s", ExpectedPackageCount, Family)
+	if candidates.Format != "takoform.form-family-candidates@v1" || candidates.Family != Family || candidates.PackageAPIVersion != "packages.forms.takoform.com/v1alpha5" || len(candidates.Forms) != index.Families[0].FormCount {
+		return candidateSet{}, fmt.Errorf("current-family index count does not equal the exact Edge candidate set")
 	}
+	seenKinds := make(map[string]struct{}, len(candidates.Forms))
+	for _, candidate := range candidates.Forms {
+		if candidate.Kind == "" || candidate.FormRef.APIVersion != Family || candidate.FormRef.Kind != candidate.Kind || !formpackage.ValidDigest(candidate.PackageDigest) {
+			return candidateSet{}, fmt.Errorf("current-family index selected candidate has invalid Form identity")
+		}
+		if _, duplicate := seenKinds[candidate.Kind]; duplicate {
+			return candidateSet{}, fmt.Errorf("current-family index repeats active Form kind %s", candidate.Kind)
+		}
+		seenKinds[candidate.Kind] = struct{}{}
+	}
+	return candidates, nil
+}
+
+func discoverPackages(repositoryRoot string) ([]verifiedCandidate, error) {
+	candidates, err := readSelectedCandidateSet(repositoryRoot)
+	if err != nil {
+		return nil, err
+	}
+	if len(candidates.Forms) != ExpectedPackageCount {
+		return nil, fmt.Errorf("legacy publisher selection requires exactly %d current packages", ExpectedPackageCount)
+	}
+	return discoverSelectedPackages(repositoryRoot, candidates)
+}
+
+func discoverActivePackages(repositoryRoot string) ([]verifiedCandidate, error) {
+	candidates, err := readSelectedCandidateSet(repositoryRoot)
+	if err != nil {
+		return nil, err
+	}
+	return discoverSelectedPackages(repositoryRoot, candidates)
+}
+
+func discoverSelectedPackages(repositoryRoot string, candidates candidateSet) ([]verifiedCandidate, error) {
 	seenTags := map[string]struct{}{}
 	verified := make([]verifiedCandidate, 0, len(candidates.Forms))
 	for _, candidate := range candidates.Forms {
@@ -1435,9 +1953,13 @@ func revocationCheckpointSourcePath(version string) string {
 	return filepath.ToSlash(filepath.Join(revocationSourceCheckpoints, version+".json"))
 }
 
-func verifyEvidenceInventory(root string, packages []verifiedCandidate, includesSubjects bool, checkpoint formpackage.RevocationCheckpoint) error {
+func verifyEvidenceInventory(root string, packages []verifiedCandidate, includesSubjects bool, checkpoint formpackage.RevocationCheckpoint, continuation bool) error {
 	allowed := map[string]struct{}{
 		PublisherPolicyPath: {}, TrustedRootPath: {}, RevocationCheckpointPath: {}, RevocationBundlePath: {},
+	}
+	if continuation {
+		allowed[LineageSubjectPath] = struct{}{}
+		allowed[LineageBundlePath] = struct{}{}
 	}
 	for _, entry := range checkpoint.Entries {
 		allowed[revocationStatementEvidencePath(entry.StatementVersion)] = struct{}{}
@@ -1489,6 +2011,9 @@ func verifyEvidenceInventory(root string, packages []verifiedCandidate, includes
 
 func installedEvidencePaths(report VerificationReport) []string {
 	paths := []string{PublisherPolicyPath, TrustedRootPath, RevocationCheckpointPath, RevocationBundlePath}
+	if report.PreviousSetID != "" {
+		paths = append(paths, LineageSubjectPath, LineageBundlePath)
+	}
 	for _, statement := range report.Statements {
 		paths = append(paths, revocationStatementEvidencePath(statement.StatementVersion))
 	}
@@ -1506,6 +2031,42 @@ func installedEvidencePaths(report VerificationReport) []string {
 	}
 	sort.Strings(paths)
 	return paths
+}
+
+func verifyContinuationInventory(subject SetLineageSubject, packages []verifiedCandidate) error {
+	if len(subject.Subjects) == 0 || len(subject.Subjects) != len(packages) {
+		return fmt.Errorf("successor signed inventory must name exactly the Core-verified active packages")
+	}
+	want := make([]SigningSubject, 0, len(packages))
+	seenVersions := make(map[string]struct{}, len(packages))
+	for _, value := range packages {
+		versionKey := value.candidate.FormRef.Kind + "@" + value.candidate.FormRef.DefinitionVersion
+		if _, conflicting := seenVersions[versionKey]; conflicting {
+			return fmt.Errorf("successor has conflicting active Form version %s", versionKey)
+		}
+		seenVersions[versionKey] = struct{}{}
+		want = append(want, SigningSubject{Role: "package-index", Path: packageSubjectPath(value.locator), Digest: value.candidate.PackageDigest})
+	}
+	sort.Slice(want, func(i, j int) bool { return want[i].Path < want[j].Path })
+	if !slices.Equal(subject.Subjects, want) {
+		return fmt.Errorf("continuation signed package inventory differs from exact Core-verified release closure")
+	}
+	return nil
+}
+
+func readOptionalRegular(path string) ([]byte, bool, error) {
+	info, err := os.Lstat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, false, fmt.Errorf("evidence %s is not a regular file", path)
+	}
+	raw, err := os.ReadFile(path)
+	return raw, err == nil, err
 }
 
 func packageSubjectPath(locator formpackage.PublicationLocator) string {

@@ -20,7 +20,7 @@ import (
 
 const publicRepositoryURL = "https://github.com/tako0614/takoform-forms.git"
 
-var errUsage = errors.New("usage: publisher-trust prepare --repository DIR --output DIR | prepare-advancement --repository DIR --previous-set COMMIT --statement-version SEMVER --output DIR | verify-evidence --repository DIR --evidence DIR --expected-source-commit COMMIT | install --repository DIR --evidence DIR --expected-source-commit COMMIT | recover-partial-install --repository DIR --set-id COMMIT | verify-set --repository DIR --set DIR | check --repository DIR")
+var errUsage = errors.New("usage: publisher-trust prepare --repository DIR --output DIR | prepare-continuation --repository DIR --previous-set COMMIT --active-release-path PATH [--active-release-path PATH ...] --output DIR | prepare-advancement --repository DIR --previous-set COMMIT --statement-version SEMVER --output DIR | verify-evidence --repository DIR --evidence DIR --expected-source-commit COMMIT | install --repository DIR --evidence DIR --expected-source-commit COMMIT | recover-partial-install --repository DIR --set-id COMMIT | verify-set --repository DIR --set DIR | check --repository DIR")
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout); err != nil {
@@ -53,6 +53,16 @@ func run(arguments []string, output io.Writer) error {
 			return err
 		}
 		report, err := preparePublicRevocationAdvancement(repository, previousSetID, statementVersion, target, publicRepositoryURL)
+		if err != nil {
+			return err
+		}
+		return writeJSON(output, report)
+	case "prepare-continuation":
+		repository, previousSetID, newPaths, target, err := parseContinuation(arguments[1:])
+		if err != nil {
+			return err
+		}
+		report, err := preparePublicContinuation(repository, previousSetID, newPaths, target, publicRepositoryURL)
 		if err != nil {
 			return err
 		}
@@ -143,12 +153,39 @@ func parseAdvancement(arguments []string) (string, string, string, string, error
 	return repository, previousSet, statementVersion, output, nil
 }
 
+func parseContinuation(arguments []string) (string, string, []string, string, error) {
+	flags := flag.NewFlagSet("prepare-continuation", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	var repository, previousSet, output string
+	paths := []string{}
+	flags.StringVar(&repository, "repository", "", "publisher repository root")
+	flags.StringVar(&previousSet, "previous-set", "", "exact public predecessor set source commit")
+	flags.StringVar(&output, "output", "", "create-only external signing request directory")
+	flags.Func("active-release-path", "one exact source-controlled release root in the complete active roster; repeat for every active Form", func(value string) error { paths = append(paths, value); return nil })
+	if err := flags.Parse(arguments); err != nil || flags.NArg() != 0 || repository == "" || previousSet == "" || output == "" || len(paths) == 0 {
+		return "", "", nil, "", errUsage
+	}
+	return repository, previousSet, paths, output, nil
+}
+
 // preparePublicRevocationAdvancement derives the predecessor capability from a
 // fresh credential-free checkout of the canonical public main and its
 // immutable tags. A caller supplies only the predecessor set identity; no
 // caller-provided checkpoint pin, verification report, or evidence directory
 // is accepted.
 func preparePublicRevocationAdvancement(repository, previousSetID, statementVersion, output, publicRepository string) (publishertrust.PreparationReport, error) {
+	return prepareFromPublicPredecessor(repository, previousSetID, output, publicRepository, func(publicCheckout, setRoot, target string) (publishertrust.PreparationReport, error) {
+		return publishertrust.PrepareRevocationSigningRequest(publicCheckout, setRoot, statementVersion, target)
+	})
+}
+
+func preparePublicContinuation(repository, previousSetID string, newReleasePaths []string, output, publicRepository string) (publishertrust.PreparationReport, error) {
+	return prepareFromPublicPredecessor(repository, previousSetID, output, publicRepository, func(publicCheckout, setRoot, target string) (publishertrust.PreparationReport, error) {
+		return publishertrust.PrepareContinuationSigningRequest(publicCheckout, setRoot, newReleasePaths, target)
+	})
+}
+
+func prepareFromPublicPredecessor(repository, previousSetID, output, publicRepository string, prepare func(string, string, string) (publishertrust.PreparationReport, error)) (publishertrust.PreparationReport, error) {
 	if !validCommitID(previousSetID) {
 		return publishertrust.PreparationReport{}, fmt.Errorf("previous public set %q is not an exact lowercase nonzero commit", previousSetID)
 	}
@@ -233,7 +270,7 @@ func preparePublicRevocationAdvancement(repository, previousSetID, statementVers
 		return publishertrust.PreparationReport{}, err
 	}
 
-	report, err := publishertrust.PrepareRevocationSigningRequest(temporary, setRoot, statementVersion, output)
+	report, err := prepare(temporary, setRoot, output)
 	if err != nil {
 		return publishertrust.PreparationReport{}, err
 	}
@@ -252,16 +289,17 @@ func verifyPublicRevocationPrefix(repository, publicCheckout, publicRepository, 
 	if err != nil {
 		return fmt.Errorf("anonymous public publisher-set inventory: %w", err)
 	}
-	expectedSetNames := make([]string, 0, len(predecessor.CheckpointHistory))
-	for _, historical := range predecessor.CheckpointHistory {
+	setHistory := publisherSetHistory(predecessor)
+	expectedSetNames := make([]string, 0, len(setHistory))
+	for _, historical := range setHistory {
 		expectedSetNames = append(expectedSetNames, historical.SetTag)
 	}
 	sort.Strings(expectedSetNames)
 	if strings.Join(publicSetNames, "\n") != strings.Join(expectedSetNames, "\n") {
 		return fmt.Errorf("public publisher-set predecessor refs are %s, expected %s", printableList(publicSetNames), printableList(expectedSetNames))
 	}
-	setCommits := make(map[string]string, len(predecessor.CheckpointHistory))
-	for index, historical := range predecessor.CheckpointHistory {
+	setCommits := make(map[string]string, len(setHistory))
+	for index, historical := range setHistory {
 		output, err := credentialFreeGitOutput(repository,
 			"ls-remote", "--tags", publicRepository,
 			"refs/tags/"+historical.SetTag, "refs/tags/"+historical.SetTag+"^{}",
@@ -287,7 +325,7 @@ func verifyPublicRevocationPrefix(repository, publicCheckout, publicRepository, 
 		); err != nil {
 			return fmt.Errorf("public publisher set bytes at %s were updated or deleted", historical.SetTag)
 		}
-		if index == len(predecessor.CheckpointHistory)-1 && fetchedCommit != previousSetCommit {
+		if index == len(setHistory)-1 && fetchedCommit != previousSetCommit {
 			return fmt.Errorf("public predecessor set %s changed between tag readbacks", historical.SetTag)
 		}
 	}
@@ -331,12 +369,41 @@ func verifyPublicRevocationPrefix(repository, publicCheckout, publicRepository, 
 		); err != nil {
 			return fmt.Errorf("public revocation bytes at %s were updated or deleted", tag)
 		}
-		checkpointSetTag := predecessor.CheckpointHistory[index+1].SetTag
+		checkpointSetTag := ""
+		for _, set := range setHistory {
+			if set.RevocationTag == tag {
+				checkpointSetTag = set.SetTag
+				break
+			}
+		}
+		if checkpointSetTag == "" {
+			return fmt.Errorf("public revocation %s has no exact publisher set in the verified lineage", tag)
+		}
 		if fetchedCommit != setCommits[checkpointSetTag] {
 			return fmt.Errorf("public checkpoint set %s and revocation %s do not identify one atomic publication commit", checkpointSetTag, tag)
 		}
 	}
 	return nil
+}
+
+func publisherSetHistory(report publishertrust.VerificationReport) []publishertrust.PublisherSetVerification {
+	if len(report.SetHistory) != 0 {
+		return report.SetHistory
+	}
+	legacy := make([]publishertrust.PublisherSetVerification, 0, len(report.CheckpointHistory))
+	for index, checkpoint := range report.CheckpointHistory {
+		entry := publishertrust.PublisherSetVerification{SetID: checkpoint.SetID, SetTag: checkpoint.SetTag, CheckpointVersion: checkpoint.CheckpointVersion, Pin: checkpoint.Pin}
+		if index == 0 {
+			entry.Mode = publishertrust.GenesisMode
+		} else {
+			entry.Mode = publishertrust.AdvancementMode
+			if index-1 < len(report.RevocationTags) {
+				entry.RevocationTag = report.RevocationTags[index-1]
+			}
+		}
+		legacy = append(legacy, entry)
+	}
+	return legacy
 }
 
 func exactRemoteTagCommit(output, tag string) (string, error) {
