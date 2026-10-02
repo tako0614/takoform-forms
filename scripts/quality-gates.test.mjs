@@ -89,9 +89,23 @@ describe("portable quality gates and Form version documentation", () => {
     expect(signingWorkflow).toContain("verify-evidence");
     expect(signingWorkflow).toContain("previous_set:");
     expect(signingWorkflow).toContain("statement_version:");
+    expect(signingWorkflow).toContain("transition_mode:");
+    expect(signingWorkflow).toContain("prepare-continuation");
+    expect(signingWorkflow).toContain("--signing-roster");
+    expect(signingWorkflow).toContain("publisher-set/lineage.json)");
+    expect(signingWorkflow).toContain("publisher-set/lineage.sigstore.json");
+    expect(signingWorkflow).toContain('"continuation"');
     expect(signingWorkflow).toContain("prepare-advancement");
     expect(signingWorkflow).toContain("genesis signing is first-set-only");
-    expect(signingWorkflow).toContain("(.subjects | length == 18)");
+    expect(signingWorkflow).toContain(
+      'index("revocations/checkpoint.json")) == null',
+    );
+    expect(signingWorkflow).toContain(
+      'all(.subjects[]; .path == "revocations/checkpoint.json"',
+    );
+    expect(signingWorkflow).toContain(
+      "^packages/[^/]+/[^/]+/package-index.json$",
+    );
     expect(signingWorkflow).not.toContain("statement.sigstore.json");
     expect(signingWorkflow).toContain("retention-days: 1");
     expect(signingWorkflow).not.toContain("contents: write");

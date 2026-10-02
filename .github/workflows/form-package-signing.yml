@@ -16,6 +16,10 @@ on:
         description: New revocation statement SemVer; required with previous_set
         required: false
         type: string
+      transition_mode:
+        description: Explicit continuation, genesis, or advancement; blank preserves the existing genesis/advancement input pair
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -48,6 +52,7 @@ jobs:
           EXPECTED_COMMIT: ${{ inputs.expected_commit }}
           PREVIOUS_SET: ${{ inputs.previous_set }}
           STATEMENT_VERSION: ${{ inputs.statement_version }}
+          REQUESTED_MODE: ${{ inputs.transition_mode }}
         run: |
           set -euo pipefail
           if [[ ! "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
@@ -70,20 +75,54 @@ jobs:
             echo "expected_commit must be current origin/main" >&2
             exit 1
           fi
-          if [[ -n "$PREVIOUS_SET" || -n "$STATEMENT_VERSION" ]]; then
-            if [[ -z "$PREVIOUS_SET" || -z "$STATEMENT_VERSION" ]]; then
-              echo "previous_set and statement_version must be supplied together" >&2
+          mode="$REQUESTED_MODE"
+          if [[ -z "$mode" ]]; then
+            if [[ -z "$PREVIOUS_SET" && -z "$STATEMENT_VERSION" ]]; then
+              mode=genesis
+            elif [[ -n "$PREVIOUS_SET" && -n "$STATEMENT_VERSION" ]]; then
+              mode=advancement
+            else
+              echo "previous_set and statement_version must be supplied together unless transition_mode is continuation" >&2
               exit 1
             fi
+          fi
+          case "$mode" in
+            genesis)
+              if [[ -n "$PREVIOUS_SET" || -n "$STATEMENT_VERSION" ]]; then
+                echo "genesis accepts neither predecessor nor statement" >&2
+                exit 1
+              fi
+              ;;
+            continuation)
+              if [[ -z "$PREVIOUS_SET" || -n "$STATEMENT_VERSION" ]]; then
+                echo "continuation requires previous_set and forbids statement_version" >&2
+                exit 1
+              fi
+              ;;
+            advancement)
+              if [[ -z "$PREVIOUS_SET" || -z "$STATEMENT_VERSION" ]]; then
+                echo "advancement requires previous_set and statement_version" >&2
+                exit 1
+              fi
+              ;;
+            *)
+              echo "transition_mode must be genesis, continuation, or advancement" >&2
+              exit 1
+              ;;
+          esac
+          if [[ "$mode" != genesis ]]; then
             if [[ ! "$PREVIOUS_SET" =~ ^[0-9a-f]{40}$ || "$PREVIOUS_SET" =~ ^0{40}$ ]]; then
               echo "previous_set must be an exact lowercase nonzero 40-character source commit" >&2
               exit 1
             fi
+          fi
+          if [[ "$mode" == advancement ]]; then
             if [[ ! "$STATEMENT_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ || "$STATEMENT_VERSION" == "0.0.0" ]]; then
               echo "statement_version must be a non-genesis SemVer" >&2
               exit 1
             fi
           fi
+          echo "TRANSITION_MODE=$mode" >> "$GITHUB_ENV"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Setup Bun
@@ -123,7 +162,10 @@ jobs:
 
           candidate="$RUNNER_TEMP/edge-form-package-signing/$EXPECTED_COMMIT"
           preparation="$RUNNER_TEMP/edge-form-package-signing-preparation.json"
-          if [[ -z "$PREVIOUS_SET" ]]; then
+          roster="$RUNNER_TEMP/edge-form-package-signing-roster.json"
+          bun scripts/form-publication.mjs --signing-roster > "$roster"
+          jq -e '.packageCount > 0 and (.activeReleasePaths | length) == .packageCount and (.activeReleasePaths | unique | length) == .packageCount' "$roster" >/dev/null
+          if [[ "$TRANSITION_MODE" == genesis ]]; then
             public_refs="$(GIT_TERMINAL_PROMPT=0 git -c credential.helper= -c http.extraHeader= ls-remote --tags https://github.com/tako0614/takoform-forms.git 'refs/tags/forms/sets/*' 'refs/tags/forms/revocations/v*')"
             if [[ -n "$public_refs" ]]; then
               echo "genesis signing is first-set-only; public publisher/revocation refs already exist" >&2
@@ -134,7 +176,22 @@ jobs:
               --output "$candidate" > "$preparation"
             jq -e \
               --arg output "$candidate" \
-              '.status == "signing-required" and .coreVersion == "v1.1.0" and .mode == "genesis" and .sequence == 0 and .checkpointVersion == "0.0.0" and .packageCount == 17 and .output == $output and (.subjects | length == 18)' \
+              --slurpfile roster "$roster" \
+              '.status == "signing-required" and .coreVersion == "v1.1.0" and .mode == "genesis" and .sequence == 0 and .checkpointVersion == "0.0.0" and .packageCount == $roster[0].packageCount and .output == $output and (.subjects | length) == (.packageCount + 1) and ([.subjects[].path] | index("revocations/checkpoint.json")) != null and ([.subjects[].path] | index("publisher-set/lineage.json")) == null' \
+              "$preparation" >/dev/null
+          elif [[ "$TRANSITION_MODE" == continuation ]]; then
+            mapfile -t active_paths < <(jq -r '.activeReleasePaths[]' "$roster")
+            command=(go run ./cmd/publisher-trust prepare-continuation --repository . --previous-set "$PREVIOUS_SET")
+            for release_path in "${active_paths[@]}"; do
+              command+=(--active-release-path "$release_path")
+            done
+            command+=(--output "$candidate")
+            "${command[@]}" > "$preparation"
+            jq -e \
+              --arg output "$candidate" \
+              --arg previous "$PREVIOUS_SET" \
+              --slurpfile roster "$roster" \
+              '.status == "signing-required" and .coreVersion == "v1.1.0" and .mode == "continuation" and .previousSetId == $previous and (.revocationTag // "") == "" and .packageCount == $roster[0].packageCount and .output == $output and (.subjects | length) == (.packageCount + 1) and ([.subjects[].path] | index("publisher-set/lineage.json")) != null and ([.subjects[].path] | index("revocations/checkpoint.json")) == null' \
               "$preparation" >/dev/null
           else
             go run ./cmd/publisher-trust prepare-advancement \
@@ -146,14 +203,20 @@ jobs:
               --arg output "$candidate" \
               --arg previous "$PREVIOUS_SET" \
               --arg version "$STATEMENT_VERSION" \
-              '.status == "signing-required" and .coreVersion == "v1.1.0" and .mode == "advancement" and .sequence >= 1 and .checkpointVersion == $version and .previousSetId == $previous and .revocationTag == ("forms/revocations/v" + $version) and .packageCount == 17 and .output == $output and (.subjects | length == 18)' \
+              --slurpfile roster "$roster" \
+              '.status == "signing-required" and .coreVersion == "v1.1.0" and .mode == "advancement" and .sequence >= 1 and .checkpointVersion == $version and .previousSetId == $previous and .revocationTag == ("forms/revocations/v" + $version) and .packageCount == $roster[0].packageCount and .output == $output and ((.subjects | length) == (.packageCount + 1) or (.subjects | length) == (.packageCount + 2)) and ([.subjects[].path] | index("revocations/checkpoint.json")) != null' \
               "$preparation" >/dev/null
           fi
+
+          jq -e '([.subjects[].path] | unique | length) == (.subjects | length) and ([.subjects[] | select(.path | test("^packages/[^/]+/[^/]+/package-index.json$"))] | length) == .packageCount and all(.subjects[]; .path == "revocations/checkpoint.json" or .path == "publisher-set/lineage.json" or (.path | test("^packages/[^/]+/[^/]+/package-index.json$")))' "$preparation" >/dev/null
 
           while IFS= read -r subject; do
             case "$subject" in
               revocations/checkpoint.json)
                 bundle="revocations/checkpoint.sigstore.json"
+                ;;
+              publisher-set/lineage.json)
+                bundle="publisher-set/lineage.sigstore.json"
                 ;;
               packages/*/package-index.json)
                 bundle="${subject%package-index.json}package-index.sigstore.json"
@@ -176,15 +239,22 @@ jobs:
             --expected-source-commit "$EXPECTED_COMMIT" > "$verification"
           jq -e \
             --arg commit "$EXPECTED_COMMIT" \
-            '.status == "verified" and .coreVersion == "v1.1.0" and .setId == $commit and .sourceCommit == $commit and .packageCount == 17 and (.packages | length == 17) and .checkpoint.status == "verified" and (.checkpointHistory | length) == (.checkpoint.pin.sequence + 1)' \
+            --slurpfile roster "$roster" \
+            '.status == "verified" and .coreVersion == "v1.1.0" and .setId == $commit and .sourceCommit == $commit and .packageCount == $roster[0].packageCount and (.packages | length) == .packageCount and ([.packages[].locator.sourcePath] | sort) == ($roster[0].activeReleasePaths | sort) and .checkpoint.status == "verified" and (.checkpointHistory | length) == (.checkpoint.pin.sequence + 1)' \
             "$verification" >/dev/null
-          if [[ -z "$PREVIOUS_SET" ]]; then
+          if [[ "$TRANSITION_MODE" == genesis ]]; then
             jq -e '.checkpoint.pin.sequence == 0 and (.revocationTags | length) == 0 and (.statements | length) == 0' "$verification" >/dev/null
+          elif [[ "$TRANSITION_MODE" == continuation ]]; then
+            jq -e \
+              --arg previous "$PREVIOUS_SET" \
+              --arg commit "$EXPECTED_COMMIT" \
+              '.mode == "continuation" and .previousSetId == $previous and (.revocationTag // "") == "" and .setHistory[-1].setId == $commit and .setHistory[-2].setId == $previous and .setHistory[-1].pin == .setHistory[-2].pin and .checkpoint.pin == .checkpointHistory[-1].pin' \
+              "$verification" >/dev/null
           else
             jq -e \
               --arg previous "$PREVIOUS_SET" \
               --arg version "$STATEMENT_VERSION" \
-              '.checkpoint.pin.sequence >= 1 and .previousCheckpoint.setId == $previous and .revocationTag == ("forms/revocations/v" + $version) and .statements[-1].statementVersion == $version' \
+              '.checkpoint.pin.sequence >= 1 and ((.previousSetId // .previousCheckpoint.setId) == $previous) and .revocationTag == ("forms/revocations/v" + $version) and .statements[-1].statementVersion == $version' \
               "$verification" >/dev/null
           fi
           test -z "$(git status --porcelain=v1 --untracked-files=all)"

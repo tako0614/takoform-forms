@@ -211,6 +211,230 @@ describe("Edge Form Package deploy surface", () => {
     );
   });
 
+  test("dry-run accepts a signed no-revocation set with an inherited checkpoint", () => {
+    const plan = makePlan();
+    const continuation = makeContinuationTrustReport(plan);
+    const fixture = makeCommandDependencies(plan, {
+      trustReport: continuation,
+      previousTrustReport: trustAtCommit(makeTrustReport(plan), PREVIOUS_SET),
+      remoteTags: new Map([
+        [`forms/sets/${PREVIOUS_SET}`, EXISTING_TAG_COMMIT],
+        ...plan.forms.map((form) => [form.locator.tag, EXISTING_TAG_COMMIT]),
+      ]),
+    });
+
+    const exit = runDeploy(
+      [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT, "--dry-run"],
+      fixture.dependencies,
+    );
+    expect(exit, fixture.stderr).toBe(0);
+    const dryRun = JSON.parse(fixture.stdout);
+    expect(dryRun.status).toBe("DRY_RUN_VERIFIED");
+    expect(dryRun.signedSet.previousSetId).toBe(PREVIOUS_SET);
+    expect(dryRun.signedSet.revocationTag).toBeNull();
+    expect(dryRun.revocationTagToCreate).toBeNull();
+    expect(dryRun.currentPackageCount).toBe(17);
+    expect(
+      fixture.calls.some(
+        (call) => call.command === "git" && call.args[0] === "push",
+      ),
+    ).toBe(false);
+  });
+
+  test("a separately selected nineteen-package continuation creates only two new package identities", () => {
+    const plan = makePlan(undefined, 19);
+    const predecessorPlan = {
+      ...plan,
+      formCount: 17,
+      forms: plan.forms.slice(0, 17),
+    };
+    const trust = makeContinuationTrustReport(plan);
+    const fixture = makeCommandDependencies(plan, {
+      trustReport: trust,
+      previousTrustReport: trustAtCommit(
+        makeTrustReport(predecessorPlan),
+        PREVIOUS_SET,
+      ),
+      remoteTags: new Map([
+        [`forms/sets/${PREVIOUS_SET}`, EXISTING_TAG_COMMIT],
+        ...plan.forms
+          .slice(0, 17)
+          .map((form) => [form.locator.tag, EXISTING_TAG_COMMIT]),
+      ]),
+    });
+    const exit = runDeploy(
+      [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT, "--dry-run"],
+      fixture.dependencies,
+    );
+    expect(exit, fixture.stderr).toBe(0);
+    const evidence = JSON.parse(fixture.stdout);
+    expect(evidence.currentPackageCount).toBe(19);
+    expect(evidence.packageTagsToCreate).toEqual(
+      plan.forms.slice(17).map((form) => form.locator.tag),
+    );
+    expect(evidence.revocationTagToCreate).toBeNull();
+  });
+
+  test("continuation re-signs all active indexes in its new set but never retags existing package roots", () => {
+    const plan = makePlan();
+    const continuation = makeContinuationTrustReport(plan);
+    const fixture = makeCommandDependencies(plan, {
+      trustReport: continuation,
+      previousTrustReport: trustAtCommit(makeTrustReport(plan), PREVIOUS_SET),
+      remoteTags: new Map([
+        [`forms/sets/${PREVIOUS_SET}`, EXISTING_TAG_COMMIT],
+        ...plan.forms.map((form) => [form.locator.tag, EXISTING_TAG_COMMIT]),
+      ]),
+      pushExitCode: 1,
+    });
+    expect(
+      runDeploy(
+        [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT],
+        fixture.dependencies,
+      ),
+    ).toBe(1);
+    const pushes = fixture.calls.filter(
+      (call) => call.command === "git" && call.args[0] === "push",
+    );
+    expect(pushes).toHaveLength(1);
+    expect(pushes[0].args).toEqual([
+      "push",
+      "--atomic",
+      "origin",
+      "refs/heads/main:refs/heads/main",
+      `${COMMIT}:refs/tags/${continuation.setTag}`,
+    ]);
+    expect(continuation.packages).toHaveLength(plan.formCount);
+    expect(
+      continuation.packages.every(
+        (entry) => entry.bundle.sourceCommit === SOURCE_COMMIT,
+      ),
+    ).toBe(true);
+    expect(continuation.checkpoint.bundle.sourceCommit).toBe(PREVIOUS_SET);
+  });
+
+  test("continuation report rejects a resealed checkpoint, forged immediate predecessor, or missing set history before Git mutation", () => {
+    const plan = makePlan();
+    for (const mutate of [
+      (report) => {
+        report.checkpoint.bundle.sourceCommit = SOURCE_COMMIT;
+      },
+      (report) => {
+        report.previousSetId = GENESIS_SET;
+      },
+      (report) => {
+        report.setHistory.pop();
+      },
+    ]) {
+      const trust = makeContinuationTrustReport(plan);
+      mutate(trust);
+      const fixture = makeCommandDependencies(plan, { trustReport: trust });
+      expect(
+        runDeploy(
+          [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT],
+          fixture.dependencies,
+        ),
+      ).toBe(1);
+      expect(fixture.stderr).toContain("deploy blocked");
+      expect(
+        fixture.calls.some(
+          (call) => call.command === "git" && call.args[0] === "push",
+        ),
+      ).toBe(false);
+    }
+  });
+
+  test("repeatable C0 and C1 continuations use the immediate set predecessor without minting a revocation tag", () => {
+    const plan = makePlan();
+    for (const [current, previous, tags] of [
+      [
+        makeRepeatedContinuationTrustReport(plan),
+        makePreviousContinuationTrustReport(plan),
+        [],
+      ],
+      [
+        makeContinuationAfterAdvancementTrustReport(plan),
+        makePreviousAdvancementTrustReport(plan),
+        [REVOCATION_TAG],
+      ],
+    ]) {
+      const remoteTags = new Map([
+        [`forms/sets/${GENESIS_SET}`, EXISTING_TAG_COMMIT],
+        [`forms/sets/${PREVIOUS_SET}`, EXISTING_TAG_COMMIT],
+        ...tags.map((tag) => [tag, EXISTING_TAG_COMMIT]),
+        ...plan.forms.map((form) => [form.locator.tag, EXISTING_TAG_COMMIT]),
+      ]);
+      const fixture = makeCommandDependencies(plan, {
+        trustReport: current,
+        previousTrustReport: previous,
+        remoteTags,
+      });
+      const exit = runDeploy(
+        [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT, "--dry-run"],
+        fixture.dependencies,
+      );
+      expect(exit, fixture.stderr).toBe(0);
+      const evidence = JSON.parse(fixture.stdout);
+      expect(evidence.signedSet.previousSetId).toBe(PREVIOUS_SET);
+      expect(evidence.revocationTagToCreate).toBeNull();
+      expect(
+        fixture.calls.some(
+          (call) => call.command === "git" && call.args[0] === "push",
+        ),
+      ).toBe(false);
+    }
+  });
+
+  test("real advancement after a continuation pairs the new tag with the checkpoint signer, not the predecessor set", () => {
+    const plan = makePlan();
+    const trust = makeAdvancementAfterContinuationTrustReport(plan);
+    const fixture = makeCommandDependencies(plan, {
+      trustReport: trust,
+      previousTrustReport: makePreviousContinuationTrustReport(plan),
+      remoteTags: new Map([
+        [`forms/sets/${GENESIS_SET}`, EXISTING_TAG_COMMIT],
+        [`forms/sets/${PREVIOUS_SET}`, EXISTING_TAG_COMMIT],
+        ...plan.forms.map((form) => [form.locator.tag, EXISTING_TAG_COMMIT]),
+      ]),
+    });
+    const exit = runDeploy(
+      [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT, "--dry-run"],
+      fixture.dependencies,
+    );
+    expect(exit, fixture.stderr).toBe(0);
+    const evidence = JSON.parse(fixture.stdout);
+    expect(evidence.signedSet.previousSetId).toBe(PREVIOUS_SET);
+    expect(evidence.revocationTagToCreate).toBe(REVOCATION_TAG);
+  });
+
+  test("continuation lost ACK settles by readback without another push", () => {
+    const plan = makePlan();
+    const trust = makeRepeatedContinuationTrustReport(plan);
+    const fixture = makeCommandDependencies(plan, {
+      trustReport: trust,
+      previousTrustReport: makePreviousContinuationTrustReport(plan),
+      remoteMainCommit: COMMIT,
+      remoteTags: new Map([
+        [`forms/sets/${GENESIS_SET}`, EXISTING_TAG_COMMIT],
+        [`forms/sets/${PREVIOUS_SET}`, EXISTING_TAG_COMMIT],
+        [trust.setTag, COMMIT],
+        ...plan.forms.map((form) => [form.locator.tag, EXISTING_TAG_COMMIT]),
+      ]),
+      verifyPublicPublication: () => ({ status: "VERIFIED", commit: COMMIT }),
+    });
+    const exit = runDeploy(
+      [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT],
+      fixture.dependencies,
+    );
+    expect(exit, fixture.stderr).toBe(0);
+    expect(JSON.parse(fixture.stdout).status).toBe("PUBLISHED_SETTLED");
+    expect(
+      fixture.calls.some(
+        (call) => call.command === "git" && call.args[0] === "push",
+      ),
+    ).toBe(false);
+  });
+
   test("preflights the exact retained package inventory before the owner gate or any push", () => {
     const plan = makePlan();
     const retained = plan.retainedPackages;
@@ -679,6 +903,117 @@ describe("Edge Form Package deploy surface", () => {
     ).toBe(true);
   });
 
+  test("anonymous continuation readback sees all set tags but only the inherited checkpoint signer", () => {
+    const root = mkdtempSync(
+      path.join(tmpdir(), "takoform-continuation-readback-test-"),
+    );
+    const plan = makePlan(root);
+    const trust = makeRepeatedContinuationTrustReport(plan);
+    writePublicFixture(plan);
+    const calls = [];
+    const setTags = trust.setHistory.map((entry) => entry.setTag);
+    const dependencies = {
+      run() {
+        throw new Error("credentialed command used by --verify");
+      },
+      runReadOnly(command, args) {
+        calls.push({ command, args });
+        if (
+          command === "git" &&
+          args[0] === "ls-remote" &&
+          args[1] === "origin" &&
+          args[2] === "refs/heads/main"
+        )
+          return ok(`${COMMIT}\trefs/heads/main\n`);
+        if (
+          command === "git" &&
+          args[0] === "ls-remote" &&
+          args[1] === "--tags"
+        ) {
+          const refs = args.slice(3);
+          if (refs.includes("refs/tags/forms/*"))
+            return ok(
+              [
+                ...plan.forms.map(
+                  (form) =>
+                    `${EXISTING_TAG_COMMIT}\trefs/tags/${form.locator.tag}`,
+                ),
+                ...plan.retainedPackages.map(
+                  (entry) => `${EXISTING_TAG_COMMIT}\trefs/tags/${entry.tag}`,
+                ),
+              ].join("\n") + "\n",
+            );
+          if (refs.includes("refs/tags/forms/sets/*"))
+            return ok(
+              setTags
+                .map(
+                  (tag) =>
+                    `${tag === trust.setTag ? COMMIT : EXISTING_TAG_COMMIT}\trefs/tags/${tag}`,
+                )
+                .join("\n") + "\n",
+            );
+          if (refs.includes("refs/tags/forms/revocations/v*")) return ok("");
+          const commit = refs.some((ref) => ref.includes(trust.setTag))
+            ? COMMIT
+            : EXISTING_TAG_COMMIT;
+          return ok(refs.map((ref) => `${commit}\t${ref}\n`).join(""));
+        }
+        if (command === "git" && args[0] === "clone") {
+          copyContents(root, args.at(-1));
+          return ok();
+        }
+        if (command === "git" && args[0] === "-C" && args[2] === "rev-parse") {
+          const ref = args.at(-1);
+          return ok(
+            `${ref.includes(trust.setTag) || !ref.startsWith("refs/tags/") ? COMMIT : EXISTING_TAG_COMMIT}\n`,
+          );
+        }
+        if (
+          command === "git" &&
+          args[0] === "-C" &&
+          ["checkout", "fetch", "diff"].includes(args[2])
+        )
+          return ok();
+        if (command === "go" && args.includes("./cmd/publisher-trust"))
+          return ok(`${JSON.stringify(trust)}\n`);
+        if (command === "go" && args.includes("./cmd/form-package")) {
+          const packageRoot = args.at(-1);
+          const form = plan.forms.find((entry) =>
+            packageRoot.endsWith(entry.locator.sourcePath),
+          );
+          if (form) return ok(`${JSON.stringify(form.locator)}\n`);
+          const retained = plan.retainedPackages.find((entry) =>
+            packageRoot.endsWith(entry.sourcePath),
+          );
+          if (retained)
+            return ok(
+              `${JSON.stringify({ apiVersion: "packages.forms.takoform.com/v1alpha5", releaseId: retained.releaseId, artifactId: retained.artifactId, tag: retained.tag, sourcePath: retained.sourcePath })}\n`,
+            );
+        }
+        return fail(
+          `unexpected read-only command ${command} ${args.join(" ")}`,
+        );
+      },
+    };
+    const evidence = verifyPublicPublication(plan, trust, dependencies, {
+      expectedCommit: COMMIT,
+    });
+    expect(evidence.status).toBe("VERIFIED");
+    expect(evidence.signedSet.previousSetId).toBe(PREVIOUS_SET);
+    expect(evidence.signedSet.setHistory.map((entry) => entry.setId)).toEqual([
+      GENESIS_SET,
+      PREVIOUS_SET,
+      SOURCE_COMMIT,
+    ]);
+    expect(
+      evidence.signedSet.checkpointHistory.map((entry) => entry.setId),
+    ).toEqual([GENESIS_SET]);
+    expect(evidence.revocationTagCount).toBe(0);
+    expect(
+      calls.filter((call) => call.command === "git" && call.args[0] === "push"),
+    ).toEqual([]);
+  });
+
   test("credential-free Git and Go commands discard inherited authentication configuration", () => {
     const sourceEnvironment = {
       PATH: "/usr/bin",
@@ -761,8 +1096,9 @@ describe("Edge Form Package deploy surface", () => {
 
 function makePlan(
   repositoryRoot = mkdtempSync(path.join(tmpdir(), "takoform-deploy-plan-")),
+  packageCount = 17,
 ) {
-  const forms = Array.from({ length: 17 }, (_, index) => {
+  const forms = Array.from({ length: packageCount }, (_, index) => {
     const hex = `${(index + 1).toString(16).padStart(2, "0")}`.repeat(32);
     const releaseId = `k-${String.fromCharCode(97 + index)}`;
     const artifactId = `sha256-${hex}`;
@@ -1047,6 +1383,126 @@ function makeAdvancementTrustReport(plan) {
       },
       sourcePath: "forms/revocations/1.0.0.json",
       tag: REVOCATION_TAG,
+    },
+  ];
+  return report;
+}
+
+function makeContinuationTrustReport(plan) {
+  const report = makeTrustReport(plan);
+  const checkpoint = report.checkpoint;
+  const checkpointSigner = PREVIOUS_SET;
+  report.mode = "continuation";
+  report.previousSetId = PREVIOUS_SET;
+  report.checkpoint.bundle.sourceCommit = checkpointSigner;
+  report.checkpoint.bundle.workflowCommit = checkpointSigner;
+  report.checkpoint.bundle.buildConfigCommit = checkpointSigner;
+  report.checkpointHistory[0] = {
+    setId: checkpointSigner,
+    setTag: `forms/sets/${checkpointSigner}`,
+    checkpointVersion: "0.0.0",
+    pin: checkpoint.pin,
+  };
+  report.setHistory = [
+    {
+      setId: checkpointSigner,
+      setTag: `forms/sets/${checkpointSigner}`,
+      mode: "genesis",
+      checkpointVersion: "0.0.0",
+      pin: checkpoint.pin,
+    },
+    {
+      setId: SOURCE_COMMIT,
+      setTag: `forms/sets/${SOURCE_COMMIT}`,
+      mode: "continuation",
+      checkpointVersion: "0.0.0",
+      pin: checkpoint.pin,
+    },
+  ];
+  return report;
+}
+
+function makePreviousContinuationTrustReport(plan) {
+  const report = trustAtCommit(makeContinuationTrustReport(plan), PREVIOUS_SET);
+  report.previousSetId = GENESIS_SET;
+  report.checkpoint.bundle.sourceCommit = GENESIS_SET;
+  report.checkpoint.bundle.workflowCommit = GENESIS_SET;
+  report.checkpoint.bundle.buildConfigCommit = GENESIS_SET;
+  report.checkpointHistory[0].setId = GENESIS_SET;
+  report.checkpointHistory[0].setTag = `forms/sets/${GENESIS_SET}`;
+  report.setHistory[0].setId = GENESIS_SET;
+  report.setHistory[0].setTag = `forms/sets/${GENESIS_SET}`;
+  return report;
+}
+
+function makeRepeatedContinuationTrustReport(plan) {
+  const previous = makePreviousContinuationTrustReport(plan);
+  const report = makeTrustReport(plan);
+  report.mode = "continuation";
+  report.previousSetId = PREVIOUS_SET;
+  report.checkpoint = structuredClone(previous.checkpoint);
+  report.checkpointHistory = structuredClone(previous.checkpointHistory);
+  report.setHistory = [
+    ...structuredClone(previous.setHistory),
+    {
+      setId: SOURCE_COMMIT,
+      setTag: `forms/sets/${SOURCE_COMMIT}`,
+      mode: "continuation",
+      checkpointVersion: "0.0.0",
+      pin: structuredClone(previous.checkpoint.pin),
+    },
+  ];
+  return report;
+}
+
+function makeContinuationAfterAdvancementTrustReport(plan) {
+  const previous = makePreviousAdvancementTrustReport(plan);
+  const report = makeTrustReport(plan);
+  report.mode = "continuation";
+  report.previousSetId = PREVIOUS_SET;
+  report.checkpoint = structuredClone(previous.checkpoint);
+  report.checkpointHistory = structuredClone(previous.checkpointHistory);
+  report.previousCheckpoint = structuredClone(previous.previousCheckpoint);
+  report.revocationTags = structuredClone(previous.revocationTags);
+  report.statements = structuredClone(previous.statements);
+  report.setHistory = [
+    ...previous.checkpointHistory.map((entry, index) => ({
+      setId: entry.setId,
+      setTag: entry.setTag,
+      mode: index === 0 ? "genesis" : "advancement",
+      checkpointVersion: entry.checkpointVersion,
+      pin: structuredClone(entry.pin),
+      ...(index === 0 ? {} : { revocationTag: REVOCATION_TAG }),
+    })),
+    {
+      setId: SOURCE_COMMIT,
+      setTag: `forms/sets/${SOURCE_COMMIT}`,
+      mode: "continuation",
+      checkpointVersion: "1.0.0",
+      pin: structuredClone(previous.checkpoint.pin),
+    },
+  ];
+  return report;
+}
+
+function makeAdvancementAfterContinuationTrustReport(plan) {
+  const previous = makePreviousContinuationTrustReport(plan);
+  const report = makeAdvancementTrustReport(plan);
+  report.previousSetId = PREVIOUS_SET;
+  report.mode = "advancement";
+  report.previousCheckpoint.setId = GENESIS_SET;
+  report.previousCheckpoint.setTag = `forms/sets/${GENESIS_SET}`;
+  report.checkpointHistory[0].setId = GENESIS_SET;
+  report.checkpointHistory[0].setTag = `forms/sets/${GENESIS_SET}`;
+  report.setHistory = [
+    ...structuredClone(previous.setHistory),
+    {
+      setId: SOURCE_COMMIT,
+      setTag: `forms/sets/${SOURCE_COMMIT}`,
+      mode: "advancement",
+      checkpointVersion: "1.0.0",
+      pin: structuredClone(report.checkpoint.pin),
+      revocationTag: REVOCATION_TAG,
     },
   ];
   return report;

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 import {
   cpSync,
   mkdirSync,
@@ -13,6 +14,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  deriveSigningRoster,
   derivePublicationPlan,
   verifyPublicationTree,
   writePublication,
@@ -30,6 +32,268 @@ const candidateRoot = path.join(
 );
 
 describe("Edge Form Package publication materialization", () => {
+  test("signing roster is the complete validated current selection, never retained or abandoned roots", () => {
+    const fixture = makeFixture();
+    const verifyPackage = makeFixtureVerifier(fixture);
+    writePublication({ root: fixture, verifyPackage });
+    const roster = deriveSigningRoster({ root: fixture, verifyPackage });
+    const plan = derivePublicationPlan({ root: fixture, verifyPackage });
+    expect(roster.packageCount).toBe(17);
+    expect(roster.activeReleasePaths).toEqual(
+      plan.forms.map((form) => form.locator.sourcePath),
+    );
+    expect(roster.activeReleasePaths).not.toContain(
+      plan.retainedPackages[0].sourcePath,
+    );
+    expect(roster.activeReleasePaths).not.toContain(
+      plan.evidenceOnlyPackages[0].sourcePath,
+    );
+  });
+
+  test("a version replacement keeps the verified prior release and tag outside the new active roster", () => {
+    const fixture = makeFixture();
+    const initialVerifier = makeFixtureVerifier(fixture);
+    writePublication({ root: fixture, verifyPackage: initialVerifier });
+    const prior = derivePublicationPlan({
+      root: fixture,
+      verifyPackage: initialVerifier,
+    });
+    const former = prior.forms.find((form) => form.kind === "WorkerVersion");
+    const priorBytes = snapshotTree(
+      path.join(fixture, former.locator.sourcePath),
+    );
+    const signedSets = () => [
+      {
+        status: "verified",
+        setId: "a".repeat(40),
+        family: prior.family,
+        packageCount: prior.formCount,
+        checkpointHistory: [{ setId: "a".repeat(40) }],
+        packages: prior.forms.map((form) => ({
+          formRef: form.formRef,
+          packageDigest: form.packageDigest,
+          locator: form.locator,
+        })),
+      },
+    ];
+    const candidateSetPath = path.join(
+      fixture,
+      "forms/candidates/edge.forms.takoform.com/candidate-set.json",
+    );
+    const candidateSet = JSON.parse(readFileSync(candidateSetPath, "utf8"));
+    const replacement = candidateSet.forms.find(
+      (form) => form.kind === "WorkerVersion",
+    );
+    replacement.formRef.definitionVersion = "0.4.0";
+    replacement.packageDigest = `sha256:${"6".repeat(64)}`;
+    const candidateIndexPath = path.join(
+      fixture,
+      replacement.path,
+      "package-index.json",
+    );
+    const packageIndex = JSON.parse(readFileSync(candidateIndexPath, "utf8"));
+    packageIndex.formRef.definitionVersion = "0.4.0";
+    writeFileSync(
+      candidateIndexPath,
+      `${JSON.stringify(packageIndex, null, 2)}\n`,
+    );
+    const candidateSetBytes = `${JSON.stringify(candidateSet, null, 2)}\n`;
+    writeFileSync(candidateSetPath, candidateSetBytes);
+    const familyIndexPath = path.join(
+      fixture,
+      "forms/candidates/current-family-index.json",
+    );
+    const familyIndex = JSON.parse(readFileSync(familyIndexPath, "utf8"));
+    familyIndex.families[0].sha256 = createHash("sha256")
+      .update(candidateSetBytes)
+      .digest("hex");
+    writeFileSync(familyIndexPath, `${JSON.stringify(familyIndex, null, 2)}\n`);
+    const verifyPackage = makeFixtureVerifier(fixture);
+    const options = {
+      root: fixture,
+      verifyPackage,
+      readSignedSets: signedSets,
+    };
+    writePublication(options);
+    const next = derivePublicationPlan(options);
+    expect(next.formCount).toBe(17);
+    expect(
+      next.retainedPackages.some((entry) => entry.tag === former.locator.tag),
+    ).toBe(true);
+    expect(
+      next.forms.some((entry) => entry.locator.tag === former.locator.tag),
+    ).toBe(false);
+    expect(snapshotTree(path.join(fixture, former.locator.sourcePath))).toEqual(
+      priorBytes,
+    );
+    expect(deriveSigningRoster(options).activeReleasePaths).not.toContain(
+      former.locator.sourcePath,
+    );
+  });
+
+  test("rejects changing a signed Kind and definitionVersion without advancing the Form version", () => {
+    const fixture = makeFixture();
+    const initialVerifier = makeFixtureVerifier(fixture);
+    writePublication({ root: fixture, verifyPackage: initialVerifier });
+    const prior = derivePublicationPlan({
+      root: fixture,
+      verifyPackage: initialVerifier,
+    });
+    const candidateSetPath = path.join(
+      fixture,
+      "forms/candidates/edge.forms.takoform.com/candidate-set.json",
+    );
+    const candidateSet = JSON.parse(readFileSync(candidateSetPath, "utf8"));
+    const changed = candidateSet.forms.find(
+      (form) => form.kind === "WorkerVersion",
+    );
+    changed.formRef.schemaDigest = `sha256:${"8".repeat(64)}`;
+    changed.packageDigest = `sha256:${"9".repeat(64)}`;
+    const packageIndexPath = path.join(
+      fixture,
+      changed.path,
+      "package-index.json",
+    );
+    const packageIndex = JSON.parse(readFileSync(packageIndexPath, "utf8"));
+    packageIndex.formRef.schemaDigest = changed.formRef.schemaDigest;
+    writeFileSync(
+      packageIndexPath,
+      `${JSON.stringify(packageIndex, null, 2)}\n`,
+    );
+    const raw = `${JSON.stringify(candidateSet, null, 2)}\n`;
+    writeFileSync(candidateSetPath, raw);
+    const familyIndexPath = path.join(
+      fixture,
+      "forms/candidates/current-family-index.json",
+    );
+    const familyIndex = JSON.parse(readFileSync(familyIndexPath, "utf8"));
+    familyIndex.families[0].sha256 = createHash("sha256")
+      .update(raw)
+      .digest("hex");
+    writeFileSync(familyIndexPath, `${JSON.stringify(familyIndex, null, 2)}\n`);
+    const options = {
+      root: fixture,
+      verifyPackage: makeFixtureVerifier(fixture),
+      readSignedSets: () => [
+        {
+          status: "verified",
+          setId: "a".repeat(40),
+          family: prior.family,
+          packageCount: prior.formCount,
+          checkpointHistory: [{ setId: "a".repeat(40) }],
+          packages: prior.forms.map((form) => ({
+            formRef: form.formRef,
+            packageDigest: form.packageDigest,
+            locator: form.locator,
+          })),
+        },
+      ],
+    };
+    expect(() => derivePublicationPlan(options)).toThrow(/historical FormRef/);
+  });
+
+  test("a separately promoted nineteen-item source selection drives the complete signing roster", () => {
+    const fixture = makeFixture();
+    const candidateSetPath = path.join(
+      fixture,
+      "forms/candidates/edge.forms.takoform.com/candidate-set.json",
+    );
+    const candidateSet = JSON.parse(readFileSync(candidateSetPath, "utf8"));
+    for (const [index, kind] of [
+      "SyntheticContainer",
+      "SyntheticContainerDeployment",
+    ].entries()) {
+      const original = candidateSet.forms[index];
+      const copy = structuredClone(original);
+      copy.kind = kind;
+      copy.path = `forms/candidates/edge.forms.takoform.com/synthetic-${index}`;
+      copy.formRef.kind = kind;
+      copy.packageDigest = `sha256:${String(index + 7).repeat(64)}`;
+      cpSync(path.join(fixture, original.path), path.join(fixture, copy.path), {
+        recursive: true,
+      });
+      const packageIndexPath = path.join(
+        fixture,
+        copy.path,
+        "package-index.json",
+      );
+      const packageIndex = JSON.parse(readFileSync(packageIndexPath, "utf8"));
+      packageIndex.formRef.kind = kind;
+      writeFileSync(
+        packageIndexPath,
+        `${JSON.stringify(packageIndex, null, 2)}\n`,
+      );
+      candidateSet.forms.push(copy);
+    }
+    const candidateSetBytes = `${JSON.stringify(candidateSet, null, 2)}\n`;
+    writeFileSync(candidateSetPath, candidateSetBytes);
+    const familyIndexPath = path.join(
+      fixture,
+      "forms/candidates/current-family-index.json",
+    );
+    const familyIndex = JSON.parse(readFileSync(familyIndexPath, "utf8"));
+    familyIndex.families[0].formCount = 19;
+    familyIndex.families[0].sha256 = createHash("sha256")
+      .update(candidateSetBytes)
+      .digest("hex");
+    writeFileSync(familyIndexPath, `${JSON.stringify(familyIndex, null, 2)}\n`);
+    const verifyPackage = makeFixtureVerifier(fixture);
+    writePublication({ root: fixture, verifyPackage });
+    const roster = deriveSigningRoster({ root: fixture, verifyPackage });
+    expect(roster.packageCount).toBe(19);
+    expect(roster.activeReleasePaths).toHaveLength(19);
+    expect(roster.activeReleasePaths).toEqual(
+      [...roster.activeReleasePaths].sort(),
+    );
+  });
+
+  test("rejects a forked signed-set history as historical-root authority", () => {
+    const fixture = makeFixture();
+    const verifyPackage = makeFixtureVerifier(fixture);
+    const report = (id) => ({
+      status: "verified",
+      setId: id,
+      family: "edge.forms.takoform.com",
+      packageCount: 17,
+      checkpointHistory: [{ setId: id }],
+      packages: [],
+    });
+    expect(() =>
+      derivePublicationPlan({
+        root: fixture,
+        verifyPackage,
+        readSignedSets: () => [report("a".repeat(40)), report("b".repeat(40))],
+      }),
+    ).toThrow(/one complete successor history/);
+  });
+
+  test("rejects a candidate FormRef different from its selected package index", () => {
+    const fixture = makeFixture();
+    const candidateSetPath = path.join(
+      fixture,
+      "forms/candidates/edge.forms.takoform.com/candidate-set.json",
+    );
+    const candidateSet = JSON.parse(readFileSync(candidateSetPath, "utf8"));
+    candidateSet.forms[0].formRef.definitionVersion = "9.9.9";
+    const raw = `${JSON.stringify(candidateSet, null, 2)}\n`;
+    writeFileSync(candidateSetPath, raw);
+    const familyIndexPath = path.join(
+      fixture,
+      "forms/candidates/current-family-index.json",
+    );
+    const familyIndex = JSON.parse(readFileSync(familyIndexPath, "utf8"));
+    familyIndex.families[0].sha256 = createHash("sha256")
+      .update(raw)
+      .digest("hex");
+    writeFileSync(familyIndexPath, `${JSON.stringify(familyIndex, null, 2)}\n`);
+    expect(() =>
+      derivePublicationPlan({
+        root: fixture,
+        verifyPackage: makeFixtureVerifier(fixture),
+      }),
+    ).toThrow(/candidate FormRef differs/);
+  });
+
   test("writes every release directory when the publication root is empty", () => {
     const fixture = makeFixture();
     const verifyPackage = makeFixtureVerifier(fixture);
@@ -273,7 +537,7 @@ function makeFixtureVerifier(fixture) {
   );
   const locators = new Map(
     candidateSet.forms.map((candidate, index) => {
-      const releaseId = `k-${"abcdefghijklmnop"[index]}`;
+      const releaseId = `k-${index.toString(36)}`;
       const artifactId = candidate.packageDigest.replace(":", "-");
       return [
         candidate.kind,
