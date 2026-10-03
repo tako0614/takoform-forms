@@ -138,7 +138,7 @@ func TestPrepareSigningRequestEmitsExactCoreSubjectsAndRefusesOverwrite(t *testi
 		output,
 		"packages",
 		"k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2nn5shk3dfk5xxe23foi",
-		"sha256-931eda33c673a640530b81779a5821ed27b9244c9f13dec9660867173aa69405",
+		"sha256-a9909dd1ffb28a860c36b4d5bd35bcea89f233b926aa7a691fe2f8bca9dcddde",
 		PackageIndexName,
 	)
 	actual, err := os.ReadFile(packageSubject)
@@ -150,7 +150,7 @@ func TestPrepareSigningRequestEmitsExactCoreSubjectsAndRefusesOverwrite(t *testi
 		"forms",
 		"releases",
 		"k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2nn5shk3dfk5xxe23foi",
-		"sha256-931eda33c673a640530b81779a5821ed27b9244c9f13dec9660867173aa69405",
+		"sha256-a9909dd1ffb28a860c36b4d5bd35bcea89f233b926aa7a691fe2f8bca9dcddde",
 		PackageIndexName,
 	))
 	if err != nil {
@@ -433,16 +433,8 @@ func TestContinuationCanReplaceActiveDefinitionVersionWithoutChangingHistory(t *
 
 func TestPublishedContinuationRejectsSetLineageCycleBeforeSignatureReplay(t *testing.T) {
 	t.Parallel()
-	repositoryRoot := filepath.Join("..", "..")
+	repositoryRoot, paths, _ := syntheticActiveRoster(t, 2, "")
 	previousSet := filepath.Join(repositoryRoot, filepath.FromSlash(TrustSetsRelativePath), "e7f8a39311dd011b8467e97e7f300cabb9a6b06c")
-	previousPackages, err := discoverPublishedSetPackages(repositoryRoot, previousSet)
-	if err != nil {
-		t.Fatal(err)
-	}
-	paths := make([]string, 0, len(previousPackages))
-	for _, value := range previousPackages {
-		paths = append(paths, value.locator.SourcePath)
-	}
 	request := filepath.Join(t.TempDir(), "request")
 	report, err := PrepareContinuationSigningRequest(repositoryRoot, previousSet, paths, request)
 	if err != nil {
@@ -1032,9 +1024,15 @@ func syntheticActiveRoster(t *testing.T, extraKinds int, replaceKind string) (st
 	source := filepath.Join("..", "..")
 	fixture := t.TempDir()
 	copyTestTree(t, filepath.Join(source, "forms"), filepath.Join(fixture, "forms"))
-	current, err := discoverPackages(fixture)
+	// These synthetic lineage tests advance the immutable published predecessor,
+	// not the repository's independently selected, still-unsigned source roster.
+	previousSet := filepath.Join(fixture, filepath.FromSlash(TrustSetsRelativePath), originalPublishedSetID)
+	current, err := discoverPublishedSetPackages(fixture, previousSet)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(current) != 17 {
+		t.Fatalf("published predecessor package count = %d, want 17", len(current))
 	}
 	selected := make([]verifiedCandidate, 0, len(current)+extraKinds)
 	var base verifiedCandidate

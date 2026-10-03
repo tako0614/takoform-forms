@@ -42,7 +42,17 @@ const actorWorkflowLifecycleDescription = " Generic DELETE is a side-effect-free
 // renderers without selecting the unrelated Vector proposal or writing any
 // current candidate, release, trust, or Host-support state.
 func RenderActorWorkflowCandidate() (ActorWorkflowCandidate, error) {
-	base, err := renderRuntimeCandidate(false)
+	return renderActorWorkflowCandidate(runtimeDevelopmentFormVersions)
+}
+
+// Only current-form-source selects final Form source target versions. The
+// public development-candidate command above retains its original bytes.
+func renderActorWorkflowSourceCandidate() (ActorWorkflowCandidate, error) {
+	return renderActorWorkflowCandidate(actorWorkflowSourceFormVersions)
+}
+
+func renderActorWorkflowCandidate(versions runtimeFormVersions) (ActorWorkflowCandidate, error) {
+	base, err := renderRuntimeCandidate(false, versions)
 	if err != nil {
 		return ActorWorkflowCandidate{}, err
 	}

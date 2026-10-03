@@ -9,6 +9,7 @@ if (!buildRoot)
     "Build verified package pages with bun run build:edge-form-pages",
   );
 const origin = "https://edge.forms.takoform.com";
+const sourcePreview = process.env.EDGE_FORM_SOURCE_PREVIEW === "1";
 
 export default defineConfig({
   lang: "en",
@@ -95,6 +96,8 @@ export default defineConfig({
     },
   },
   transformHead({ pageData, title, description }) {
+    if (sourcePreview)
+      return [["meta", { name: "robots", content: "noindex,nofollow" }]];
     const route = `/${pageData.relativePath.replace(/index\.md$/u, "").replace(/\.md$/u, "")}`;
     return [
       ["link", { rel: "canonical", href: `${origin}${route}` }],

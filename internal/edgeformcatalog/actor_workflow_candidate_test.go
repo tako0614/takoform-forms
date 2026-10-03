@@ -1,6 +1,10 @@
 package edgeformcatalog
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -9,6 +13,29 @@ import (
 	"github.com/tako0614/takoform/formpackage"
 	coresnapshot "github.com/tako0614/takoform/snapshot"
 )
+
+// This is the stdout digest of cmd/actor-workflow-candidate at clean source
+// commit 1c7337c0 (the qualified 0025cf8 tree). It locks the preselection
+// development candidate independently of the new source-only renderer.
+const legacyActorWorkflowCandidateStdoutSHA256 = "6fbc72d537c49e5ab09e956b7d046bb38e35c3f04d17c15504b7bc308c3bd81b"
+
+func TestActorWorkflowDevelopmentCandidatePreservesPreselectionStdoutBytes(t *testing.T) {
+	candidate, err := RenderActorWorkflowCandidate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stdout bytes.Buffer
+	encoder := json.NewEncoder(&stdout)
+	encoder.SetIndent("", "  ")
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(candidate); err != nil {
+		t.Fatal(err)
+	}
+	got := sha256.Sum256(stdout.Bytes())
+	if gotSHA := fmt.Sprintf("%x", got); gotSHA != legacyActorWorkflowCandidateStdoutSHA256 {
+		t.Fatalf("preselection candidate stdout SHA-256 = %s, want %s", gotSHA, legacyActorWorkflowCandidateStdoutSHA256)
+	}
+}
 
 func TestActorWorkflowCandidateHasOneWorkerPairAndNoVectorBinding(t *testing.T) {
 	candidate, err := RenderActorWorkflowCandidate()

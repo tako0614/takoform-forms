@@ -2,12 +2,13 @@
 
 The human-facing reference lives at **edge.forms.takoform.com**. It is owned
 by this publisher, not the neutral Takoform API/Core site. It contains an index,
-17 current Form pages and two retained version pages. Package publication,
+17 published Form pages and two retained version pages. The selected source
+may contain newer, unpublished Form versions. Package publication,
 Host support, admission and actual hosting are separate concerns.
 
 English keeps the existing root routes; Japanese pages are under `/ja/`. The
 language menu links to the corresponding page and preserves its heading fragment.
-Each locale has the complete 20-page sidebar. Guides and navigation are translated;
+Each locale has the complete published sidebar. Guides and navigation are translated;
 contract descriptions and field descriptions are marked as original English.
 Schema, example and package-reference bytes do not change with language.
 
@@ -67,7 +68,7 @@ real prerequisite resources; the publisher does not invent these.
 - Canonical examples follow the Definition's `conformanceFixtures` declaration
   and must be listed in the package index. Required fields, defaults and limits
   come from `desiredSchema`. The full schema remains inspectable.
-- Current pages are tied to the selected installed signed set. Retained pages
+- Public current pages are tied to the selected installed signed set. Retained pages
   come from `forms/retained-packages.json` and keep their original versioned URLs.
   They explicitly do not claim membership in the current signed set. Do not
   replace a retained page's example or schema with the current definition.
@@ -81,13 +82,23 @@ real prerequisite resources; the publisher does not invent these.
   permits same-origin scripts and exact hashes of the generated inline bootstrap
   scripts, not arbitrary inline or third-party scripts. Local styles/fonts and
   inline styles support the theme and syntax highlighting. `Cache-Control:
-  no-transform` prevents proxy-injected analytics from changing verified HTML.
+no-transform` prevents proxy-injected analytics from changing verified HTML.
   This does not change zone-wide settings. All generated assets are included in
   the build digest and the existing deployment readback. The root HTTP response
   must also carry the generated CSP, `nosniff` and `no-transform`; matching HTML
   alone is not a successful deployment readback.
 
 ## Build and verify
+
+The portable `bun run check` uses `check:edge-form-pages:source`: it Core-verifies
+the exact selected package closure, checks the version-pinned reading guide,
+renders real VitePress pages, and runs a Wrangler dry-run in a disposable
+directory. This source check is explicitly **UNPUBLISHED**: it consumes no
+trust set, emits no signed/public-readback assertion or unborn package-tag
+links, and deletes all preview assets. It is neither a site build target nor a
+deployment authorization. The signed `check:edge-form-pages` and
+`build:edge-form-pages` commands still require one exact installed signed set;
+the deploy gate retains that same strict requirement.
 
 ```console
 bun install --frozen-lockfile
@@ -148,8 +159,9 @@ not require a commit argument.
    unoccupied hostname. All DNS/origin/scope overwrite controls stay false.
    Existing ownership or a conflicting DNS record stops the command; no takeover,
    DNS deletion, package release or automatic retry is available.
+
 3. After DNS/TLS propagation, use `edge-form-pages --trust-set <set-source-commit>
-   --environment production --verify`. Binding success alone is insufficient:
+--environment production --verify`. Binding success alone is insufficient:
    every page, CSS/font file and the negative route must read back correctly.
 
 After an upload error the command reads provider history once, reports it and

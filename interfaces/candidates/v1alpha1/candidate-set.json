@@ -25,13 +25,13 @@
     },
     {
       "name": "worker.actor",
-      "version": "1.0.0",
-      "schemaDigest": "sha256:f5428fb587de80261dd7363dc5b8a3f4aab7e469fa1b5fce8441ad9acbec8218"
+      "version": "2.0.0",
+      "schemaDigest": "sha256:b027b2129eb4e361d469f09d6d7fd7ab1abb2ee54e185da9169ec4c893487a51"
     },
     {
       "name": "worker.runtime",
-      "version": "1.1.0",
-      "schemaDigest": "sha256:ed2f8211aac5be94488d391945ca6aca7627a4ecbd261e39790093e887feae08"
+      "version": "2.0.0",
+      "schemaDigest": "sha256:8c3fbdef49053c7522c55b9a540d03672c688b617404f23fa29e23b8dd57f37c"
     },
     {
       "name": "worker.service",
@@ -40,8 +40,8 @@
     },
     {
       "name": "worker.workflow",
-      "version": "1.0.0",
-      "schemaDigest": "sha256:6b652dd311975da84469a5ec44f48acbc6db2097d1473988bd5424a85fda4294"
+      "version": "3.0.0",
+      "schemaDigest": "sha256:2584721b4bc9f5feef94b272337c348fb67130de57317afaf84aa7ca55246f69"
     }
   ]
 }

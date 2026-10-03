@@ -166,24 +166,26 @@ func TestSourceOnlyContainerPackagesVerifyAndCompileExactSnapshot(t *testing.T) 
 	}
 }
 
-func TestSourceOnlyProjectionLeavesExistingSeventeenPackageBytesUnchanged(t *testing.T) {
+func TestSourceOnlyProjectionLeavesSelectedSeventeenPackageBytesUnchanged(t *testing.T) {
 	t.Parallel()
-	before, err := RenderForms()
+	selected, err := RenderActorWorkflowSelectedSource()
 	if err != nil {
 		t.Fatal(err)
 	}
+	before := selected.Forms
 	if len(before) != 17 {
 		t.Fatalf("current Forms before source-only render = %d, want 17", len(before))
 	}
 	if _, err := RenderSourceOnlyForms(); err != nil {
 		t.Fatal(err)
 	}
-	after, err := RenderForms()
+	afterSource, err := RenderActorWorkflowSelectedSource()
 	if err != nil {
 		t.Fatal(err)
 	}
+	after := afterSource.Forms
 	if !reflect.DeepEqual(before, after) {
-		t.Fatal("source-only rendering changed the in-memory current 17 Forms")
+		t.Fatal("source-only rendering changed the selected current 17 Forms")
 	}
 	for _, form := range before {
 		root := filepath.Join("..", "..", "forms", "candidates", Family.APIVersion(), form.Slug)

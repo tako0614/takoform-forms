@@ -2,8 +2,10 @@
 
 This is a source-level continuation path of the Edge Form publisher, not a
 second Takoform trust profile or authorization to sign or release. The
-current selected roster remains the same 17 published Forms. The two Container
-source candidates remain outside that roster and outside released paths.
+selected source roster has 17 Forms, including nine unpublished Actor/Workflow
+successor versions. The last published set still pins its earlier 17 Forms.
+The two Container source candidates remain outside the selected roster and
+outside released paths.
 
 An eventual no-revocation successor starts from the exact latest public set,
 read anonymously from canonical `main` and its immutable tags. The publisher
@@ -55,9 +57,9 @@ package index and the lineage subject, but never the inherited checkpoint.
 Blank `transition_mode` preserves the existing genesis/real-advancement input
 pair; continuation is never inferred from `previous_set` alone.
 
-A later publication decision must separately promote an exact active roster
-(19 for the first Container proposal) in the owning candidate set and pinned
-current-family index. The current unpromoted 19-path request still fails.
+A later Container publication decision must separately promote an exact active
+roster (19 for the first Container proposal) in the owning candidate set and
+pinned current-family index. The current unpromoted 19-path request still fails.
 The publication plan admits old release roots only from Core-verified prior
 signed sets (plus the two pinned retained identities), verifies their exact
 Core locators and bytes, and requires their existing immutable public tags

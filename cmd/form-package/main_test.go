@@ -10,9 +10,9 @@ import (
 const moduleWorkerPublicationJSON = `{
   "apiVersion": "packages.forms.takoform.com/v1alpha5",
   "releaseId": "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2nn5shk3dfk5xxe23foi",
-  "artifactId": "sha256-931eda33c673a640530b81779a5821ed27b9244c9f13dec9660867173aa69405",
-  "tag": "forms/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2nn5shk3dfk5xxe23foi/sha256-931eda33c673a640530b81779a5821ed27b9244c9f13dec9660867173aa69405",
-  "sourcePath": "forms/releases/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2nn5shk3dfk5xxe23foi/sha256-931eda33c673a640530b81779a5821ed27b9244c9f13dec9660867173aa69405"
+  "artifactId": "sha256-a9909dd1ffb28a860c36b4d5bd35bcea89f233b926aa7a691fe2f8bca9dcddde",
+  "tag": "forms/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2nn5shk3dfk5xxe23foi/sha256-a9909dd1ffb28a860c36b4d5bd35bcea89f233b926aa7a691fe2f8bca9dcddde",
+  "sourcePath": "forms/releases/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2nn5shk3dfk5xxe23foi/sha256-a9909dd1ffb28a860c36b4d5bd35bcea89f233b926aa7a691fe2f8bca9dcddde"
 }
 `
 

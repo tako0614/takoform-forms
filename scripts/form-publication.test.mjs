@@ -32,6 +32,35 @@ const candidateRoot = path.join(
 );
 
 describe("Edge Form Package publication materialization", () => {
+  // The real Core verifier checks 31 current and historical release roots;
+  // Bun's default 5 s can cancel an in-flight verifier on a cold CI runner.
+  test("selected Actor and Workflow source retains nine old signed roots without treating new roots as signed", () => {
+    // The default reader re-verifies installed historical sets through Core;
+    // it does not fabricate a signed successor for this source-only change.
+    const plan = derivePublicationPlan();
+    expect(plan.formCount).toBe(17);
+    expect(plan.retainedPackageCount).toBe(11);
+    expect(plan.evidenceOnlyPackageCount).toBe(3);
+    expect(plan.releaseRootCount).toBe(31);
+    expect(plan.formCount + plan.retainedPackageCount).toBe(28);
+    const former = plan.retainedPackages.filter(
+      (entry) =>
+        !["WorkerVersion@0.2.0", "WorkerDeployment@0.1.0"].includes(
+          `${entry.formRef.kind}@${entry.formRef.definitionVersion}`,
+        ),
+    );
+    expect(former).toHaveLength(9);
+    const activeKinds = new Set(plan.forms.map((entry) => entry.kind));
+    for (const old of former) {
+      expect(activeKinds.has(old.formRef.kind)).toBe(true);
+      expect(plan.forms.some((entry) => entry.locator.tag === old.tag)).toBe(
+        false,
+      );
+    }
+    const checked = verifyPublicationTree(plan);
+    expect(checked.checked).toHaveLength(17);
+  }, 60_000);
+
   test("signing roster is the complete validated current selection, never retained or abandoned roots", () => {
     const fixture = makeFixture();
     const verifyPackage = makeFixtureVerifier(fixture);
@@ -84,7 +113,7 @@ describe("Edge Form Package publication materialization", () => {
     const replacement = candidateSet.forms.find(
       (form) => form.kind === "WorkerVersion",
     );
-    replacement.formRef.definitionVersion = "0.4.0";
+    replacement.formRef.definitionVersion = "0.5.0";
     replacement.packageDigest = `sha256:${"6".repeat(64)}`;
     const candidateIndexPath = path.join(
       fixture,
@@ -92,7 +121,7 @@ describe("Edge Form Package publication materialization", () => {
       "package-index.json",
     );
     const packageIndex = JSON.parse(readFileSync(candidateIndexPath, "utf8"));
-    packageIndex.formRef.definitionVersion = "0.4.0";
+    packageIndex.formRef.definitionVersion = "0.5.0";
     writeFileSync(
       candidateIndexPath,
       `${JSON.stringify(packageIndex, null, 2)}\n`,

@@ -2,13 +2,13 @@
   "apiVersion": "interfaces.takoform.com/v1alpha1",
   "kind": "InterfaceDefinition",
   "name": "worker.workflow",
-  "version": "1.0.0",
-  "title": "Durable workflow execution",
-  "description": "Multi-step durable execution whose progress survives process death, as CODE: a class the serving Worker Version exports, constructed by the host and invoked as run(event, step) once per instance. event carries the instance id and the data-only JSON params the creator passed. EXECUTION IS AT-LEAST-ONCE PER STEP WITH MEMOIZED REPLAY. An attempt that dies after its effect but before its record commits re-executes, so a step function must be idempotent. A COMPLETED step's recorded result is returned on every later execution without running the function again; the memo is keyed by step NAME, so step names are unique per instance history by construction — a recurring name IS the same step, and distinct work under one name is unobservable. WHAT IS SEALED IS STEP RESULTS, NOT CODE EFFECTS. Code between steps re-executes on every replay and must be side-effect-free and deterministic against its own recorded history. Every execution context an instance gets is created from the worker deployment's THEN-CURRENT selection, exactly like a request, so a promotion mid-instance changes the code the history replays under; authors evolve workflow code compatibly with in-flight instances, as with any at-least-once consumer. A host can verify neither obligation, and this contract states both rather than implying them. AN INSTANCE IS BOUNDED TWICE. Per-wait bounds cannot bound an instance, because run can mint an unlimited sequence of uniquely named steps, so maxStepsPerInstance and maxInstanceLifetimeSeconds are contract facts. An instance that crosses either is terminated BY THE HOST into the terminal errored status carrying step_limit_exceeded or lifetime_exceeded; nothing runs past it. INSTANCES ARE RUNTIME DATA, never resources: unbounded cardinality, runtime addressing, no uid, no generation, nothing for a provider to plan. A terminal instance stays readable for maxTerminalRetentionSeconds, which is exactly how long its id stays taken. THE STATUS VOCABULARY IS CLOSED: queued, running, sleeping, waiting, complete, errored, terminated. A call fails only when the operation could not be performed; a workflow that threw is a successful status read reporting errored.",
+  "version": "3.0.0",
+  "title": "Aggregate durable workflow class execution",
+  "description": "Unpublished aggregate worker.workflow contract. Its exact runtime requirement is worker.runtime@2.0.0; it is a distinct development identity from the standalone workflow draft. Unpublished forward worker.workflow contract. Its named class ABI is defined by run below. It supplements worker.runtime@2.0.0 without changing the required plain-object default export, fetch/scheduled/queue handlers, globals or declared environment. All documents use the create operation's data-only rules; undefined means absent only as a whole optional document. Instance status is exactly queued, running, sleeping, waiting, complete, errored or terminated. Instances are runtime data, not Resources. Retained ids cannot be reused; terminal records and ids remain retained for maxTerminalRetentionSeconds while the identity exists.\n\nEach fresh context selects the deployment's THEN-CURRENT weighted WorkerVersion and pins it for that context. Replay creates a new context and class object: fields, closures, module state and pending Promises do not survive. Step execution is at-least-once with memoized outcomes. A process death after an effect but before its outcome commit can repeat the effect. Callbacks must be idempotent; code outside steps, including module evaluation and constructors, must be side-effect-free and deterministic against history. Deployment changes must remain compatible with in-flight histories. The Host cannot verify these author obligations.\n\nThe Host stops code before publishing sleeping, waiting or any terminal state; no context remains parked. Nothing runs after the absolute 31536000-second lifetime cutoff. Bounds and infrastructure interruptions are Host control, never catchable app sentinels.\n\nstep is bound to this context and instance; the app never passes instanceId. Steps are sequential. A second overlapping call, ANY run settlement while a step is unsettled, or incomplete cross-kind name reuse causes uncatchable step_definition_mismatch, ahead of run_threw. Stop precedes terminal publication; no mismatch rejection reaches app catch/finally. Its operation-error listing is an outcome, not a catchable Error. Finished names, including failed ones, replay by name regardless of new kind, without new effects; sleep discards a recorded success value. Validate the name before finished-history lookup, then ignore unused arguments for finished names. For a new/pending name, validate the listed argument positions and closed option schemas before new writes/effects; invalid JS calls reject with TypeError. An omitted optional argument may also be undefined. Pending same-kind calls use their first saved configuration, not valid new options. Names/types contain 1-256 Unicode scalar values.\n\nHost step Errors have an own, non-enumerable, non-writable, non-configurable name equal to the exact code. Provenance is private and bound to the exact object and context, not an app property. Rethrowing the same object preserves provenance; copying names or wrapping errors does not. Other fields may be annotated. Only an uncaught error privately branded step_failed promotes a run failure to terminal step_failed. All other uncaught errors, including branded wait_timeout and TypeError, are run_threw. Handling a step failure may still lead to complete. Per-instance ordering applies to state changes and accepted events. A wait consumes the oldest retained matching type by acceptance order; other types remain, and one event satisfies at most one wait. At equal timestamps an event accepted at the timeout wins. Queued events are limited to maxPendingEventCount and maxPendingEventBytes canonical UTF-8 bytes per instance, counting each stored {type,payload?}. A matching parked wait bypasses queue capacity. A terminal transition purges unmatched queued events.",
   "operations": [
     {
       "name": "create",
-      "description": "Start one instance. id is the author's choice when given and host-minted when absent; an id a RETAINED instance still holds — live or terminal within maxTerminalRetentionSeconds — fails instance_exists rather than resuming or replacing it, because two executions under one id could not be told apart afterwards. params is data-only JSON bounded by maxDocumentBytes. Creating against a workflow no deployment serves fails unsupported_capability: there is no class to replay into.",
+      "description": "Start one instance with optional id and params. Refuse a retained id with instance_exists; mint an id if absent. No serving deployment yields unsupported_capability. ALL workflow documents (params, results, payloads, outputs) have a plain/null-prototype object root with at most 1024 properties and 1048576 RFC 8785 canonical UTF-8 bytes. Nested values are null, booleans, finite numbers, Unicode-scalar strings, plain/null-prototype objects or dense ordinary Arrays. Arrays have only length and enumerable index data properties; objects have only enumerable own string data properties. Refuse accessors, symbols, holes, extra array properties, other prototypes, cycles, functions, BigInt, nested undefined and non-JSON values. Shared acyclic objects are allowed. Serialization inspects descriptors, never invokes getters or toJSON. Invalid params are invalid_params; canonical byte overflow is document_too_large.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -102,7 +102,7 @@
     },
     {
       "name": "status",
-      "description": "Read one instance's current status. output is present only on complete and error only on errored, whose reason comes from the closed set run_threw, step_failed, step_limit_exceeded, lifetime_exceeded — the last two being the host's own termination at a declared bound, which an operator must be able to tell from code that failed.",
+      "description": "Read a retained instance. Output occurs only on complete and error only on errored. The closed error reasons are run_threw, step_failed, step_limit_exceeded, lifetime_exceeded and step_definition_mismatch. Workflow failure is a successful status read, not an operation rejection.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -134,7 +134,8 @@
                   "run_threw",
                   "step_failed",
                   "step_limit_exceeded",
-                  "lifetime_exceeded"
+                  "lifetime_exceeded",
+                  "step_definition_mismatch"
                 ],
                 "type": "string"
               }
@@ -174,7 +175,7 @@
     },
     {
       "name": "sendEvent",
-      "description": "Deliver one typed event to an instance. It resolves when the event is DURABLY RETAINED, not when it is consumed: an event sent before its waitForEvent is held until a matching wait or a terminal state, so a signal cannot be lost to a race with the instance's own progress. Sending to a terminal instance fails instance_terminal — nothing will ever read it.",
+      "description": "Accept one typed event durably in the target instance's per-instance FIFO. Assign its acceptance order atomically with retention. If a matching parked wait is already registered, commit the event directly as that step's result without using pending-queue capacity; otherwise retain it until the oldest matching wait consumes it or the instance becomes terminal. Events of other types remain queued, and one accepted event can satisfy only one wait. If retaining the event would exceed maxPendingEventCount=1024 or maxPendingEventBytes=1048576 canonical UTF-8 bytes for stored {type,payload?} documents, reject with event_queue_full without durable acceptance. This does not change the maxDocumentBytes limit for this call. At equal timestamps, acceptance at the wait deadline wins. A terminal instance refuses new events with instance_terminal.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -210,12 +211,13 @@
         "unknown_instance",
         "instance_terminal",
         "document_too_large",
-        "backend_unavailable"
+        "backend_unavailable",
+        "event_queue_full"
       ]
     },
     {
       "name": "terminate",
-      "description": "Stop one instance and move it to the terminal terminated status. It is idempotent against an already-terminal instance: the outcome asked for is the outcome that holds, and failing there would make a retry after a lost response indistinguishable from a real error.",
+      "description": "Terminate one instance idempotently. Fence the current execution owner, cancel future continuations, and wait until the executing context is physically stopped before terminated is visible or this operation succeeds. A stale owner cannot commit after fencing. If the Host cannot establish stop and fencing, it must not report success or publish terminated; the instance remains nonterminal and deletion remains blocked. A repeated request for an already terminal instance is successful.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -245,7 +247,7 @@
     },
     {
       "name": "run",
-      "description": "The ENTRYPOINT the host invokes once per instance on the class the active deployment's weighted versions export. It receives the instance id and params and the step surface, and its resolved value is the instance output. An uncaught throw moves the instance to errored with run_threw; crossing a declared instance bound moves it there with step_limit_exceeded or lifetime_exceeded, decided by the host rather than by the code.",
+      "description": "The main module's className named export must be constructible with a callable prototype run in every weighted version before Ready. No vendor base class or native context is required. Per fresh context use ordinary ECMAScript instance = new Export(env), then resolve instance.run and call it once with this=instance and (event, step). env is exactly that selected version's resolved worker.runtime@2.0.0 environment, never Host-private controls. event has exactly instanceId and params only if supplied at create; mutations are not durable. run returns a data-only object or undefined, directly or by Promise, not {output}. The schema wrapper is an observation only. Construction, run lookup/call, missing/non-callable execution-time run and uncaught failures yield run_threw, except genuine step_failed provenance and Host-controlled outcomes described above. Save a valid output before complete.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -280,12 +282,13 @@
         "run_threw",
         "step_failed",
         "step_limit_exceeded",
-        "lifetime_exceeded"
+        "lifetime_exceeded",
+        "step_definition_mismatch"
       ]
     },
     {
       "name": "stepDo",
-      "description": "Run one named unit of work and durably record its JSON result under that name. A completed step never runs again: its recorded result is replayed. retryPolicy is per CALL — maxAttempts, an initial delay, constant or exponential backoff, and a delay ceiling — because two steps of one workflow legitimately want different policies. Exhausted retries fail the step with step_failed.",
+      "description": "JS: step.do(name, effect, retryPolicy?) returns Promise<object|undefined>, not {result}. effect is a zero-argument callable. Save normalized policy before the first callback: omission means maxAttempts=1; supplied policy requires maxAttempts (1-100 including first). initialDelaySeconds defaults to 0, backoff to constant, maxDelaySeconds to 43200; delays are integers 0-43200. After failed attempt k (one-based), delay is min(maxDelaySeconds,initialDelaySeconds) for constant or min(maxDelaySeconds,initialDelaySeconds*2^(k-1)) for exponential, capped without overflow. Every attempt uses the saved policy and calls effect once. Throw, rejection or invalid/oversized result fails that attempt. If retry remains, persist progress/due time, stop and replay in a fresh context not earlier than due, even for zero delay. Otherwise journal step_failed before rejecting with that Host Error. Commit success before resolving. Finished-name replay follows the common rules.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -351,15 +354,16 @@
       },
       "errors": [
         "step_failed",
+        "wait_timeout",
+        "step_definition_mismatch",
         "step_limit_exceeded",
         "lifetime_exceeded",
-        "document_too_large",
         "backend_unavailable"
       ]
     },
     {
       "name": "stepSleep",
-      "description": "Park the instance for a named duration. There is NO execution context while it sleeps, which is what makes a long-lived workflow cost nothing to wait; the host wakes it at-least-once and never early. A sleep that would carry the instance past maxInstanceLifetimeSeconds fails rather than being silently shortened.",
+      "description": "JS: step.sleep(name, seconds) returns Promise<void>. seconds is an integer 0-maxSleepSeconds. First registration saves duration and due time; replay keeps those values. A future sleep stops this context before sleeping becomes visible; its Promise never resolves there. At or after due time, a new context replays and durably completes the step before resolving undefined. A zero sleep commits and resolves in the current context. A sleep beyond the absolute lifetime stops with lifetime_exceeded, never a shortened sleep. Finished-name replay discards a recorded success value or rethrows its recorded step Error.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -394,7 +398,9 @@
         "type": "object"
       },
       "errors": [
-        "invalid_duration",
+        "step_failed",
+        "wait_timeout",
+        "step_definition_mismatch",
         "step_limit_exceeded",
         "lifetime_exceeded",
         "backend_unavailable"
@@ -402,7 +408,7 @@
     },
     {
       "name": "stepWaitForEvent",
-      "description": "Park the instance until a sent event of the named type resolves it, or fail the step at the timeout. timeoutSeconds is REQUIRED: an unbounded wait would make the delete refusal a deadlock instead of a delay. An event retained before this call resolves it immediately.",
+      "description": "JS: step.waitForEvent(name, {type, timeoutSeconds}) returns Promise<object|undefined>, not {payload}. type and integer timeoutSeconds (1-maxWaitTimeoutSeconds) are required. First registration fixes type and absolute timeout. Atomically consume the oldest accepted event of the matching type in the same per-instance acceptance order, committing the event and step together; events of other types remain retained. An event accepted no later than timeout wins over timeout, including an event accepted at the equal deadline, and cannot satisfy two waits. A retained eligible event resolves after commit in this context. Otherwise stop before publishing waiting; that Promise never resolves there. A new context replays to resolve the consumed payload, or durably records wait_timeout before rejecting with that Host Error. Absolute instance lifetime wins even if timeout is later. Finished-name replay follows the common rules.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -448,8 +454,9 @@
         "type": "object"
       },
       "errors": [
+        "step_failed",
         "wait_timeout",
-        "invalid_duration",
+        "step_definition_mismatch",
         "step_limit_exceeded",
         "lifetime_exceeded",
         "backend_unavailable"
@@ -459,11 +466,13 @@
   "semantics": {
     "consistency": "read_after_write",
     "delivery": "at_least_once",
-    "ordering": "none"
+    "ordering": "per_key"
   },
   "limits": {
     "maxDocumentBytes": 1048576,
     "maxInstanceLifetimeSeconds": 31536000,
+    "maxPendingEventBytes": 1048576,
+    "maxPendingEventCount": 1024,
     "maxSleepSeconds": 31536000,
     "maxStepsPerInstance": 1024,
     "maxTerminalRetentionSeconds": 2592000,
@@ -566,6 +575,93 @@
             "id": "never-created"
           },
           "expectedError": "unknown_instance"
+        }
+      ]
+    },
+    {
+      "name": "queued-events-consume-oldest-match",
+      "steps": [
+        {
+          "operation": "create",
+          "input": {
+            "id": "event-order"
+          },
+          "expected": {
+            "id": "event-order",
+            "status": "queued"
+          }
+        },
+        {
+          "operation": "sendEvent",
+          "input": {
+            "id": "event-order",
+            "payload": {
+              "sequence": 1
+            },
+            "type": "approval"
+          }
+        },
+        {
+          "operation": "sendEvent",
+          "input": {
+            "id": "event-order",
+            "payload": {
+              "sequence": 99
+            },
+            "type": "audit"
+          }
+        },
+        {
+          "operation": "sendEvent",
+          "input": {
+            "id": "event-order",
+            "payload": {
+              "sequence": 2
+            },
+            "type": "approval"
+          }
+        },
+        {
+          "operation": "stepWaitForEvent",
+          "input": {
+            "instanceId": "event-order",
+            "name": "approval-1",
+            "timeoutSeconds": 30,
+            "type": "approval"
+          },
+          "expected": {
+            "payload": {
+              "sequence": 1
+            }
+          }
+        },
+        {
+          "operation": "stepWaitForEvent",
+          "input": {
+            "instanceId": "event-order",
+            "name": "approval-2",
+            "timeoutSeconds": 30,
+            "type": "approval"
+          },
+          "expected": {
+            "payload": {
+              "sequence": 2
+            }
+          }
+        },
+        {
+          "operation": "stepWaitForEvent",
+          "input": {
+            "instanceId": "event-order",
+            "name": "audit",
+            "timeoutSeconds": 30,
+            "type": "audit"
+          },
+          "expected": {
+            "payload": {
+              "sequence": 99
+            }
+          }
         }
       ]
     }

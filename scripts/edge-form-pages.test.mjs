@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
 import {
   existsSync,
   mkdtempSync,
@@ -14,6 +15,8 @@ import path from "node:path";
 import {
   EDGE_FORM_PAGES_ORIGIN,
   buildEdgeFormPages,
+  buildEdgeFormSourcePreview,
+  validateReadingGuide,
 } from "./edge-form-pages.mjs";
 import { derivePublicationPlan } from "./form-publication.mjs";
 import { renderForSearch, tokenize } from "../site/.vitepress/search.mjs";
@@ -21,6 +24,126 @@ import { renderForSearch, tokenize } from "../site/.vitepress/search.mjs";
 const SET_ID = "e7f8a39311dd011b8467e97e7f300cabb9a6b06c";
 
 describe("publisher-owned Edge Form pages", () => {
+  test("source check renders an honest unpublished preview without a signed set or durable output", () => {
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/edge-form-pages.mjs", "--check-source"],
+      { cwd: path.resolve("."), encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+    );
+    expect(result.status).toBe(0);
+    const report = JSON.parse(result.stdout);
+    expect(report.publicationStatus).toBe("UNPUBLISHED");
+    expect(report.signedSet).toBeUndefined();
+    expect(report.formCount).toBe(17);
+    expect(report.retainedCount).toBe(11);
+    expect(existsSync(report.outputDirectory)).toBe(false);
+  }, 60_000);
+
+  test("source preview renders real pages without public metadata or unborn package links", () => {
+    const plan = derivePublicationPlan();
+    const output = mkdtempSync(
+      path.join(tmpdir(), "edge-form-source-preview-"),
+    );
+    try {
+      const report = buildEdgeFormSourcePreview({
+        outputDirectory: output,
+        plan,
+      });
+      expect(report.publicationStatus).toBe("UNPUBLISHED");
+      expect(report.signedSet).toBeUndefined();
+      expect(existsSync(path.join(output, "sitemap.xml"))).toBe(false);
+      expect(existsSync(path.join(output, "_headers"))).toBe(false);
+      expect(readFileSync(path.join(output, "robots.txt"), "utf8")).toContain(
+        "Disallow: /",
+      );
+      for (const relative of tree(output).filter((entry) =>
+        entry.endsWith(".html"),
+      )) {
+        const html = readFileSync(path.join(output, relative), "utf8");
+        expect(html).toContain("noindex,nofollow");
+        expect(html).not.toContain('rel="canonical"');
+        expect(html).not.toContain('property="og:url"');
+        expect(html).not.toContain("Public package readback verified");
+        expect(html).not.toContain("/tree/forms%2F");
+        expect(html).not.toContain("Open immutable package");
+      }
+      expect(readFileSync(path.join(output, "index.html"), "utf8")).toContain(
+        "UNPUBLISHED source preview",
+      );
+      expect(
+        readFileSync(
+          path.join(output, "forms/WorkerVersion/0.4.0/index.html"),
+          "utf8",
+        ),
+      ).toContain("UNPUBLISHED source preview");
+      for (const relative of [
+        "forms/ObjectBucket/0.1.0/index.html", // already published, unchanged
+        "forms/WorkerVersion/0.4.0/index.html", // new unsigned successor
+      ]) {
+        const html = readFileSync(path.join(output, relative), "utf8");
+        expect(html).toContain("The selected source roster is UNPUBLISHED");
+        expect(html).toContain("Core-derived tag (publication not asserted)");
+        expect(html).not.toContain(
+          "This candidate has not been signed or published",
+        );
+        expect(html).not.toContain("Candidate tag (not published)");
+        expect(html).not.toContain("not a signed-set member");
+      }
+      const retained = readFileSync(
+        path.join(output, "forms/WorkerVersion/0.3.0/index.html"),
+        "utf8",
+      );
+      expect(retained).toContain(
+        "Historical package in unpublished source preview",
+      );
+      expect(retained).not.toContain(
+        "This candidate has not been signed or published",
+      );
+    } finally {
+      rmSync(output, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  test("source preview rejects stale guide and a missing selected package before rendering", () => {
+    const plan = derivePublicationPlan();
+    const guide = JSON.parse(readFileSync("site/reading-guide.json", "utf8"));
+    guide.WorkerVersion.version = "0.3.0";
+    expect(() => validateReadingGuide(guide, plan.forms)).toThrow(
+      /requires review/,
+    );
+    const missing = structuredClone(plan);
+    missing.forms[0].locator.sourcePath += "-missing";
+    const output = mkdtempSync(
+      path.join(tmpdir(), "edge-form-source-missing-"),
+    );
+    try {
+      expect(() =>
+        buildEdgeFormSourcePreview({ outputDirectory: output, plan: missing }),
+      ).toThrow();
+      expect(readdirSync(output)).toEqual([]);
+    } finally {
+      rmSync(output, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  test("source check cannot be given a trust set or durable output", () => {
+    for (const extra of [
+      ["--trust-set", SET_ID],
+      ["--output", "/tmp/forbidden"],
+    ]) {
+      const result = spawnSync(
+        process.execPath,
+        ["scripts/edge-form-pages.mjs", "--check-source", ...extra],
+        {
+          cwd: path.resolve("."),
+          encoding: "utf8",
+        },
+      );
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain("usage:");
+    }
+  });
+
   test("tokenizes Japanese usage text and preserves binding names", () => {
     expect(
       tokenize("たとえばチャットの部屋ごとにActorを使えます。bucketBindings"),
@@ -71,11 +194,20 @@ describe("publisher-owned Edge Form pages", () => {
     const first = mkdtempSync(path.join(tmpdir(), "edge-form-pages-a-"));
     const second = mkdtempSync(path.join(tmpdir(), "edge-form-pages-b-"));
     try {
-      const firstResult = buildEdgeFormPages({
-        outputDirectory: first,
-        plan,
-        trust,
-      });
+      const previousPreviewFlag = process.env.EDGE_FORM_SOURCE_PREVIEW;
+      process.env.EDGE_FORM_SOURCE_PREVIEW = "1";
+      let firstResult;
+      try {
+        firstResult = buildEdgeFormPages({
+          outputDirectory: first,
+          plan,
+          trust,
+        });
+      } finally {
+        if (previousPreviewFlag === undefined)
+          delete process.env.EDGE_FORM_SOURCE_PREVIEW;
+        else process.env.EDGE_FORM_SOURCE_PREVIEW = previousPreviewFlag;
+      }
       const secondResult = buildEdgeFormPages({
         outputDirectory: second,
         plan,
@@ -155,6 +287,8 @@ describe("publisher-owned Edge Form pages", () => {
         ).size,
       ).toBe(plan.formCount + plan.retainedPackages.length);
       expect(root).toContain(`${plan.formCount} signed Edge Forms`);
+      expect(root).toContain('rel="canonical"');
+      expect(root).not.toContain("noindex,nofollow");
       expect(root).not.toContain("Public package readback verified");
       expect(root).not.toContain("API discovery");
 
@@ -192,7 +326,7 @@ describe("publisher-owned Edge Form pages", () => {
       );
       expect(page).not.toContain("Public package readback verified");
       const worker = readFileSync(
-        path.join(first, "forms/WorkerVersion/0.3.0/index.html"),
+        path.join(first, "forms/WorkerVersion/0.4.0/index.html"),
         "utf8",
       );
       expect(worker).toContain("Required");

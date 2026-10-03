@@ -19,6 +19,7 @@ import { renderVitePressPages } from "./edge-form-pages-vitepress.mjs";
 import {
   ABANDONED_PREPUBLICATION_SET_ID,
   derivePublicationPlan,
+  verifyPublicationTree,
   verifyWithCore,
 } from "./form-publication.mjs";
 
@@ -56,7 +57,130 @@ export function buildEdgeFormPages({
       root,
     ),
   );
+  const forms = preparePageForms(current, retained, root);
+  const isPublic = validatePublicReadback(publicReadback, current, trust);
+  if (
+    isPublic &&
+    JSON.stringify(
+      (publicReadback.retainedTags ?? [])
+        .map((entry) => `${entry.tag}\t${entry.packageDigest}`)
+        .sort(),
+    ) !==
+      JSON.stringify(
+        retained
+          .map((entry) => `${entry.locator.tag}\t${entry.packageDigest}`)
+          .sort(),
+      )
+  )
+    throw new Error("public readback does not cover retained package history");
+
+  // Never delete caller-selected directories. Builds use a fresh destination.
+  prepareOutputDirectory(outputDirectory);
+  const routes = renderVitePressPages({
+    root,
+    outputDirectory,
+    forms,
+    trust,
+    isPublic,
+    origin: EDGE_FORM_PAGES_ORIGIN,
+  });
+  const files = assetFiles(outputDirectory);
+  const digest = createHash("sha256");
+  for (const relative of files)
+    digest
+      .update(relative)
+      .update("\0")
+      .update(readFileSync(path.join(outputDirectory, relative)));
+  return {
+    kind: "takoform.edge-form-pages-build@v1",
+    surface: EDGE_FORM_PAGES_SURFACE,
+    origin: EDGE_FORM_PAGES_ORIGIN,
+    signedSet: trust.setId,
+    publicPackageReadback: isPublic,
+    formCount: current.length,
+    retainedCount: retained.length,
+    routes,
+    files,
+    digest: `sha256:${digest.digest("hex")}`,
+  };
+}
+
+/** Check-only preview of Core-verified source packages; never a signed build. */
+export function buildEdgeFormSourcePreview({
+  outputDirectory,
+  plan,
+  root = repositoryRoot,
+}) {
+  if (!outputDirectory) throw new Error("outputDirectory is required");
+  verifyPublicationTree(plan, { root });
+  const current = plan.forms.map((form) => readPagePackage(form, root));
+  const retained = (plan.retainedPackages ?? []).map((entry) =>
+    readPagePackage(
+      {
+        ...entry,
+        locator: { tag: entry.tag, sourcePath: entry.sourcePath },
+        retained: true,
+      },
+      root,
+    ),
+  );
+  const forms = preparePageForms(current, retained, root);
+  prepareOutputDirectory(outputDirectory);
+  const routes = renderVitePressPages({
+    root,
+    outputDirectory,
+    forms,
+    sourcePreview: true,
+    origin: EDGE_FORM_PAGES_ORIGIN,
+  });
+  const files = assetFiles(outputDirectory);
+  return {
+    kind: "takoform.edge-form-pages-source-check@v1",
+    surface: EDGE_FORM_PAGES_SURFACE,
+    publicationStatus: "UNPUBLISHED",
+    formCount: current.length,
+    retainedCount: retained.length,
+    routeCount: routes.length,
+    assetCount: files.length,
+  };
+}
+
+function prepareOutputDirectory(outputDirectory) {
+  // Never delete caller-selected directories. Builds use a fresh destination.
+  if (
+    existsSync(outputDirectory) &&
+    (lstatSync(outputDirectory).isSymbolicLink() ||
+      readdirSync(outputDirectory).length)
+  ) {
+    throw new Error("outputDirectory must be an empty, non-symlink directory");
+  }
+  mkdirSync(outputDirectory, { recursive: true });
+}
+
+function preparePageForms(current, retained, root) {
   const guide = readJSON(path.join(root, "site/reading-guide.json"));
+  validateReadingGuide(guide, current);
+  const forms = [...current, ...retained];
+  const identities = new Set(
+    forms.map(
+      (form) => `${form.formRef.kind}/${form.formRef.definitionVersion}`,
+    ),
+  );
+  if (identities.size !== forms.length)
+    throw new Error("duplicate versioned page identity");
+  for (const form of forms) {
+    form.related = (form.guide?.related ?? []).map((relation) => ({
+      ...relation,
+      form: current.find((entry) => entry.formRef.kind === relation.kind),
+    }));
+    form.versions = forms.filter(
+      (entry) => entry.formRef.kind === form.formRef.kind && entry !== form,
+    );
+  }
+  return forms;
+}
+
+export function validateReadingGuide(guide, current) {
   if (
     Object.keys(guide).sort().join() !==
     current
@@ -97,75 +221,6 @@ export function buildEdgeFormPages({
         `${form.formRef.kind}: reading guide requires review for this exact definition version`,
       );
   }
-  const forms = [...current, ...retained];
-  const identities = new Set(
-    forms.map(
-      (form) => `${form.formRef.kind}/${form.formRef.definitionVersion}`,
-    ),
-  );
-  if (identities.size !== forms.length)
-    throw new Error("duplicate versioned page identity");
-  for (const form of forms) {
-    form.related = (form.guide?.related ?? []).map((relation) => ({
-      ...relation,
-      form: current.find((entry) => entry.formRef.kind === relation.kind),
-    }));
-    form.versions = forms.filter(
-      (entry) => entry.formRef.kind === form.formRef.kind && entry !== form,
-    );
-  }
-  const isPublic = validatePublicReadback(publicReadback, current, trust);
-  if (
-    isPublic &&
-    JSON.stringify(
-      (publicReadback.retainedTags ?? [])
-        .map((entry) => `${entry.tag}\t${entry.packageDigest}`)
-        .sort(),
-    ) !==
-      JSON.stringify(
-        retained
-          .map((entry) => `${entry.locator.tag}\t${entry.packageDigest}`)
-          .sort(),
-      )
-  )
-    throw new Error("public readback does not cover retained package history");
-
-  // Never delete caller-selected directories. Builds use a fresh destination.
-  if (
-    existsSync(outputDirectory) &&
-    (lstatSync(outputDirectory).isSymbolicLink() ||
-      readdirSync(outputDirectory).length)
-  ) {
-    throw new Error("outputDirectory must be an empty, non-symlink directory");
-  }
-  mkdirSync(outputDirectory, { recursive: true });
-  const routes = renderVitePressPages({
-    root,
-    outputDirectory,
-    forms,
-    trust,
-    isPublic,
-    origin: EDGE_FORM_PAGES_ORIGIN,
-  });
-  const files = assetFiles(outputDirectory);
-  const digest = createHash("sha256");
-  for (const relative of files)
-    digest
-      .update(relative)
-      .update("\0")
-      .update(readFileSync(path.join(outputDirectory, relative)));
-  return {
-    kind: "takoform.edge-form-pages-build@v1",
-    surface: EDGE_FORM_PAGES_SURFACE,
-    origin: EDGE_FORM_PAGES_ORIGIN,
-    signedSet: trust.setId,
-    publicPackageReadback: isPublic,
-    formCount: current.length,
-    retainedCount: retained.length,
-    routes,
-    files,
-    digest: `sha256:${digest.digest("hex")}`,
-  };
 }
 
 function assetFiles(directory, prefix = "") {
@@ -326,6 +381,8 @@ function resolveWithinRoot(root, relative) {
 
 function parseCLI(args) {
   if (args.length === 0) return { mode: "build" };
+  if (args.length === 1 && args[0] === "--check-source")
+    return { mode: "source-check" };
   if (
     args.length === 3 &&
     args[0] === "--check" &&
@@ -347,7 +404,7 @@ function parseCLI(args) {
     };
   }
   throw new Error(
-    "usage: bun scripts/edge-form-pages.mjs --check | --trust-set <40-hex-set> --output <directory>",
+    "usage: bun scripts/edge-form-pages.mjs --check-source | --check [--trust-set <40-hex-set>] | --trust-set <40-hex-set> --output <directory>",
   );
 }
 
@@ -357,15 +414,22 @@ function runCLI(args) {
   let setId = invocation.setId;
   let outputDirectory = invocation.outputDirectory;
   let temporary;
-  if (!setId) setId = selectInstalledPageSet(plan);
+  if (invocation.mode !== "source-check" && !setId)
+    setId = selectInstalledPageSet(plan);
   if (!outputDirectory) {
     temporary = mkdtempSync(path.join(tmpdir(), "edge-form-pages-check-"));
     outputDirectory = path.join(temporary, "assets");
   }
   try {
-    const trust = readInstalledTrustSet(setId);
-    const result = buildEdgeFormPages({ outputDirectory, plan, trust });
-    if (invocation.mode === "check") {
+    const result =
+      invocation.mode === "source-check"
+        ? buildEdgeFormSourcePreview({ outputDirectory, plan })
+        : buildEdgeFormPages({
+            outputDirectory,
+            plan,
+            trust: readInstalledTrustSet(setId),
+          });
+    if (invocation.mode === "check" || invocation.mode === "source-check") {
       const wrangler = spawnSync(
         path.join(repositoryRoot, "node_modules", ".bin", "wrangler"),
         [
@@ -392,7 +456,7 @@ function runCLI(args) {
       `${JSON.stringify({ ...result, outputDirectory }, null, 2)}\n`,
     );
   } finally {
-    if (temporary && invocation.mode === "check")
+    if (temporary && invocation.mode !== "build")
       rmSync(temporary, { recursive: true, force: true });
   }
 }

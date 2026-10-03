@@ -5,8 +5,8 @@
   "bindings": [
     {
       "name": "module-worker.actor",
-      "version": "1.0.0",
-      "schemaDigest": "sha256:51f447536158b393b0afb61850d69567db8de91e3a82fa9b9ebc5ab6f87f2c5d"
+      "version": "2.0.0",
+      "schemaDigest": "sha256:1ffc205ba1790251a91c47f1f54f8ea46a8f2563bb77806072d58553aeda3ca3"
     },
     {
       "name": "module-worker.edge-kv",
@@ -35,8 +35,8 @@
     },
     {
       "name": "module-worker.workflow",
-      "version": "1.0.0",
-      "schemaDigest": "sha256:208349ee6f07981bde09e4b9ee2020b86a76887540965657ed07590bc2ad5a0e"
+      "version": "3.0.0",
+      "schemaDigest": "sha256:2b8df3ba036b2781ee3ea8af6603b3de5f09226f4eb1f3385565211cdacc854b"
     }
   ]
 }

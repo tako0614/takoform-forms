@@ -4,7 +4,65 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/tako0614/takoform-forms/internal/edgeformcatalog"
 )
+
+func TestRenderSourceSelectsUnreleasedJointVersions(t *testing.T) {
+	document, err := renderSource()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if document.PublicationStatus != "unpublished" || len(document.Families) != 1 {
+		t.Fatalf("source status/families = %s/%d", document.PublicationStatus, len(document.Families))
+	}
+	var forms []struct {
+		Kind       string `json:"kind"`
+		Definition struct {
+			DefinitionVersion string `json:"definitionVersion"`
+		} `json:"definition"`
+	}
+	if err := json.Unmarshal(document.Families[0].Forms, &forms); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"ModuleWorker":       edgeformcatalog.ActorWorkflowSourceFormVersion,
+		"ActorNamespace":     edgeformcatalog.ActorWorkflowSourceFormVersion,
+		"DurableWorkflow":    edgeformcatalog.ActorWorkflowSourceFormVersion,
+		"WorkerCustomDomain": edgeformcatalog.ActorWorkflowSourceFormVersion,
+		"WorkerEndpoint":     edgeformcatalog.ActorWorkflowSourceFormVersion,
+		"WorkerCronTrigger":  edgeformcatalog.ActorWorkflowSourceFormVersion,
+		"QueueConsumer":      edgeformcatalog.ActorWorkflowSourceFormVersion,
+		"WorkerVersion":      edgeformcatalog.ActorWorkflowSourceWorkerVersion,
+		"WorkerDeployment":   edgeformcatalog.ActorWorkflowSourceWorkerDeployment,
+	}
+	for _, form := range forms {
+		if version, changed := want[form.Kind]; changed {
+			if form.Definition.DefinitionVersion != version {
+				t.Fatalf("%s source version = %s, want %s", form.Kind, form.Definition.DefinitionVersion, version)
+			}
+			delete(want, form.Kind)
+		}
+	}
+	if len(want) != 0 {
+		t.Fatalf("source omitted selected Forms: %+v", want)
+	}
+	wantContracts := map[string]string{
+		"worker.runtime": "2.0.0", "worker.actor": "2.0.0", "worker.workflow": "3.0.0",
+		"module-worker.actor": "2.0.0", "module-worker.workflow": "3.0.0",
+	}
+	for _, contract := range append(append([]sourceContract(nil), document.Interfaces...), document.Bindings...) {
+		if version, changed := wantContracts[contract.Name]; changed {
+			if contract.Version != version {
+				t.Fatalf("%s source version = %s, want %s", contract.Name, contract.Version, version)
+			}
+			delete(wantContracts, contract.Name)
+		}
+	}
+	if len(wantContracts) != 0 {
+		t.Fatalf("source omitted selected contracts: %+v", wantContracts)
+	}
+}
 
 func TestRenderSourceEmitsOnlyTheCurrentEdgeFamily(t *testing.T) {
 	document, err := renderSource()

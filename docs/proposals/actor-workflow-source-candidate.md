@@ -1,14 +1,15 @@
 # Actor and Workflow joint source candidate
 
-Status: **unpublished, unselected source-only candidate**. This document does
-not allocate a release version, change the current 17-Form catalog, or claim
-Host support. The exact public Actor and Workflow contracts remain the
-published bytes in the verified `e7f8a39311dd011b8467e97e7f300cabb9a6b06c`
-source. The current Host API remains `forms.takoform.com/v1` and Core remains
+Status: **unpublished, selected source-only candidate**. Phase 1 selects the
+joint composition in `cmd/current-form-source`; it does not write generated
+packages, change the published 17-Form release, or claim Host support. The
+exact public Actor and Workflow contracts remain the published bytes in the
+verified `e7f8a39311dd011b8467e97e7f300cabb9a6b06c` source. The current
+Host API remains `forms.takoform.com/v1` and Core remains
 `github.com/tako0614/takoform@v1.1.0`.
 
 `go run ./cmd/actor-workflow-candidate` prints one deterministic JSON object to
-stdout. It composes existing Actor, Workflow and Worker runtime candidate
+stdout with its original prerelease development identities. It composes existing Actor, Workflow and Worker runtime candidate
 renderers with **one** shared WorkerVersion and WorkerDeployment. The candidate
 contains two changed capability pairs (`worker.actor` with
 `module-worker.actor`, `worker.workflow` with `module-worker.workflow`), one
@@ -21,18 +22,29 @@ capabilities are not in this selection. The existing broader
 `runtime-candidate` command remains a separate source-only experiment, not a
 publication input.
 
-The numeric prerelease/Interface/Binding values in this source candidate are
-Core-valid development identities only. Before any release, the publisher
-must choose non-conflicting final identities and rerender the whole exact
-closure. Workflow and Actor must not independently publish different
-WorkerVersion/WorkerDeployment successors. Immutable earlier Form Packages,
-trust sets, release roots and tags remain readable and byte-identical; a
-future publisher-set successor is a separate reviewed publication decision.
+`cmd/current-form-source` alone selects the joint composition with the final
+source target Form versions below. It does not change the stdout or bytes of
+either development-candidate command.
 
-The complete candidate's Form definitions, Interface and Binding definitions,
+The selected source targets ModuleWorker, ActorNamespace, DurableWorkflow,
+WorkerCustomDomain, WorkerEndpoint, WorkerCronTrigger and QueueConsumer at
+definitionVersion `0.2.0`, WorkerVersion at `0.4.0`, and WorkerDeployment at
+`0.3.0`. Its three Interfaces remain worker.runtime `2.0.0`, worker.actor
+`2.0.0`, worker.workflow `3.0.0`; its two Bindings remain module-worker.actor
+`2.0.0` and module-worker.workflow `3.0.0`. These are **UNRELEASED source
+targets**, not an aggregate version stream or published identities. The
+standalone Actor/Workflow and broader runtime+Vector development candidates
+keep their separate draft identities. Selection preserves the other eight
+Forms, five Interfaces and five Bindings byte-for-byte. Workflow and Actor
+must not independently publish different WorkerVersion/WorkerDeployment
+successors. Immutable earlier Form Packages, trust sets, release roots and
+tags remain readable and byte-identical; generation, review and a future
+publisher-set successor are separate publication decisions.
+
+The complete source candidate's Form, Interface and Binding definitions,
 fixtures and exact references are checked by focused Go tests. Those tests
-also stage each new Form as a real Core v1.1.0 Package and compile a Snapshot
-with all current Forms, the nine forward Forms, and their old/new exact
+stage each new Form as a real Core v1.1.0 Package and compile a Snapshot with
+all currently released Forms, the nine selected Forms, and their old/new exact
 Interface/Binding artifacts. This proves data-contract closure, **not**
 executable tenant JavaScript, Sigstore evidence, Host admission, or support.
 
@@ -48,8 +60,8 @@ cannot substitute its native class base, credential plane or application
 name for these portable contracts. See
 [Actor execution](actor-execution-contract.md) and
 [Workflow execution](workflow-execution-contract.md) for the unaccepted
-semantic proposals. Their choices require explicit publisher adoption before
-these generated development identities can become current candidates.
+semantic proposals. Source selection alone does not adopt them as released
+contracts or qualify either Host backend.
 
 For the new Workflow successor only, queued/running/sleeping/waiting instances
 are dependent execution identities under their Workflow UID. Generic DELETE

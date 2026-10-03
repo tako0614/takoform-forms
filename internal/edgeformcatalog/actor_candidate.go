@@ -107,7 +107,7 @@ func ActorCandidateInterface() InterfaceDefinition {
 // worker.actor Interface without touching InterfaceDefinitions or Forms.  The
 // resolver supplies the aggregate's worker.runtime Interface for the class
 // holder relation.
-func renderActorCandidatePair(runtimeInterface RenderedContract) (ActorCandidate, error) {
+func renderActorCandidatePair(runtimeInterface RenderedContract, formVersion string) (ActorCandidate, error) {
 	definition := ActorCandidateInterface()
 	if err := ValidateInterfaceDefinitions([]InterfaceDefinition{definition}); err != nil {
 		return ActorCandidate{}, fmt.Errorf("actor candidate Interface authoring: %w", err)
@@ -124,7 +124,7 @@ func renderActorCandidatePair(runtimeInterface RenderedContract) (ActorCandidate
 	if base.Role != model.RoleIdentity || base.Slug != ActorCandidateFormSlug {
 		return ActorCandidate{}, fmt.Errorf("current ActorNamespace identity drifted to %s/%s", base.Slug, base.Role)
 	}
-	candidate := cloneFormForCandidate(base, ActorCandidateFormVersion)
+	candidate := cloneFormForCandidate(base, formVersion)
 	candidate.ProvidedInterfaces = nil
 	candidate.Description = "Unpublished forward ActorNamespace with the exact worker.actor@2.0.0 class, " +
 		"context, alarm, private SQL, serialized invocation and Host-owned socket contract. The namespace " +
