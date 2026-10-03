@@ -1,6 +1,6 @@
 {
   "ModuleWorker": {
-    "version": "0.1.0",
+    "version": "0.2.0",
     "purpose": "Give one Worker application a stable identity.",
     "ja": {
       "purpose": "Workerアプリケーションに、変わらない識別子を付けます。",
@@ -69,7 +69,7 @@
     "useCase": "Identify immutable HTML, CSS and images to serve alongside Worker code. The WorkerVersion assets attachment sets Worker/asset lookup order and missing-path fallback."
   },
   "WorkerVersion": {
-    "version": "0.3.0",
+    "version": "0.4.0",
     "purpose": "Capture one immutable combination of code, handlers and configuration.",
     "ja": {
       "purpose": "コード・ハンドラー・設定の組み合わせを、変更不可のバージョンとして定義します。",
@@ -132,7 +132,7 @@
     "useCase": "Prepare a release without changing traffic yet; keep the previous version available for rollback."
   },
   "WorkerDeployment": {
-    "version": "0.2.0",
+    "version": "0.3.0",
     "purpose": "Choose which Worker revisions receive traffic.",
     "ja": {
       "purpose": "トラフィックを受け取るWorkerのバージョンを選びます。",
@@ -165,7 +165,7 @@
     "useCase": "Promote a prepared version, split traffic between versions, or return traffic to a previous version."
   },
   "WorkerEndpoint": {
-    "version": "0.1.0",
+    "version": "0.2.0",
     "purpose": "Expose the active deployment at a Host-assigned HTTPS address.",
     "ja": {
       "purpose": "有効なデプロイを、Hostが割り当てたHTTPSアドレスで公開します。",
@@ -193,7 +193,7 @@
     "useCase": "Make a Worker API reachable over HTTPS without choosing or managing a domain name."
   },
   "WorkerCustomDomain": {
-    "version": "0.1.0",
+    "version": "0.2.0",
     "purpose": "Connect a hostname you control to a Worker's active deployment.",
     "ja": {
       "purpose": "管理しているホスト名を、Workerの有効なデプロイに接続します。",
@@ -221,7 +221,7 @@
     "useCase": "Serve a Worker API or website on a hostname that you control."
   },
   "WorkerCronTrigger": {
-    "version": "0.1.0",
+    "version": "0.2.0",
     "purpose": "Invoke a Worker's scheduled handler on a UTC cron schedule.",
     "ja": {
       "purpose": "UTCのcronスケジュールに従ってWorkerのscheduledハンドラーを呼び出します。",
@@ -397,7 +397,7 @@
     "useCase": "Accept jobs such as image processing quickly, then process them in the background. Consumers must tolerate duplicate delivery and cannot rely on message order."
   },
   "QueueConsumer": {
-    "version": "0.1.0",
+    "version": "0.2.0",
     "purpose": "Deliver queued messages to a Worker's queue handler.",
     "ja": {
       "purpose": "キューのメッセージをWorkerのqueueハンドラーに配信します。",
@@ -425,7 +425,7 @@
     "useCase": "Configure batch delivery and retry handling for a background Worker. Separate this receiver from any Worker that only sends jobs."
   },
   "ActorNamespace": {
-    "version": "0.1.0",
+    "version": "0.2.0",
     "purpose": "Define a namespace for actors that keep per-ID state and process calls one at a time.",
     "ja": {
       "purpose": "IDごとに状態を保存し、処理を順番に実行するActorの名前空間を定義します。",
@@ -453,7 +453,7 @@
     "useCase": "Keep one chat room’s state and coordinate calls by room ID, instead of creating one infrastructure resource per room."
   },
   "DurableWorkflow": {
-    "version": "0.1.0",
+    "version": "0.2.0",
     "purpose": "Define a durable, multi-step workflow whose instances can resume after process death.",
     "ja": {
       "purpose": "プロセスが終了しても、インスタンスの処理を再開できる複数段階のワークフローを定義します。",

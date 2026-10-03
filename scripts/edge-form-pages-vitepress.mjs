@@ -20,6 +20,7 @@ export function renderVitePressPages({
   trust,
   isPublic,
   origin,
+  sourcePreview = false,
 }) {
   const temporary = mkdtempSync(path.join(tmpdir(), "edge-vitepress-source-"));
   const source = path.join(temporary, "docs");
@@ -41,14 +42,14 @@ export function renderVitePressPages({
       mkdirSync(localeRoot, { recursive: true });
       writeFileSync(
         path.join(localeRoot, "index.md"),
-        renderIndex(forms, isPublic, locale),
+        renderIndex(forms, isPublic, locale, sourcePreview),
       );
       for (const form of forms) {
         const directory = path.join(source, routeFor(form, locale));
         mkdirSync(directory, { recursive: true });
         writeFileSync(
           path.join(directory, "index.md"),
-          renderForm(form, trust, isPublic, locale),
+          renderForm(form, trust, isPublic, locale, sourcePreview),
         );
       }
       const sidebar = [
@@ -61,10 +62,14 @@ export function renderVitePressPages({
             locale === "ja"
               ? retained
                 ? "過去のバージョン"
-                : "現在のForms"
+                : sourcePreview
+                  ? "選択中のソース一覧（未公開）"
+                  : "現在のForms"
               : retained
                 ? "Retained versions"
-                : "Current Forms",
+                : sourcePreview
+                  ? "Selected source roster (unpublished)"
+                  : "Current Forms",
           collapsed: false,
           items: forms
             .filter((form) => !!form.retained === retained)
@@ -108,7 +113,11 @@ export function renderVitePressPages({
         cwd: root,
         encoding: "utf8",
         maxBuffer: 64 * 1024 * 1024,
-        env: { ...process.env, EDGE_DOCS_BUILD_ROOT: temporary },
+        env: {
+          ...process.env,
+          EDGE_DOCS_BUILD_ROOT: temporary,
+          EDGE_FORM_SOURCE_PREVIEW: sourcePreview ? "1" : "0",
+        },
       },
     );
     if (result.status !== 0)
@@ -117,16 +126,20 @@ export function renderVitePressPages({
       );
     writeFileSync(
       path.join(outputDirectory, "robots.txt"),
-      `User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\n`,
+      sourcePreview
+        ? "User-agent: *\nDisallow: /\n"
+        : `User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\n`,
     );
-    writeFileSync(
-      path.join(outputDirectory, "sitemap.xml"),
-      `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${routes.map((route) => `<url><loc>${origin}${route}</loc></url>`).join("")}</urlset>\n`,
-    );
-    writeFileSync(
-      path.join(outputDirectory, "_headers"),
-      headersFor(outputDirectory, routes),
-    );
+    if (!sourcePreview)
+      writeFileSync(
+        path.join(outputDirectory, "sitemap.xml"),
+        `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${routes.map((route) => `<url><loc>${origin}${route}</loc></url>`).join("")}</urlset>\n`,
+      );
+    if (!sourcePreview)
+      writeFileSync(
+        path.join(outputDirectory, "_headers"),
+        headersFor(outputDirectory, routes),
+      );
     return routes;
   } finally {
     rmSync(temporary, { recursive: true, force: true });
@@ -181,13 +194,63 @@ function status(isPublic, locale = "en") {
     : "Package contents were verified locally. This build does not assert public readability.";
 }
 
-function renderIndex(forms, isPublic, locale = "en") {
+function renderIndex(forms, isPublic, locale = "en", sourcePreview = false) {
   const current = forms.filter((form) => !form.retained);
   const workerVersion = current.find(
     (form) => form.formRef.kind === "WorkerVersion",
   );
   if (!workerVersion) throw new Error("current WorkerVersion Form is required");
   const workerVersionExample = `${routeFor(workerVersion, locale)}#example-title`;
+  if (sourcePreview)
+    return locale === "ja"
+      ? `---
+title: Edge Forms 未公開ソースプレビュー
+description: 未公開のTakoform Edge Formソース一覧を確認する一時プレビュー。
+---
+
+# Edge Forms — 未公開ソースプレビュー
+
+この一時ビルドは、Coreで検証したソース一覧を読むためのものです。選択中の一覧全体は**未公開**です。個々のパッケージの公開・署名状態は断定しません。公開URLからの取得、Host対応、配備可能性も証明せず、公開サイトとして配備できません。
+
+## 選択中のソース一覧
+
+| Form | 用途 |
+| --- | --- |
+${current.map((form) => `| ${formLink(form, locale)} | ${literal(form.guide.ja.purpose)} |`).join("\n")}
+
+## 過去のバージョン
+
+これらは選択中の候補には含まれません。
+
+${forms
+  .filter((form) => form.retained)
+  .map((form) => `- ${formLink(form, locale)}`)
+  .join("\n")}
+`
+      : `---
+title: Edge Forms unpublished source preview
+description: Temporary review of Takoform Edge Form source roster not yet published as a set.
+---
+
+# Edge Forms — UNPUBLISHED source preview
+
+This temporary build reads a Core-verified source roster that is **UNPUBLISHED as a set**. It does not assert whether each package was previously signed or published. It does not prove public readback, Host support, or deployability. Do not deploy it as the public site.
+
+## Selected source roster
+
+| Form | Purpose |
+| --- | --- |
+${current.map((form) => `| ${formLink(form)} | ${literal(form.guide.purpose)} |`).join("\n")}
+
+## Retained versions
+
+These are outside the selected candidate set.
+
+${forms
+  .filter((form) => form.retained)
+  .map((form) => `- ${formLink(form)}`)
+  .join("\n")}
+`;
   if (locale === "ja")
     return `---
 title: Edge Forms
@@ -287,14 +350,22 @@ ${forms
 `;
 }
 
-function renderForm(form, trust, isPublic, locale = "en") {
+function renderForm(
+  form,
+  trust,
+  isPublic,
+  locale = "en",
+  sourcePreview = false,
+) {
   const { definition, formRef } = form;
   const t = (en, ja) => (locale === "ja" ? ja : en);
   const link = (entry) => formLink(entry, locale);
   const guide = locale === "ja" ? form.guide?.ja : form.guide;
   const required = new Set(definition.desiredSchema.required ?? []);
   const properties = Object.entries(definition.desiredSchema.properties ?? {});
-  const sourceUrl = `https://github.com/tako0614/takoform-forms/tree/${encodeURIComponent(form.locator.tag)}/${form.locator.sourcePath}`;
+  const sourceUrl = sourcePreview
+    ? null
+    : `https://github.com/tako0614/takoform-forms/tree/${encodeURIComponent(form.locator.tag)}/${form.locator.sourcePath}`;
   const fields = properties
     .map(
       ([name, schema]) =>
@@ -308,9 +379,17 @@ description: ${JSON.stringify(`${formRef.kind} ${formRef.definitionVersion}: ${g
 
 # ${literal(definition.title)} ${formRef.definitionVersion}
 
+${
+  sourcePreview
+    ? `::: warning ${form.retained ? t("Historical package in unpublished source preview", "未公開ソースプレビュー内の過去のパッケージ") : t("UNPUBLISHED source preview", "未公開ソースプレビュー")}
+${form.retained ? t("This package is outside the selected source roster. This temporary page does not verify public readback or Host support.", "このパッケージは選択中のソース一覧に含まれません。この一時ページは公開URLからの取得やHost対応を確認しません。") : t("The selected source roster is UNPUBLISHED as a set. This preview does not assert this package's prior signing or publication status, public readback, Host support, or deployability.", "選択中のソース一覧全体は未公開です。このプレビューは、このパッケージ個別の署名・公開履歴、公開URLからの取得、Host対応、配備可能性を断定しません。")}
+:::`
+    : ""
+}
+
 ${literal(guide?.purpose ?? t(`Historical ${definition.title} definition. See the version links below for the current definition.`, `${definition.title}の過去の定義です。現在の定義は下のバージョン一覧から確認できます。`))}
 
-${form.retained ? `::: warning ${t("Retained version", "過去のバージョン")}\n${t("This historical version is not part of the current signed set.", "この過去のバージョンは、現在の署名セットに含まれません。")} ${status(isPublic, locale)}\n:::` : status(isPublic, locale)}
+${sourcePreview ? t("Package contents were verified locally with Core; no signed-set or public readback claim is made.", "パッケージの内容はCoreで手元検証しました。署名セットや公開URLからの取得は確認していません。") : form.retained ? `::: warning ${t("Retained version", "過去のバージョン")}\n${t("This historical version is not part of the current signed set.", "この過去のバージョンは、現在の署名セットに含まれません。")} ${status(isPublic, locale)}\n:::` : status(isPublic, locale)}
 
 ${t("Host support and admission are separate from package publication. Check your Host before using this version.", "Hostの対応や受け入れ判断は、パッケージの公開とは別です。このバージョンを使う前に、利用先のHostで確認してください。")}
 
@@ -333,7 +412,7 @@ ${t(`This is the exact ${literal(form.desiredPath)} from this package, not a com
 
 ${json(form.example)}
 
-[${t("Read source fixture", "例の原文を見る")}](${sourceUrl}/${form.desiredPath})
+${sourcePreview ? "" : `[${t("Read source fixture", "例の原文を見る")}](${sourceUrl}/${form.desiredPath})`}
 
 <div id="desired-schema">
 
@@ -364,11 +443,11 @@ ${(definition.providedInterfaces ?? []).map((entry) => `- ${literal(`${entry.nam
 | Kind | ${literal(formRef.kind)} |
 | Package digest | ${literal(form.packageDigest)} |
 | Schema digest | ${literal(formRef.schemaDigest)} |
-| Tag | ${literal(form.locator.tag)} |
-| Source path | ${literal(form.locator.sourcePath)} |
-| ${form.retained ? `${t("History", "履歴")} | ${t("Retained package; not a current signed-set member", "過去のパッケージ。現在の署名セットには含まれません。")}` : `${t("Signed set", "署名セット")} | ${literal(trust.setId)}`} |
+| ${sourcePreview ? t("Core-derived tag (publication not asserted)", "Core由来のタグ（公開状態は未確認）") : "Tag"} | ${literal(form.locator.tag)} |
+| ${sourcePreview ? t("Local source path", "ローカルのソースパス") : "Source path"} | ${literal(form.locator.sourcePath)} |
+| ${sourcePreview ? `${t("Status", "状態")} | ${form.retained ? t("Historical local package; outside selected source roster", "過去のローカルパッケージ。選択中のソース一覧には含まれません。") : t("Selected source roster is unpublished; individual package status not asserted", "選択中のソース一覧は未公開。個々のパッケージの状態は断定しません。")}` : form.retained ? `${t("History", "履歴")} | ${t("Retained package; not a current signed-set member", "過去のパッケージ。現在の署名セットには含まれません。")}` : `${t("Signed set", "署名セット")} | ${literal(trust.setId)}`} |
 
-[${t("Open immutable package", "変更不可のパッケージを開く")}](${sourceUrl})
+${sourcePreview ? "" : `[${t("Open immutable package", "変更不可のパッケージを開く")}](${sourceUrl})`}
 
 ::: details ${t("Four-field FormRef", "4項目のFormRef")}
 ${json(formRef)}

@@ -6,8 +6,11 @@ traffic and endpoint attachments, KV, SQLite, queues, durable workflows, and
 actors. A Form is a machine-readable desired-state contract that a host can
 implement without changing its meaning.
 
-**Current roster:** one family (`edge.forms.takoform.com`), 17 Forms, 8
-Interfaces, and 7 Bindings.
+**Selected source roster (unpublished):** one family
+(`edge.forms.takoform.com`), 17 Forms, 8 Interfaces, and 7 Bindings. Nine Form
+versions, three Interface versions, and two Binding versions are prepared but
+not yet signed, published, or qualified as Host support. The last published
+set still pins its earlier 17-package roster.
 
 Read the [individual Form reference](https://edge.forms.takoform.com/) to choose
 a contract and inspect its purpose, related Forms, fields, constraints and exact
@@ -15,13 +18,14 @@ package examples. [How to read the model](docs/site.md#read-the-reference) expla
 Worker delivery, capability bindings and SQLite migrations. Older versions stay
 available under **Retained versions**, with their own historical definitions.
 
-The publisher signs 17 current package subjects. The append-only release tree
-contains those 17 current roots, the two explicitly retained historical roots
-listed in [`forms/retained-packages.json`](forms/retained-packages.json), and
-three old roots listed in the one-time abandoned prepublication recovery
-manifest. That is 22 local release roots; only the 17 current and two retained
-roots have publishable package tags (19 tags total). The three abandoned roots
-are evidence-only and never receive tags.
+The last published set signed 17 package subjects. The local append-only release
+tree now has 31 roots: those 17 earlier signed roots, nine newly prepared
+unsigned Actor/Workflow successors, two explicitly retained roots in
+[`forms/retained-packages.json`](forms/retained-packages.json), and three
+abandoned evidence-only roots. The existing 19 publishable package tags belong
+to the earlier 17 plus the two retained roots. Only after an independently
+reviewed successor set and publication could the nine new roots bring that
+total to 28; the three abandoned roots never receive tags.
 
 The current `module-worker.object-bucket@1.1.0` Binding projects the
 `edge.objects@1.0.0` API with length-aware streaming: `put` and `uploadPart`
@@ -88,8 +92,10 @@ go run ./cmd/form-package verify forms/candidates/edge.forms.takoform.com/module
 
 Focused checks: `bun run check:generation`, `bun run check:publication`, and
 `bun run check:trust`.
-For the human pages, use `bun run build:edge-form-pages` and the explicit browser
-lane `bun run check:edge-form-pages:browser`; see [site maintenance](docs/site.md).
+For unpublished selected source, `bun run check:edge-form-pages:source` builds
+and discards an honest preview. `bun run build:edge-form-pages` and the explicit
+browser lane `bun run check:edge-form-pages:browser` apply only after an exact
+signed set is installed; see [site maintenance](docs/site.md).
 
 ## Preparing and publishing packages
 
@@ -113,8 +119,8 @@ bun run prepare:trust -- --output <empty-external-directory>
 ```
 
 The manual `form-package-signing.yml` workflow is the publisher authority. It
-uses GitHub Actions OIDC to produce 17 exact current package-index Sigstore bundles and
-one signed Core API v1 revocation checkpoint, reruns the complete bounded
+uses GitHub Actions OIDC to sign every exact selected package-index subject
+and the required lineage/checkpoint subjects for the chosen transition, reruns the complete bounded
 checkpoint chain, and uploads a one-day candidate. With blank revocation
 inputs it permits only the first genesis set. With `previous_set` and
 `statement_version` it anonymously reads the exact public predecessor before
@@ -137,7 +143,7 @@ prepares every active package index plus one publisher-owned signed lineage
 subject from the same new commit. Later no-revocation successors may select
 another separately promoted publisher-owned active roster while all old
 release, tag, and set bytes stay immutable. This does not add the source-only
-Container candidates to the current 17-Form roster or make a 19-package
+Container candidates to the selected 17-Form roster or make a 19-package
 release ready. The current
 publication plan and deploy surface continue to require the exact current
 roster. See the
@@ -155,9 +161,11 @@ bun run deploy -- form-packages-edge --trust-set <source-commit> --verify
 `main` and the matching tags; run `--verify` afterwards for anonymous public
 readback. Existing immutable package tags may point to an older commit only
 when their package paths are byte-identical to the signed source. Anonymous
-readback fetches all 19 publishable current/retained package tags, compares
-their bytes, and reruns Core v1.1.0 over all 22 local release roots (17 current,
-two retained, and three abandoned evidence-only roots). It also verifies the
+readback fetches every exact publishable current/historical package tag,
+compares their bytes, and reruns Core v1.1.0 over all local release roots.
+The currently public predecessor still has 19 package tags; the unsigned
+selected source has 31 local roots and cannot pass this publication step.
+Readback also verifies the
 signature bundles, pinned publisher policy and trusted root, signed checkpoint,
 and every not-revoked decision. Changing package bytes creates a
 new digest, path, and package tag; changing publisher evidence creates a new
@@ -176,8 +184,8 @@ The checked-in `cdd30b711e2c6857b1b4d247b1471f5676904933` signed set is
 cryptographically verified but explicitly abandoned as evidence-only because
 three package identities were superseded before publication. Its set tag and
 the three old package tags must remain absent, and the deploy surface refuses
-that set. The repository also contains its deployable successor,
-`e7f8a39311dd011b8467e97e7f300cabb9a6b06c`, with the current package identities.
+that set. The repository also contains its previously deployed successor,
+`e7f8a39311dd011b8467e97e7f300cabb9a6b06c`, with the last published package identities. The selected Actor/Workflow source successors are newer, unsigned candidates and cannot be deployed from that set.
 Do not confuse the retained abandoned evidence with the selected publication
 set. Use `--verify` with the exact successor set to establish current public
 tag and byte availability; checked-in evidence alone does not prove it.
