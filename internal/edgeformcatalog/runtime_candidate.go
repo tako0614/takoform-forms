@@ -67,18 +67,21 @@ const (
 
 type runtimeFormVersions struct {
 	moduleWorker, actor, workflow, dependent, workerVersion, workerDeployment string
+	selectedSourceProse                                                       bool
 }
 
 var runtimeDevelopmentFormVersions = runtimeFormVersions{
 	RuntimeCandidateModuleWorkerFormVersion, ActorCandidateFormVersion,
 	RuntimeWorkflowCandidateFormVersion, RuntimeCandidateDependentFormVersion,
 	RuntimeCandidateWorkerVersionVersion, RuntimeCandidateWorkerDeploymentVersion,
+	false,
 }
 
 var actorWorkflowSourceFormVersions = runtimeFormVersions{
 	ActorWorkflowSourceFormVersion, ActorWorkflowSourceFormVersion,
 	ActorWorkflowSourceFormVersion, ActorWorkflowSourceFormVersion,
 	ActorWorkflowSourceWorkerVersion, ActorWorkflowSourceWorkerDeployment,
+	true,
 }
 
 // RuntimeCandidateInterface is the forward Worker runtime identity required
@@ -239,7 +242,7 @@ func renderRuntimeCandidate(includeVector bool, versions runtimeFormVersions) (R
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
-	workerVersion, err := renderAggregateWorkerVersion(runtimeContract, actor, workflowInterface, workflowBinding, vectorPair, versions.workerVersion)
+	workerVersion, err := renderAggregateWorkerVersion(runtimeContract, actor, workflowInterface, workflowBinding, vectorPair, versions.workerVersion, versions.selectedSourceProse)
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
@@ -421,7 +424,7 @@ func renderRuntimeDependants(runtimeContract RenderedContract, formVersion strin
 	return out, nil
 }
 
-func renderAggregateWorkerVersion(runtimeContract RenderedContract, actor ActorCandidate, workflowInterface, workflowBinding RenderedContract, vector *RuntimeCandidatePair, formVersion string) (RenderedForm, error) {
+func renderAggregateWorkerVersion(runtimeContract RenderedContract, actor ActorCandidate, workflowInterface, workflowBinding RenderedContract, vector *RuntimeCandidatePair, formVersion string, selectedSourceProse bool) (RenderedForm, error) {
 	base, ok := ByKind("WorkerVersion")
 	if !ok {
 		return RenderedForm{}, fmt.Errorf("current catalog has no WorkerVersion Form")
@@ -431,6 +434,28 @@ func renderAggregateWorkerVersion(runtimeContract RenderedContract, actor ActorC
 	}
 	candidate := cloneFormForCandidate(base, formVersion)
 	retargetWorkerRuntimeFields(&candidate, RuntimeCandidateInterfaceVersion)
+	if selectedSourceProse {
+		oldRef := WorkerRuntimeInterfaceName + "@1.1.0"
+		newRef := runtimeContract.Name + "@" + runtimeContract.Version
+		if strings.Count(candidate.Description, oldRef) != 1 {
+			return RenderedForm{}, fmt.Errorf("selected WorkerVersion description must contain exactly one %s", oldRef)
+		}
+		candidate.Description = strings.Replace(candidate.Description, oldRef, newRef, 1)
+		handlers := false
+		for index := range candidate.Fields {
+			if candidate.Fields[index].Wire != "handlers" {
+				continue
+			}
+			if strings.Count(candidate.Fields[index].Doc, oldRef) != 1 {
+				return RenderedForm{}, fmt.Errorf("selected WorkerVersion handlers description must contain exactly one %s", oldRef)
+			}
+			candidate.Fields[index].Doc = strings.Replace(candidate.Fields[index].Doc, oldRef, newRef, 1)
+			handlers = true
+		}
+		if !handlers {
+			return RenderedForm{}, fmt.Errorf("selected WorkerVersion handlers field is missing")
+		}
+	}
 	setBindingFieldInterface(&candidate, "workflowBindings", workflowInterface.Name, workflowInterface.Version)
 	setBindingFieldInterface(&candidate, "actorBindings", actor.Interface.Name, actor.Interface.Version)
 	if vector != nil {

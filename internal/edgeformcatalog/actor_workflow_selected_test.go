@@ -102,6 +102,41 @@ func TestActorWorkflowSourceKeepsBroaderRuntimeExperimentOnDevelopmentVersions(t
 	}
 }
 
+func TestActorWorkflowSelectedWorkerVersionProseNamesItsExactRuntime(t *testing.T) {
+	selected, err := RenderActorWorkflowSelectedSource()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var workerVersion RenderedForm
+	for _, form := range selected.Forms {
+		if form.Kind == "WorkerVersion" {
+			workerVersion = form
+			break
+		}
+	}
+	if workerVersion.Kind == "" {
+		t.Fatal("selected WorkerVersion missing")
+	}
+	properties, ok := workerVersion.Definition.DesiredSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatal("selected WorkerVersion properties missing")
+	}
+	handlers, ok := properties["handlers"].(map[string]any)
+	if !ok {
+		t.Fatal("selected WorkerVersion handlers missing")
+	}
+	want := WorkerRuntimeInterfaceName + "@" + RuntimeCandidateInterfaceVersion
+	for label, prose := range map[string]string{
+		"description":               workerVersion.Definition.Description,
+		"desiredSchema.description": workerVersion.Definition.DesiredSchema["description"].(string),
+		"handlers.description":      handlers["description"].(string),
+	} {
+		if !strings.Contains(prose, want) || strings.Contains(prose, "worker.runtime@1.1.0") {
+			t.Errorf("%s must name exact selected runtime %s without stale 1.1.0: %q", label, want, prose)
+		}
+	}
+}
+
 func TestActorWorkflowSelectedSourceClosesOneCoreSnapshot(t *testing.T) {
 	selected, err := RenderActorWorkflowSelectedSource()
 	if err != nil {

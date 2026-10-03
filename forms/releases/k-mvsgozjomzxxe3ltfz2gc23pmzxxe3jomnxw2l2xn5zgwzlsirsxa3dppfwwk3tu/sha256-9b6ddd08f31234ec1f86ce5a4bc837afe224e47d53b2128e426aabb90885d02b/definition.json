@@ -64,7 +64,7 @@
                   "apiVersion": "edge.forms.takoform.com",
                   "definitionVersion": "0.4.0",
                   "kind": "WorkerVersion",
-                  "schemaDigest": "sha256:aa013abbf36367707e8f176e284d2cd19e59effd1f8af560c8a8a36b0c53ec21"
+                  "schemaDigest": "sha256:ba59a72fb2c12aa6e9d09173943eb4bb8d2eadac25840d87356a25286007354b"
                 }
               ]
             }
