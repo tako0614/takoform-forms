@@ -48,6 +48,12 @@ all currently released Forms, the nine selected Forms, and their old/new exact
 Interface/Binding artifacts. This proves data-contract closure, **not**
 executable tenant JavaScript, Sigstore evidence, Host admission, or support.
 
+The first exact-digest-bound JavaScript input in
+`conformance/edge-runtime/actor-workflow/` is also source-only. Its integrity
+check pins the bundle and selected Definitions; without a consumer Host adapter,
+none of its case expectations has run. It does not adopt the semantic proposals,
+change the signed current publisher set, or qualify either backend.
+
 Before Host enablement, an independent executable corpus must run the same
 generic bundle on self-host and Workers for Platforms. It must cover class
 inspection and closed environment, private SQL and alarm retry, one live
