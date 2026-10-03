@@ -37,7 +37,7 @@ func WorkflowCandidateInterface() InterfaceDefinition {
 		"operation's data-only rules; undefined means absent only as a whole optional document. Instance " +
 		"status is exactly queued, running, sleeping, waiting, complete, errored or terminated. Instances are " +
 		"runtime data, not Resources. Retained ids cannot be reused; terminal records and ids remain retained " +
-		"for 2592000 seconds.\n\nEach fresh context selects the deployment's THEN-CURRENT weighted " +
+		"for maxTerminalRetentionSeconds while the identity exists.\n\nEach fresh context selects the deployment's THEN-CURRENT weighted " +
 		"WorkerVersion and pins it for that context. Replay creates a new context and class object: fields, " +
 		"closures, module state and pending Promises do not survive. Step execution is at-least-once with " +
 		"memoized outcomes. A process death after an effect but before its outcome commit can repeat the " +
@@ -46,11 +46,8 @@ func WorkflowCandidateInterface() InterfaceDefinition {
 		"remain compatible with in-flight histories. The Host cannot verify these author obligations.\n\nThe " +
 		"Host stops code before publishing sleeping, waiting or any terminal state; no context remains " +
 		"parked. Nothing runs after the absolute 31536000-second lifetime cutoff. Bounds and infrastructure " +
-		"interruptions are Host control, never catchable app sentinels. A lost context may be retried without " +
-		"claiming completion. Step success is durably saved before resolution; first resolution and replay " +
-		"return decoded persisted clones, not the original result object. Invalid/oversized callback results " +
-		"are failed attempts under the saved retry policy; invalid/oversized final run output is " +
-		"run_threw.\n\nstep is bound to this context and instance; the app never passes instanceId. Steps are " +
+		"interruptions are Host control, never catchable app sentinels.\n\nstep is bound to this context and " +
+		"instance; the app never passes instanceId. Steps are " +
 		"sequential. A second overlapping call, ANY run settlement while a step is unsettled, or incomplete " +
 		"cross-kind name reuse causes uncatchable step_definition_mismatch, ahead of run_threw. Stop precedes " +
 		"terminal publication; no mismatch rejection reaches app catch/finally. Its operation-error listing " +
@@ -67,6 +64,15 @@ func WorkflowCandidateInterface() InterfaceDefinition {
 		"privately branded step_failed promotes a run failure to terminal step_failed. All other uncaught " +
 		"errors, including branded wait_timeout and TypeError, are run_threw. Handling a step failure may " +
 		"still lead to complete."
+	definition.Description += " Per-instance ordering applies to state changes and accepted events. A wait " +
+		"consumes the oldest retained matching type by acceptance order; other types remain, and one event " +
+		"satisfies at most one wait. At equal timestamps an event accepted at the timeout wins. Queued events " +
+		"are limited to maxPendingEventCount and maxPendingEventBytes canonical UTF-8 bytes per instance, " +
+		"counting each stored {type,payload?}. A matching parked wait bypasses queue capacity. A terminal " +
+		"transition purges unmatched queued events."
+	definition.Semantics.Ordering = "per_key"
+	definition.Limits["maxPendingEventCount"] = 1024
+	definition.Limits["maxPendingEventBytes"] = 1_048_576
 
 	for i := range definition.Operations {
 		operation := &definition.Operations[i]
@@ -87,6 +93,24 @@ func WorkflowCandidateInterface() InterfaceDefinition {
 				"errored. The closed error reasons are run_threw, step_failed, step_limit_exceeded, lifetime_exceeded " +
 				"and step_definition_mismatch. Workflow failure is a successful status read, not an operation rejection."
 			operation.OutputSchema = withDialect(workflowCandidateInstanceStatus())
+		case "sendEvent":
+			operation.Description = "Accept one typed event durably in the target instance's per-instance FIFO. " +
+				"Assign its acceptance order atomically with retention. If a matching parked wait is already " +
+				"registered, commit the event directly as that step's result without using pending-queue capacity; " +
+				"otherwise retain it until the oldest matching wait consumes it or the instance becomes terminal. " +
+				"Events of other types remain queued, and one accepted event can satisfy only one wait. If retaining " +
+				"the event would exceed maxPendingEventCount=1024 or maxPendingEventBytes=1048576 canonical UTF-8 " +
+				"bytes for stored {type,payload?} documents, reject with event_queue_full without durable " +
+				"acceptance. This does not change the maxDocumentBytes limit for this call. At equal timestamps, " +
+				"acceptance at the wait deadline wins. A terminal instance refuses new events with instance_terminal."
+			operation.Errors = append(operation.Errors, "event_queue_full")
+		case "terminate":
+			operation.Description = "Terminate one instance idempotently. Fence the current execution owner, " +
+				"cancel future continuations, and wait until the executing context is physically stopped before " +
+				"terminated is visible or this operation succeeds. A stale owner cannot commit after fencing. If " +
+				"the Host cannot establish stop and fencing, it must not report success or publish terminated; " +
+				"the instance remains nonterminal and deletion remains blocked. A repeated request for an already " +
+				"terminal instance is successful."
 		case "run":
 			operation.Description = "The main module's className named export must be constructible with a callable prototype run in " +
 				"every weighted version before Ready. No vendor base class or native context is required. Per fresh " +
@@ -123,8 +147,10 @@ func WorkflowCandidateInterface() InterfaceDefinition {
 		case "stepWaitForEvent":
 			operation.Description = "JS: step.waitForEvent(name, {type, timeoutSeconds}) returns Promise<object|undefined>, not " +
 				"{payload}. type and integer timeoutSeconds (1-maxWaitTimeoutSeconds) are required. First " +
-				"registration fixes type and absolute timeout. Atomically consume one retained matching event with " +
-				"step completion; an event accepted no later than timeout wins over timeout and cannot satisfy two " +
+				"registration fixes type and absolute timeout. Atomically consume the oldest accepted event of the " +
+				"matching type in the same per-instance acceptance order, committing the event and step together; " +
+				"events of other types remain retained. An event accepted no later than timeout wins over timeout, " +
+				"including an event accepted at the equal deadline, and cannot satisfy two " +
 				"waits. A retained eligible event resolves after commit in this context. Otherwise stop before " +
 				"publishing waiting; that Promise never resolves there. A new context replays to resolve the consumed " +
 				"payload, or durably records wait_timeout before rejecting with that Host Error. Absolute instance " +
@@ -132,6 +158,33 @@ func WorkflowCandidateInterface() InterfaceDefinition {
 			operation.Errors = []string{"step_failed", "wait_timeout", "step_definition_mismatch", "step_limit_exceeded", "lifetime_exceeded", "backend_unavailable"}
 		}
 	}
+	definition.Fixtures = append(definition.Fixtures, InterfaceFixture{
+		// The middle audit event must remain available while the two older and
+		// newer approval events are consumed in their accepted order.
+		Name: "queued-events-consume-oldest-match",
+		Steps: []InterfaceFixtureStep{
+			{Operation: "create", Input: map[string]any{"id": "event-order"},
+				Expected: map[string]any{"id": "event-order", "status": "queued"}},
+			{Operation: "sendEvent", Input: map[string]any{
+				"id": "event-order", "type": "approval", "payload": map[string]any{"sequence": 1},
+			}, Expected: map[string]any{}},
+			{Operation: "sendEvent", Input: map[string]any{
+				"id": "event-order", "type": "audit", "payload": map[string]any{"sequence": 99},
+			}, Expected: map[string]any{}},
+			{Operation: "sendEvent", Input: map[string]any{
+				"id": "event-order", "type": "approval", "payload": map[string]any{"sequence": 2},
+			}, Expected: map[string]any{}},
+			{Operation: "stepWaitForEvent", Input: map[string]any{
+				"instanceId": "event-order", "name": "approval-1", "type": "approval", "timeoutSeconds": 30,
+			}, Expected: map[string]any{"payload": map[string]any{"sequence": 1}}},
+			{Operation: "stepWaitForEvent", Input: map[string]any{
+				"instanceId": "event-order", "name": "approval-2", "type": "approval", "timeoutSeconds": 30,
+			}, Expected: map[string]any{"payload": map[string]any{"sequence": 2}}},
+			{Operation: "stepWaitForEvent", Input: map[string]any{
+				"instanceId": "event-order", "name": "audit", "type": "audit", "timeoutSeconds": 30,
+			}, Expected: map[string]any{"payload": map[string]any{"sequence": 99}}},
+		},
+	})
 	return definition
 }
 
@@ -171,8 +224,24 @@ func renderWorkflowCandidatePair() (WorkflowCandidate, error) {
 	base.Description = "Unpublished forward DurableWorkflow with the exact worker.workflow@2.0.0 portable " +
 		"class execution contract. The worker and className fix identity, not code: each new context uses the " +
 		"active deployment's then-current weighted WorkerVersion. Every weighted version must expose the named " +
-		"constructible class with callable prototype run before Ready. Instances and step journals are runtime " +
-		"data, not Resources. Old DurableWorkflow definitions retain their exact earlier contracts."
+		"constructible class with callable prototype run before Ready. WorkerDeployment promotion chooses the " +
+		"exact WorkerVersion for each context; history is never migrated, and promoted code must replay existing " +
+		"step history compatibly. An incompatible deployment/workflow remains not Ready; a detected replay " +
+		"mismatch fails closed as step_definition_mismatch, never by migrating history. DurableWorkflow has no " +
+		"resource update capability; code/weight updates occur " +
+		"through WorkerDeployment. Instances and step journals are runtime data, not Resources. Generic resource " +
+		"DELETE is refused before mutation: a live Workflow Binding remains a dependency_in_use (409), with " +
+		"failure detail identifying that Binding. After bindings are removed, an active execution identity " +
+		"owned by this Workflow UID remains a dependency_in_use (409) while queued, running, sleeping or " +
+		"waiting, or while any execution owner or continuation may still commit; failure detail identifies " +
+		"the active execution identity. This long-lived dependency is not resource_busy; resource_busy is " +
+		"reserved for bounded transient concurrent mutation or index maintenance. Termination must physically " +
+		"stop and fence every owner before the execution identity is terminal. After all instances " +
+		"are terminal, all execution owners are stopped and fenced, and all bindings are absent, successful " +
+		"delete purges retained terminal history and queued events. Thirty-day terminal retention is scoped " +
+		"to a live DurableWorkflow identity; successful delete is the explicit early-purge exception. A " +
+		"delete/recreate receives a new Host UID and never restores the old history. Old DurableWorkflow " +
+		"definitions retain their exact earlier contracts."
 	// Rendering resolves only registered provided interfaces. Attach the exact
 	// new Interface after rendering; never temporarily register it globally.
 	base.ProvidedInterfaces = nil

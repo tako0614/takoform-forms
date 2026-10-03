@@ -1,11 +1,18 @@
 # Forward Workflow execution candidate
 
-Status: **local authoring candidate, not published or supported**. The source is
-[`WorkflowCandidateInterface`](../../internal/edgeformcatalog/workflow_candidate.go).
-The renderer produces a separate exact closure; it does not register a current
-Form, mint a package, activate a Host implementation, or publish a version.
+Status: **selected for source authoring inside one unpublished Actor+Workflow
+candidate closure; not published or supported**. The Workflow semantic source
+is [`WorkflowCandidateInterface`](../../internal/edgeformcatalog/workflow_candidate.go).
+The joint renderer wraps those semantics as `worker.workflow@3.0.0` against
+`worker.runtime@2.0.0` and emits one shared WorkerVersion/WorkerDeployment with
+Actor; see [the joint Actor proposal](actor-execution-contract.md). The
+standalone `worker.workflow@2.0.0` renderer remains a local draft, not a
+separately selected or publishable closure. Nothing here registers a current
+Form, publishes a package, activates a Host implementation, or allocates a
+release identity.
 
-This fills the application execution contract missing from the existing
+This specifies the exact JavaScript application ABI that remains underspecified
+by the high-level class/`run(event, step)` description in existing
 `worker.workflow@1.0.0`. It does not reinterpret that definition or change
 Takoform API v1. Existing immutable definitions and packages keep their bytes.
 
@@ -47,15 +54,20 @@ The instance caller remains `env.ORDERS.create/get`, followed by
 `instance.status/sendEvent/terminate`. It does not receive the class's `step`
 object. `ORDERS` must be an explicitly declared workflow binding.
 
-Each execution context selects the deployment's then-current weighted version,
-constructs one fresh class using ordinary `new Export(env)`, then resolves and
-calls `instance.run(event, step)` once with `this=instance`. Missing/non-callable
-execution-time `run`, lookup failures and constructor failures are `run_threw`.
-Retry and wake create a new context and replay the code. Class fields,
-closures and module state are not durable. Code outside steps must be
+Each execution context selects and pins one exact WorkerVersion from the
+deployment's then-current weights, constructs one fresh class using ordinary
+`new Export(env)`, then resolves and calls `instance.run(event, step)` once with
+`this=instance`. Missing/non-callable execution-time `run`, lookup failures and
+constructor failures are `run_threw`. Retry and wake create a new context and
+select the deployment's then-current weights again. Class fields, closures and
+module state are not durable. Only the current fenced execution owner may
+commit status, step history, or event consumption. Code outside steps must be
 side-effect-free and deterministic against recorded history; step effects must
 be idempotent because a process can die after an effect but before its journal
-commit. A deployment change must remain compatible with in-flight histories.
+commit. There is no history migration or rewrite: every promoted weighted
+version must replay existing histories compatibly. The DurableWorkflow
+identity itself has no update capability; WorkerDeployment promotion is the
+code/weight update path.
 
 ## Decisions encoded in the candidate
 
@@ -96,35 +108,83 @@ commit. A deployment change must remain compatible with in-flight histories.
 The existing status vocabulary, 1,024-step bound, one-year absolute execution
 lifetime, 30-day terminal retention, and runtime-data ownership are retained.
 Nothing may keep executing after termination or the absolute lifetime cutoff.
+`terminate()` fences the current execution owner, cancels future continuations,
+and succeeds only after the executing context is physically stopped; a Host
+unable to prove that must not publish `terminated`. Only the current fenced
+owner can commit, and deletion must wait until no owner or continuation may
+still commit.
+
+Instance and step records are keyed by the DurableWorkflow resource's Host UID,
+not its reusable name. Deleting and recreating the resource receives a new UID
+and starts with empty history; stale owners from the prior UID cannot commit to
+it. Terminal records remain readable and their IDs remain taken for exactly
+30 days while that DurableWorkflow identity exists. Generic resource DELETE is refused before
+mutation with `dependency_in_use` (409) while a live Workflow Binding remains;
+failure detail identifies that Binding. After bindings are removed, DELETE is
+still refused with `dependency_in_use` (409) while a queued, running, sleeping,
+or waiting execution identity owned by this Workflow UID remains, or any owner
+or continuation may still commit. Failure detail identifies the active
+execution identity, distinguishing it from an external live Binding. This is a
+long-lived dependent execution, not a transient `resource_busy` condition;
+`resource_busy` remains reserved for bounded transient concurrent mutation or
+index maintenance. Termination must physically stop and fence each owner before
+the execution identity is terminal. Once all instances are terminal, all
+bindings are absent, and all owners are stopped and fenced, successful DELETE
+purges the retained terminal history and queued events. This successful
+identity deletion is the explicit early-purge exception to the 30-day
+retention window.
+
+The Interface declares `ordering: per_key`, keyed by Workflow instance ID.
+Signals are ordered by successful per-instance acceptance. A wait atomically
+consumes the oldest retained event of its exact type; events of other types
+remain queued, and one event can satisfy only one wait. An event accepted at or
+before its wait deadline wins, including equal timestamps. Each instance may
+retain at most 1,024 unmatched events and 1,048,576 canonical UTF-8 bytes over
+the stored `{type,payload?}` documents. A signal committed directly to an
+already-registered parked wait does not use queue capacity. A `sendEvent` that
+would exceed either limit fails with `event_queue_full` and is not durably
+accepted. Terminal transition purges unmatched queued events.
 
 ## Exact forward closure
 
-| Artifact | Local candidate version | Reference changed |
+| Workflow artifact in the single joint closure | Local candidate version | Reference changed |
 | --- | --- | --- |
-| `worker.workflow` Interface | `2.0.0` | New class and replay semantics |
-| `module-worker.workflow` Binding | `2.0.0` | Exact new Interface digest; caller projection only |
-| `DurableWorkflow` Form | `0.2.0-workflow.1` | Provides the exact new Interface |
-| `WorkerVersion` Form | `0.4.0-workflow.1` | Selects exactly the new workflow Binding and Interface |
-| `WorkerDeployment` Form | `0.3.0-workflow.1` | Pins the exact new WorkerVersion Definition |
+| `worker.workflow` Interface | `3.0.0` | Exact workflow class/replay/event contract under the joint runtime-2 identity |
+| `module-worker.workflow` Binding | `3.0.0` | Exact new Interface digest; caller projection only |
+| `DurableWorkflow` Form | `0.2.0-runtime.1` | Provides the exact joint Interface and lifecycle semantics above |
+| `worker.runtime` Interface | `2.0.0` | Shared Actor+Workflow runtime ABI; owned in the joint proposal |
+| `ModuleWorker` Form | `0.2.0-runtime.1` | Provides exact runtime-2 Interface |
+| `WorkerVersion` Form | `0.4.0-runtime.1` | One shared Actor+Workflow successor; exact runtime, Actor, and Workflow refs |
+| `WorkerDeployment` Form | `0.3.0-runtime.1` | One shared exact WorkerVersion target |
 
 Numeric Interface/Binding versions are required by the released Core schema;
 these unregistered development values do not reserve or publish those numbers.
-The enclosing Form versions are prereleases. Other current bindings are
-unchanged. `ModuleWorker` and `worker.runtime@1.1.0` remain exact existing
-contracts: additional named exports do not alter the default handler ABI or
-environment. This candidate does not add handler-free WorkerVersion authoring.
-It has no dependency on the separate Vector or Container candidate graphs.
+The enclosing Form versions are prereleases. This closure is composed once with
+Actor and does not publish a Workflow-only WorkerVersion/WorkerDeployment first.
+The shared WorkerVersion keeps the existing default handler surface while
+selecting the exact runtime-2, Actor, and Workflow contracts. Other current
+published definitions remain unchanged. The closure does not add handler-free
+WorkerVersion authoring and does not include the separate Vector or Container
+candidate graphs.
 
-The local renderer is `go run ./cmd/workflow-candidate`; it writes JSON to
-stdout only. It is intentionally absent from the current catalog generator,
-publication paths, Provider mappings and Host support discovery.
+The standalone local renderer is `go run ./cmd/workflow-candidate`; it writes
+JSON to stdout only and emits the unselected Workflow 2.0 draft. The selected
+joint renderer is `RenderActorWorkflowCandidate` and emits Workflow 3.0 with
+Actor and a single shared WorkerVersion/Deployment. Both are source-only
+candidate renderers, absent from the current catalog generator, publication
+paths, Provider mappings and Host support discovery.
 
 ## Implementation acceptance still required
 
 Core validation and exact-reference tests prove artifact construction, not
 execution. Host acceptance must exercise this exact candidate through actual
 class construction, binding calls, persisted retries and wake, changed-code
-replay, retained event races, invalid results, and stop-before-state visibility.
+replay without history migration, FIFO same-type signals with unrelated queued
+types, event-count and byte overflow with no acceptance, equal-deadline races,
+terminal queue purge, delete refusal while bound or active, deletion after
+termination/fencing/unbind, early terminal-history purge, and empty history
+after same-name recreation under a new UID. Termination must prove physical
+stop before success/terminal visibility and stale-owner write rejection.
 Physical stop must cover controller loss, restart, stale-owner fencing,
 stop-before-start and CPU-bound code, as well as held I/O. Self-host and managed
 backends need their own execution proof; publication alone qualifies neither.

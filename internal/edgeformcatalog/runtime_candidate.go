@@ -144,6 +144,19 @@ func renderRuntimeWorkflowCandidateInterface() (RenderedContract, error) {
 // WorkerDeployment results are never included, so stale parallel closures
 // cannot appear in this output.
 func RenderRuntimeCandidate() (RuntimeCandidate, error) {
+	candidate, err := renderRuntimeCandidate(true)
+	if err != nil {
+		return RuntimeCandidate{}, err
+	}
+	if err := validateRuntimeCandidate(candidate); err != nil {
+		return RuntimeCandidate{}, err
+	}
+	return candidate, nil
+}
+
+// renderRuntimeCandidate shares the aggregate authoring path while selecting
+// only the independently adopted source-only capability pairs.
+func renderRuntimeCandidate(includeVector bool) (RuntimeCandidate, error) {
 	runtimeContract, err := renderRuntimeCandidateInterface()
 	if err != nil {
 		return RuntimeCandidate{}, err
@@ -158,7 +171,11 @@ func RenderRuntimeCandidate() (RuntimeCandidate, error) {
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
-	workflowForm, err := renderRuntimeWorkflowForm(runtimeContract, workflowInterface)
+	workflowLifecycle := ""
+	if !includeVector {
+		workflowLifecycle = actorWorkflowLifecycleDescription
+	}
+	workflowForm, err := renderRuntimeWorkflowForm(runtimeContract, workflowInterface, workflowLifecycle)
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
@@ -171,20 +188,26 @@ func RenderRuntimeCandidate() (RuntimeCandidate, error) {
 		return RuntimeCandidate{}, err
 	}
 
-	vectorIndependent, err := renderVectorIndexCandidatePair()
-	if err != nil {
-		return RuntimeCandidate{}, err
-	}
-	if vectorIndependent.Interface.SchemaDigest != vectorIndexCandidateInterfaceSchemaDigest {
-		return RuntimeCandidate{}, fmt.Errorf(
-			"vector candidate Interface digest = %q, want reviewed digest %q",
-			vectorIndependent.Interface.SchemaDigest, vectorIndexCandidateInterfaceSchemaDigest,
-		)
-	}
-	vectorBindingDefinition := vectorIndexCandidateBinding(vectorIndependent.Interface)
-	vectorBinding, err := renderCandidateBinding(vectorBindingDefinition)
-	if err != nil {
-		return RuntimeCandidate{}, err
+	var vectorPair *RuntimeCandidatePair
+	if includeVector {
+		vectorIndependent, err := renderVectorIndexCandidatePair()
+		if err != nil {
+			return RuntimeCandidate{}, err
+		}
+		if vectorIndependent.Interface.SchemaDigest != vectorIndexCandidateInterfaceSchemaDigest {
+			return RuntimeCandidate{}, fmt.Errorf(
+				"vector candidate Interface digest = %q, want reviewed digest %q",
+				vectorIndependent.Interface.SchemaDigest, vectorIndexCandidateInterfaceSchemaDigest,
+			)
+		}
+		vectorBindingDefinition := vectorIndexCandidateBinding(vectorIndependent.Interface)
+		vectorBinding, err := renderCandidateBinding(vectorBindingDefinition)
+		if err != nil {
+			return RuntimeCandidate{}, err
+		}
+		vectorPair = &RuntimeCandidatePair{
+			Form: vectorIndependent.Form, Interface: vectorIndependent.Interface, Binding: vectorBinding,
+		}
 	}
 
 	moduleWorker, err := renderRuntimeModuleWorker(runtimeContract)
@@ -195,11 +218,15 @@ func RenderRuntimeCandidate() (RuntimeCandidate, error) {
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
-	workerVersion, err := renderAggregateWorkerVersion(runtimeContract, actor, workflowInterface, workflowBinding, vectorIndependent.Interface, vectorBinding)
+	workerVersion, err := renderAggregateWorkerVersion(runtimeContract, actor, workflowInterface, workflowBinding, vectorPair)
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
-	workerDeployment, err := renderAggregateWorkerDeployment(runtimeContract, moduleWorker, workerVersion)
+	capabilityLabel := "Actor+Workflow"
+	if includeVector {
+		capabilityLabel += "+Vector"
+	}
+	workerDeployment, err := renderAggregateWorkerDeployment(runtimeContract, moduleWorker, workerVersion, capabilityLabel)
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
@@ -211,15 +238,12 @@ func RenderRuntimeCandidate() (RuntimeCandidate, error) {
 		Workflow: RuntimeCandidatePair{
 			Form: workflowForm, Interface: workflowInterface, Binding: workflowBinding,
 		},
-		Vector: RuntimeCandidatePair{
-			Form: vectorIndependent.Form, Interface: vectorIndependent.Interface, Binding: vectorBinding,
-		},
 		RuntimeDependants: dependants,
 		WorkerVersion:     workerVersion,
 		WorkerDeployment:  workerDeployment,
 	}
-	if err := validateRuntimeCandidate(candidate); err != nil {
-		return RuntimeCandidate{}, err
+	if vectorPair != nil {
+		candidate.Vector = *vectorPair
 	}
 	return candidate, nil
 }
@@ -311,7 +335,7 @@ func renderRuntimeModuleWorker(runtimeContract RenderedContract) (RenderedForm, 
 	return rendered, nil
 }
 
-func renderRuntimeWorkflowForm(runtimeContract, workflowInterface RenderedContract) (RenderedForm, error) {
+func renderRuntimeWorkflowForm(runtimeContract, workflowInterface RenderedContract, lifecycleDescription string) (RenderedForm, error) {
 	base, ok := ByKind("DurableWorkflow")
 	if !ok {
 		return RenderedForm{}, fmt.Errorf("current catalog has no DurableWorkflow Form")
@@ -320,7 +344,7 @@ func renderRuntimeWorkflowForm(runtimeContract, workflowInterface RenderedContra
 	candidate.ProvidedInterfaces = nil
 	candidate.Description = "Unpublished aggregate DurableWorkflow with the exact reviewed worker.workflow@3.0.0 " +
 		"class/replay contract and the aggregate worker.runtime@2.0.0 requirement. Instances remain runtime data, " +
-		"and code comes from the active deployment's weighted WorkerVersion."
+		"and code comes from the active deployment's weighted WorkerVersion." + lifecycleDescription
 	for index := range candidate.Fields {
 		if candidate.Fields[index].Wire == "className" {
 			candidate.Fields[index].Doc = "Immutable named class export in the serving main ES module. Each weighted " +
@@ -376,7 +400,7 @@ func renderRuntimeDependants(runtimeContract RenderedContract) ([]RenderedForm, 
 	return out, nil
 }
 
-func renderAggregateWorkerVersion(runtimeContract RenderedContract, actor ActorCandidate, workflowInterface, workflowBinding, vectorInterface, vectorBinding RenderedContract) (RenderedForm, error) {
+func renderAggregateWorkerVersion(runtimeContract RenderedContract, actor ActorCandidate, workflowInterface, workflowBinding RenderedContract, vector *RuntimeCandidatePair) (RenderedForm, error) {
 	base, ok := ByKind("WorkerVersion")
 	if !ok {
 		return RenderedForm{}, fmt.Errorf("current catalog has no WorkerVersion Form")
@@ -388,22 +412,27 @@ func renderAggregateWorkerVersion(runtimeContract RenderedContract, actor ActorC
 	retargetWorkerRuntimeFields(&candidate, RuntimeCandidateInterfaceVersion)
 	setBindingFieldInterface(&candidate, "workflowBindings", workflowInterface.Name, workflowInterface.Version)
 	setBindingFieldInterface(&candidate, "actorBindings", actor.Interface.Name, actor.Interface.Version)
-	if hasWireField(candidate.Fields, "vectorBindings") {
-		return RenderedForm{}, fmt.Errorf("current WorkerVersion already declares vectorBindings; aggregate would duplicate it")
+	if vector != nil {
+		if hasWireField(candidate.Fields, "vectorBindings") {
+			return RenderedForm{}, fmt.Errorf("current WorkerVersion already declares vectorBindings; aggregate would duplicate it")
+		}
+		candidate.Fields = append(candidate.Fields, model.Field{
+			HCL: "vector_bindings", Wire: "vectorBindings", Kind: model.KindBindingList,
+			TargetKind: VectorIndexCandidateFormKind, BindingType: VectorIndexCandidateBindingName,
+			Target: requiresInterface(vector.Interface.Name, vector.Interface.Version), Default: []any{},
+			Doc: "Typed module-worker.edge-vector bindings projecting the exact edge.vector candidate API under " +
+				"JavaScript identifier names. Each method accepts one closed operation object and returns the exact " +
+				"operation output document; omission declares no vector binding.",
+			Example: []any{bindingInstance("VECTORS", VectorIndexCandidateFormKind, VectorIndexCandidateFormSlug)},
+		})
 	}
-	candidate.Fields = append(candidate.Fields, model.Field{
-		HCL: "vector_bindings", Wire: "vectorBindings", Kind: model.KindBindingList,
-		TargetKind: VectorIndexCandidateFormKind, BindingType: VectorIndexCandidateBindingName,
-		Target: requiresInterface(vectorInterface.Name, vectorInterface.Version), Default: []any{},
-		Doc: "Typed module-worker.edge-vector bindings projecting the exact edge.vector candidate API under " +
-			"JavaScript identifier names. Each method accepts one closed operation object and returns the exact " +
-			"operation output document; omission declares no vector binding.",
-		Example: []any{bindingInstance("VECTORS", VectorIndexCandidateFormKind, VectorIndexCandidateFormSlug)},
-	})
 	if err := candidate.Validate(); err != nil {
 		return RenderedForm{}, fmt.Errorf("aggregate WorkerVersion authoring: %w", err)
 	}
-	resolver := newRuntimeCandidateResolver(runtimeContract, actor.Interface, workflowInterface, vectorInterface)
+	resolver := newRuntimeCandidateResolver(runtimeContract, actor.Interface, workflowInterface)
+	if vector != nil {
+		resolver = newRuntimeCandidateResolver(runtimeContract, actor.Interface, workflowInterface, vector.Interface)
+	}
 	rendered, err := renderForm(candidate, resolver)
 	if err != nil {
 		return RenderedForm{}, fmt.Errorf("aggregate WorkerVersion: %w", err)
@@ -411,17 +440,18 @@ func renderAggregateWorkerVersion(runtimeContract RenderedContract, actor ActorC
 
 	actorRef := bindingRefFromContract(actor.Binding)
 	workflowRef := bindingRefFromContract(workflowBinding)
-	vectorRef := bindingRefFromContract(vectorBinding)
 	if err := replaceBindingByName(&rendered.Definition.AcceptedBindings, ActorCandidateBindingName, actorRef); err != nil {
 		return RenderedForm{}, err
 	}
 	if err := replaceBindingByName(&rendered.Definition.AcceptedBindings, WorkflowCandidateBindingName, workflowRef); err != nil {
 		return RenderedForm{}, err
 	}
-	if countBindingName(rendered.Definition.AcceptedBindings, VectorIndexCandidateBindingName) != 0 {
-		return RenderedForm{}, fmt.Errorf("aggregate WorkerVersion already contains vector BindingRef")
+	if vector != nil {
+		if countBindingName(rendered.Definition.AcceptedBindings, VectorIndexCandidateBindingName) != 0 {
+			return RenderedForm{}, fmt.Errorf("aggregate WorkerVersion already contains vector BindingRef")
+		}
+		rendered.Definition.AcceptedBindings = append(rendered.Definition.AcceptedBindings, bindingRefFromContract(vector.Binding))
 	}
-	rendered.Definition.AcceptedBindings = append(rendered.Definition.AcceptedBindings, vectorRef)
 	rendered.DefinitionJSON, err = marshalIndented(rendered.Definition)
 	if err != nil {
 		return RenderedForm{}, fmt.Errorf("aggregate WorkerVersion JSON: %w", err)
@@ -432,13 +462,13 @@ func renderAggregateWorkerVersion(runtimeContract RenderedContract, actor ActorC
 	return rendered, nil
 }
 
-func renderAggregateWorkerDeployment(runtimeContract RenderedContract, moduleWorker, workerVersion RenderedForm) (RenderedForm, error) {
+func renderAggregateWorkerDeployment(runtimeContract RenderedContract, moduleWorker, workerVersion RenderedForm, capabilities string) (RenderedForm, error) {
 	base, ok := ByKind("WorkerDeployment")
 	if !ok {
 		return RenderedForm{}, fmt.Errorf("current catalog has no WorkerDeployment Form")
 	}
 	candidate := cloneFormForCandidate(base, RuntimeCandidateWorkerDeploymentVersion)
-	candidate.Description = "Unpublished aggregate WorkerDeployment selecting the one Actor+Workflow+Vector " +
+	candidate.Description = "Unpublished aggregate WorkerDeployment selecting the one " + capabilities + " " +
 		"WorkerVersion candidate. Its exact worker and version relations pin the forward ModuleWorker and shared " +
 		"WorkerVersion Definitions; current deployment bytes remain unchanged."
 	workerRef, err := renderedFormRef(moduleWorker)
