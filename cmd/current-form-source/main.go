@@ -102,11 +102,11 @@ func renderSource() (sourceDocument, error) {
 	// Edge is the current publisher composition. Other family catalogs were
 	// unpublished candidates and are intentionally deferred; they are not
 	// represented in this source document or in generated candidate output.
-	edgeForms, err := edgeformcatalog.RenderForms()
+	selected, err := edgeformcatalog.RenderActorWorkflowSelectedSource()
 	if err != nil {
-		return sourceDocument{}, fmt.Errorf("render Edge Forms: %w", err)
+		return sourceDocument{}, fmt.Errorf("render selected Actor+Workflow Edge source: %w", err)
 	}
-	if err := appendFamily(edgeformcatalog.Family.APIVersion(), "internal/edgeformcatalog", edgeForms); err != nil {
+	if err := appendFamily(edgeformcatalog.Family.APIVersion(), "internal/edgeformcatalog", selected.Forms); err != nil {
 		return sourceDocument{}, err
 	}
 	sourceOnlyForms, err := edgeformcatalog.RenderSourceOnlyForms()
@@ -121,18 +121,10 @@ func renderSource() (sourceDocument, error) {
 		Group: edgeformcatalog.Family.APIVersion(), AuthoringSource: "internal/edgeformcatalog",
 		PublicationStatus: "UNPUBLISHED", Forms: sourceOnlyRaw,
 	}}
-	edgeInterfaces, err := edgeformcatalog.RenderInterfaces()
-	if err != nil {
-		return sourceDocument{}, fmt.Errorf("render Edge Interfaces: %w", err)
-	}
-	if err := appendContracts(&document.Interfaces, edgeInterfaces); err != nil {
+	if err := appendContracts(&document.Interfaces, selected.Interfaces); err != nil {
 		return sourceDocument{}, err
 	}
-	edgeBindings, err := edgeformcatalog.RenderBindings()
-	if err != nil {
-		return sourceDocument{}, fmt.Errorf("render Edge Bindings: %w", err)
-	}
-	if err := appendContracts(&document.Bindings, edgeBindings); err != nil {
+	if err := appendContracts(&document.Bindings, selected.Bindings); err != nil {
 		return sourceDocument{}, err
 	}
 	// Keep the source's single family deterministic even if the implementation

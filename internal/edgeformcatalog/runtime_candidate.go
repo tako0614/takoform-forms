@@ -58,7 +58,28 @@ const (
 	RuntimeCandidateWorkerVersionVersion     = "0.4.0-runtime.1"
 	RuntimeCandidateWorkerDeploymentVersion  = "0.3.0-runtime.1"
 	RuntimeCandidateDependentFormVersion     = "0.1.0-runtime.1"
+	// Source targets belong only to the selected Actor+Workflow composition.
+	// The broader Actor+Workflow+Vector experiment retains its old identities.
+	ActorWorkflowSourceFormVersion      = "0.2.0"
+	ActorWorkflowSourceWorkerVersion    = "0.4.0"
+	ActorWorkflowSourceWorkerDeployment = "0.3.0"
 )
+
+type runtimeFormVersions struct {
+	moduleWorker, actor, workflow, dependent, workerVersion, workerDeployment string
+}
+
+var runtimeDevelopmentFormVersions = runtimeFormVersions{
+	RuntimeCandidateModuleWorkerFormVersion, ActorCandidateFormVersion,
+	RuntimeWorkflowCandidateFormVersion, RuntimeCandidateDependentFormVersion,
+	RuntimeCandidateWorkerVersionVersion, RuntimeCandidateWorkerDeploymentVersion,
+}
+
+var actorWorkflowSourceFormVersions = runtimeFormVersions{
+	ActorWorkflowSourceFormVersion, ActorWorkflowSourceFormVersion,
+	ActorWorkflowSourceFormVersion, ActorWorkflowSourceFormVersion,
+	ActorWorkflowSourceWorkerVersion, ActorWorkflowSourceWorkerDeployment,
+}
 
 // RuntimeCandidateInterface is the forward Worker runtime identity required
 // by the Actor class/socket proposal.  The existing load/handler operation
@@ -144,7 +165,7 @@ func renderRuntimeWorkflowCandidateInterface() (RenderedContract, error) {
 // WorkerDeployment results are never included, so stale parallel closures
 // cannot appear in this output.
 func RenderRuntimeCandidate() (RuntimeCandidate, error) {
-	candidate, err := renderRuntimeCandidate(true)
+	candidate, err := renderRuntimeCandidate(true, runtimeDevelopmentFormVersions)
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
@@ -156,13 +177,13 @@ func RenderRuntimeCandidate() (RuntimeCandidate, error) {
 
 // renderRuntimeCandidate shares the aggregate authoring path while selecting
 // only the independently adopted source-only capability pairs.
-func renderRuntimeCandidate(includeVector bool) (RuntimeCandidate, error) {
+func renderRuntimeCandidate(includeVector bool, versions runtimeFormVersions) (RuntimeCandidate, error) {
 	runtimeContract, err := renderRuntimeCandidateInterface()
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
 
-	actor, err := renderActorCandidatePair(runtimeContract)
+	actor, err := renderActorCandidatePair(runtimeContract, versions.actor)
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
@@ -175,7 +196,7 @@ func renderRuntimeCandidate(includeVector bool) (RuntimeCandidate, error) {
 	if !includeVector {
 		workflowLifecycle = actorWorkflowLifecycleDescription
 	}
-	workflowForm, err := renderRuntimeWorkflowForm(runtimeContract, workflowInterface, workflowLifecycle)
+	workflowForm, err := renderRuntimeWorkflowForm(runtimeContract, workflowInterface, workflowLifecycle, versions.workflow)
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
@@ -210,15 +231,15 @@ func renderRuntimeCandidate(includeVector bool) (RuntimeCandidate, error) {
 		}
 	}
 
-	moduleWorker, err := renderRuntimeModuleWorker(runtimeContract)
+	moduleWorker, err := renderRuntimeModuleWorker(runtimeContract, versions.moduleWorker)
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
-	dependants, err := renderRuntimeDependants(runtimeContract)
+	dependants, err := renderRuntimeDependants(runtimeContract, versions.dependent)
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
-	workerVersion, err := renderAggregateWorkerVersion(runtimeContract, actor, workflowInterface, workflowBinding, vectorPair)
+	workerVersion, err := renderAggregateWorkerVersion(runtimeContract, actor, workflowInterface, workflowBinding, vectorPair, versions.workerVersion)
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
@@ -226,7 +247,7 @@ func renderRuntimeCandidate(includeVector bool) (RuntimeCandidate, error) {
 	if includeVector {
 		capabilityLabel += "+Vector"
 	}
-	workerDeployment, err := renderAggregateWorkerDeployment(runtimeContract, moduleWorker, workerVersion, capabilityLabel)
+	workerDeployment, err := renderAggregateWorkerDeployment(runtimeContract, moduleWorker, workerVersion, capabilityLabel, versions.workerDeployment)
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
@@ -301,12 +322,12 @@ func runtimeWorkflowCandidateBinding(iface RenderedContract) (BindingDefinition,
 	return definition, nil
 }
 
-func renderRuntimeModuleWorker(runtimeContract RenderedContract) (RenderedForm, error) {
+func renderRuntimeModuleWorker(runtimeContract RenderedContract, formVersion string) (RenderedForm, error) {
 	base, ok := ByKind("ModuleWorker")
 	if !ok {
 		return RenderedForm{}, fmt.Errorf("current catalog has no ModuleWorker Form")
 	}
-	candidate := cloneFormForCandidate(base, RuntimeCandidateModuleWorkerFormVersion)
+	candidate := cloneFormForCandidate(base, formVersion)
 	candidate.ProvidedInterfaces = nil
 	candidate.Description = "Unpublished forward ModuleWorker whose exact worker.runtime@2.0.0 candidate " +
 		"ABI includes the existing default-object handler runtime and the Actor class/context extension. The " +
@@ -335,12 +356,12 @@ func renderRuntimeModuleWorker(runtimeContract RenderedContract) (RenderedForm, 
 	return rendered, nil
 }
 
-func renderRuntimeWorkflowForm(runtimeContract, workflowInterface RenderedContract, lifecycleDescription string) (RenderedForm, error) {
+func renderRuntimeWorkflowForm(runtimeContract, workflowInterface RenderedContract, lifecycleDescription, formVersion string) (RenderedForm, error) {
 	base, ok := ByKind("DurableWorkflow")
 	if !ok {
 		return RenderedForm{}, fmt.Errorf("current catalog has no DurableWorkflow Form")
 	}
-	candidate := cloneFormForCandidate(base, RuntimeWorkflowCandidateFormVersion)
+	candidate := cloneFormForCandidate(base, formVersion)
 	candidate.ProvidedInterfaces = nil
 	candidate.Description = "Unpublished aggregate DurableWorkflow with the exact reviewed worker.workflow@3.0.0 " +
 		"class/replay contract and the aggregate worker.runtime@2.0.0 requirement. Instances remain runtime data, " +
@@ -378,7 +399,7 @@ func renderRuntimeWorkflowForm(runtimeContract, workflowInterface RenderedContra
 // true inward-activation Forms.  The worker field on each is the sole
 // dependency; resources such as WorkerBundle and queues do not receive a
 // speculative version bump.
-func renderRuntimeDependants(runtimeContract RenderedContract) ([]RenderedForm, error) {
+func renderRuntimeDependants(runtimeContract RenderedContract, formVersion string) ([]RenderedForm, error) {
 	kinds := []string{"WorkerCustomDomain", "WorkerEndpoint", "WorkerCronTrigger", "QueueConsumer"}
 	out := make([]RenderedForm, 0, len(kinds))
 	for _, kind := range kinds {
@@ -386,7 +407,7 @@ func renderRuntimeDependants(runtimeContract RenderedContract) ([]RenderedForm, 
 		if !ok {
 			return nil, fmt.Errorf("current catalog has no runtime dependant Form %s", kind)
 		}
-		candidate := cloneFormForCandidate(base, RuntimeCandidateDependentFormVersion)
+		candidate := cloneFormForCandidate(base, formVersion)
 		retargetWorkerRuntimeFields(&candidate, RuntimeCandidateInterfaceVersion)
 		if err := candidate.Validate(); err != nil {
 			return nil, fmt.Errorf("runtime dependant %s authoring: %w", kind, err)
@@ -400,7 +421,7 @@ func renderRuntimeDependants(runtimeContract RenderedContract) ([]RenderedForm, 
 	return out, nil
 }
 
-func renderAggregateWorkerVersion(runtimeContract RenderedContract, actor ActorCandidate, workflowInterface, workflowBinding RenderedContract, vector *RuntimeCandidatePair) (RenderedForm, error) {
+func renderAggregateWorkerVersion(runtimeContract RenderedContract, actor ActorCandidate, workflowInterface, workflowBinding RenderedContract, vector *RuntimeCandidatePair, formVersion string) (RenderedForm, error) {
 	base, ok := ByKind("WorkerVersion")
 	if !ok {
 		return RenderedForm{}, fmt.Errorf("current catalog has no WorkerVersion Form")
@@ -408,7 +429,7 @@ func renderAggregateWorkerVersion(runtimeContract RenderedContract, actor ActorC
 	if len(base.AcceptedBindings) != 7 {
 		return RenderedForm{}, fmt.Errorf("current WorkerVersion accepted %d bindings, want exactly seven", len(base.AcceptedBindings))
 	}
-	candidate := cloneFormForCandidate(base, RuntimeCandidateWorkerVersionVersion)
+	candidate := cloneFormForCandidate(base, formVersion)
 	retargetWorkerRuntimeFields(&candidate, RuntimeCandidateInterfaceVersion)
 	setBindingFieldInterface(&candidate, "workflowBindings", workflowInterface.Name, workflowInterface.Version)
 	setBindingFieldInterface(&candidate, "actorBindings", actor.Interface.Name, actor.Interface.Version)
@@ -462,12 +483,12 @@ func renderAggregateWorkerVersion(runtimeContract RenderedContract, actor ActorC
 	return rendered, nil
 }
 
-func renderAggregateWorkerDeployment(runtimeContract RenderedContract, moduleWorker, workerVersion RenderedForm, capabilities string) (RenderedForm, error) {
+func renderAggregateWorkerDeployment(runtimeContract RenderedContract, moduleWorker, workerVersion RenderedForm, capabilities, formVersion string) (RenderedForm, error) {
 	base, ok := ByKind("WorkerDeployment")
 	if !ok {
 		return RenderedForm{}, fmt.Errorf("current catalog has no WorkerDeployment Form")
 	}
-	candidate := cloneFormForCandidate(base, RuntimeCandidateWorkerDeploymentVersion)
+	candidate := cloneFormForCandidate(base, formVersion)
 	candidate.Description = "Unpublished aggregate WorkerDeployment selecting the one " + capabilities + " " +
 		"WorkerVersion candidate. Its exact worker and version relations pin the forward ModuleWorker and shared " +
 		"WorkerVersion Definitions; current deployment bytes remain unchanged."
