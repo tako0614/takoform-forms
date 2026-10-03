@@ -1,9 +1,11 @@
 # Actor execution contract — concrete proposal
 
-Status: **unaccepted, non-normative proposal**, 2026-09-08. No version is
-allocated. This is a proposed forward contract, not an interpretation of an
-existing identity, an executable Host implementation, a catalog member or a
-release artifact.
+Status: **unaccepted semantic proposal with selected, unpublished source
+targets**. The joint source targets worker.actor `2.0.0`, worker.runtime
+`2.0.0`, module-worker.actor `2.0.0` and ActorNamespace `0.2.0`; these numbers
+identify local source candidates, not admitted or published contracts. This is
+not an interpretation of an existing identity, an executable Host
+implementation, or a release artifact.
 The [gap analysis](actor-runtime.md) fixes the existing published evidence.
 API v1 and all published Form, Interface and Binding bytes remain unchanged.
 The Takoserver actor-runtime review is input for resolving this proposal; it is
@@ -513,18 +515,19 @@ provider-specific Durable Object class API (which would not define an
 independent self-host ABI), or finish this portable proposal as one closure.
 The last is the candidate recommendation; none of the first three is selected.
 
-Before adoption, preserve the old identity byte closures and finish the forward
-authoring prerequisites below. Then author the new Definitions and one
-executable conformance bundle outside data-only Form Packages, followed by
-independent Host implementations and consumer E2E. This proposal alone does
-not permit Host support advertising.
+The forward Definitions now exist as selected, unpublished source candidates;
+the old identity byte closures remain preserved. The first executable-input
+bundle is not yet a backend-run conformance corpus. Semantic adoption still
+requires that corpus and independent Host implementation evidence, followed by
+consumer E2E. This proposal alone does not permit Host support advertising.
 
 ## Forward identity closure
 
 The application needs a client WebSocket path through its ordinary Worker
 endpoint, not an extra Host-to-Actor public route. Therefore this proposal
 includes a forward `worker.runtime` identity; it cannot keep runtime 1.1.0 and
-infer upgrades from its HTTP status field. No version numbers are allocated here.
+infer upgrades from its HTTP status field. Its selected source target is
+`worker.runtime@2.0.0`, still unpublished.
 
 | Contract | Why a forward identity is required |
 | --- | --- |

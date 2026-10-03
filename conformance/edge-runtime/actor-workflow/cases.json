@@ -1,0 +1,42 @@
+{
+  "format": "edge.actor-workflow-source-cases",
+  "status": "not-run-without-consumer-adapter",
+  "cases": [
+    {
+      "id": "ordinary-actor-five-handlers",
+      "mode": "class-inspection",
+      "export": "OrdinaryActor",
+      "expectation": "admit without constructing during inspection; execute fetch with closed context and selected environment"
+    },
+    {
+      "id": "finite-deep-inherited-five-handlers",
+      "mode": "class-inspection",
+      "export": "DeepInheritedActor",
+      "expectation": "admit callable inherited handlers through a finite 129-link ordinary prototype chain; optional start is absent"
+    },
+    {
+      "id": "cyclic-proxy-prototype",
+      "mode": "isolated-class-inspection",
+      "moduleFactory": "cyclicProxyActorModule",
+      "expectation": "refuse before traffic; inspection must terminate"
+    },
+    {
+      "id": "changing-proxy-prototype",
+      "mode": "isolated-class-inspection",
+      "moduleFactory": "changingProxyActorModule",
+      "expectation": "refuse missing socketError without a second unsafe prototype walk"
+    },
+    {
+      "id": "nonreturning-proxy-prototype",
+      "mode": "killable-class-inspection",
+      "moduleFactory": "nonReturningProxyActorModule",
+      "expectation": "keep admission closed and terminate the inspection child; no same-isolate timeout claim"
+    },
+    {
+      "id": "workflow-step-and-signal",
+      "mode": "workflow-execution",
+      "export": "SignalWorkflow",
+      "expectation": "run a named ordinary class, journal record step, park for approved event, then resume from durable history"
+    }
+  ]
+}

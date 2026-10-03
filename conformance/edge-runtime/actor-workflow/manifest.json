@@ -1,0 +1,98 @@
+{
+  "format": "edge.actor-workflow-source-input",
+  "status": "unpublished-source-input",
+  "hostApi": "forms.takoform.com/v1",
+  "forms": [
+    {
+      "apiVersion": "edge.forms.takoform.com",
+      "kind": "ActorNamespace",
+      "definitionVersion": "0.2.0",
+      "schemaDigest": "sha256:b6ec73cf24508af3dbd784b411bea4c60808e244f3a79c1c43b72597dd29ca20"
+    },
+    {
+      "apiVersion": "edge.forms.takoform.com",
+      "kind": "DurableWorkflow",
+      "definitionVersion": "0.2.0",
+      "schemaDigest": "sha256:a58c885bed4431fbdc6b923059fe3b3bf98f7727578914d2d212552ae97fdc65"
+    },
+    {
+      "apiVersion": "edge.forms.takoform.com",
+      "kind": "ModuleWorker",
+      "definitionVersion": "0.2.0",
+      "schemaDigest": "sha256:761180705a6f2a75fa0bc0061794a269342fafe0309c26ecd7530f12fcda1399"
+    },
+    {
+      "apiVersion": "edge.forms.takoform.com",
+      "kind": "QueueConsumer",
+      "definitionVersion": "0.2.0",
+      "schemaDigest": "sha256:c8fce91ae31c1e8466bcd37237ec59935660dd08b628a298fef62433c9837425"
+    },
+    {
+      "apiVersion": "edge.forms.takoform.com",
+      "kind": "WorkerCronTrigger",
+      "definitionVersion": "0.2.0",
+      "schemaDigest": "sha256:8a859ef2d89e80163bab2ee88d28eeb29615e7fa8e10578c28b08125f50a1ccf"
+    },
+    {
+      "apiVersion": "edge.forms.takoform.com",
+      "kind": "WorkerCustomDomain",
+      "definitionVersion": "0.2.0",
+      "schemaDigest": "sha256:dcd899ba2083ccbfb902fbb51d521ad64214cce062c65884a2077ad376e4b8ef"
+    },
+    {
+      "apiVersion": "edge.forms.takoform.com",
+      "kind": "WorkerDeployment",
+      "definitionVersion": "0.3.0",
+      "schemaDigest": "sha256:3ab66ed600d15556688c733511ebf2b4095e00ef5d937121f736ec1df1ede353"
+    },
+    {
+      "apiVersion": "edge.forms.takoform.com",
+      "kind": "WorkerEndpoint",
+      "definitionVersion": "0.2.0",
+      "schemaDigest": "sha256:7ce5d6b1ad1f05a6bb3cb50446b36211864b3357899ba13a574209303fa435cb"
+    },
+    {
+      "apiVersion": "edge.forms.takoform.com",
+      "kind": "WorkerVersion",
+      "definitionVersion": "0.4.0",
+      "schemaDigest": "sha256:aa013abbf36367707e8f176e284d2cd19e59effd1f8af560c8a8a36b0c53ec21"
+    }
+  ],
+  "interfaces": [
+    {
+      "name": "worker.actor",
+      "version": "2.0.0",
+      "schemaDigest": "sha256:b027b2129eb4e361d469f09d6d7fd7ab1abb2ee54e185da9169ec4c893487a51"
+    },
+    {
+      "name": "worker.runtime",
+      "version": "2.0.0",
+      "schemaDigest": "sha256:8c3fbdef49053c7522c55b9a540d03672c688b617404f23fa29e23b8dd57f37c"
+    },
+    {
+      "name": "worker.workflow",
+      "version": "3.0.0",
+      "schemaDigest": "sha256:2584721b4bc9f5feef94b272337c348fb67130de57317afaf84aa7ca55246f69"
+    }
+  ],
+  "bindings": [
+    {
+      "name": "module-worker.actor",
+      "version": "2.0.0",
+      "schemaDigest": "sha256:1ffc205ba1790251a91c47f1f54f8ea46a8f2563bb77806072d58553aeda3ca3"
+    },
+    {
+      "name": "module-worker.workflow",
+      "version": "3.0.0",
+      "schemaDigest": "sha256:2b8df3ba036b2781ee3ea8af6603b3de5f09226f4eb1f3385565211cdacc854b"
+    }
+  ],
+  "bundle": {
+    "path": "bundle.mjs",
+    "sha256": "82ffdf63818c1a052142c95c62b3e2e66c668ed3872b403f4462d833a04736d9"
+  },
+  "cases": {
+    "path": "cases.json",
+    "sha256": "bc85ae8d24cded6fdf28eaf222dd4b1db40f5c9024ba63612902524d43052fbd"
+  }
+}

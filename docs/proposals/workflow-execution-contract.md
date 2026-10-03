@@ -20,7 +20,7 @@ Takoform API v1. Existing immutable definitions and packages keep their bytes.
 
 A workflow is a named class export in the Worker Bundle's main ES module. No
 vendor base class or native runtime context is required. The normal plain-object
-default export remains required by `worker.runtime@1.1.0`; its existing handlers
+default export remains required by the selected `worker.runtime@2.0.0`; its existing handlers
 are unchanged.
 
 ```js
@@ -147,19 +147,20 @@ accepted. Terminal transition purges unmatched queued events.
 
 ## Exact forward closure
 
-| Workflow artifact in the single joint closure | Local candidate version | Reference changed |
-| --- | --- | --- |
-| `worker.workflow` Interface | `3.0.0` | Exact workflow class/replay/event contract under the joint runtime-2 identity |
-| `module-worker.workflow` Binding | `3.0.0` | Exact new Interface digest; caller projection only |
-| `DurableWorkflow` Form | `0.2.0-runtime.1` | Provides the exact joint Interface and lifecycle semantics above |
-| `worker.runtime` Interface | `2.0.0` | Shared Actor+Workflow runtime ABI; owned in the joint proposal |
-| `ModuleWorker` Form | `0.2.0-runtime.1` | Provides exact runtime-2 Interface |
-| `WorkerVersion` Form | `0.4.0-runtime.1` | One shared Actor+Workflow successor; exact runtime, Actor, and Workflow refs |
-| `WorkerDeployment` Form | `0.3.0-runtime.1` | One shared exact WorkerVersion target |
+| Workflow artifact in the single joint closure | Local candidate version        | Reference changed                                                             |
+| --------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------- |
+| `worker.workflow` Interface                   | `3.0.0`                        | Exact workflow class/replay/event contract under the joint runtime-2 identity |
+| `module-worker.workflow` Binding              | `3.0.0`                        | Exact new Interface digest; caller projection only                            |
+| `DurableWorkflow` Form                        | `0.2.0` selected source target | Provides the exact joint Interface and lifecycle semantics above              |
+| `worker.runtime` Interface                    | `2.0.0`                        | Shared Actor+Workflow runtime ABI; owned in the joint proposal                |
+| `ModuleWorker` Form                           | `0.2.0` selected source target | Provides exact runtime-2 Interface                                            |
+| `WorkerVersion` Form                          | `0.4.0` selected source target | One shared Actor+Workflow successor; exact runtime, Actor, and Workflow refs  |
+| `WorkerDeployment` Form                       | `0.3.0` selected source target | One shared exact WorkerVersion target                                         |
 
 Numeric Interface/Binding versions are required by the released Core schema;
-these unregistered development values do not reserve or publish those numbers.
-The enclosing Form versions are prereleases. This closure is composed once with
+these selected source targets do not publish or admit those identities. The
+standalone and broader development renderers retain their prerelease Form
+versions. This selected closure is composed once with
 Actor and does not publish a Workflow-only WorkerVersion/WorkerDeployment first.
 The shared WorkerVersion keeps the existing default handler surface while
 selecting the exact runtime-2, Actor, and Workflow contracts. Other current
@@ -168,11 +169,13 @@ WorkerVersion authoring and does not include the separate Vector or Container
 candidate graphs.
 
 The standalone local renderer is `go run ./cmd/workflow-candidate`; it writes
-JSON to stdout only and emits the unselected Workflow 2.0 draft. The selected
-joint renderer is `RenderActorWorkflowCandidate` and emits Workflow 3.0 with
-Actor and a single shared WorkerVersion/Deployment. Both are source-only
-candidate renderers, absent from the current catalog generator, publication
-paths, Provider mappings and Host support discovery.
+JSON to stdout only and emits the unselected Workflow 2.0 draft. The separate
+`RenderActorWorkflowCandidate` command retains its prerelease development
+bytes. `cmd/current-form-source` selects `RenderActorWorkflowSelectedSource`,
+which emits Workflow 3.0 with Actor and a single shared
+WorkerVersion/Deployment. These selected source candidates are present in the
+local candidate generator, but not in the signed current publisher set,
+Provider mappings or Host support discovery.
 
 ## Implementation acceptance still required
 
