@@ -32,6 +32,8 @@ const candidateRoot = path.join(
 );
 
 describe("Edge Form Package publication materialization", () => {
+  // The real Core verifier checks 31 current and historical release roots;
+  // Bun's default 5 s can cancel an in-flight verifier on a cold CI runner.
   test("selected Actor and Workflow source retains nine old signed roots without treating new roots as signed", () => {
     // The default reader re-verifies installed historical sets through Core;
     // it does not fabricate a signed successor for this source-only change.
@@ -57,7 +59,7 @@ describe("Edge Form Package publication materialization", () => {
     }
     const checked = verifyPublicationTree(plan);
     expect(checked.checked).toHaveLength(17);
-  });
+  }, 60_000);
 
   test("signing roster is the complete validated current selection, never retained or abandoned roots", () => {
     const fixture = makeFixture();
