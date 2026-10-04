@@ -30,12 +30,81 @@ const (
 	ActorCandidateFormVersion      = "0.2.0-actor.1"
 )
 
+const actorStorageExecuteMapping = ` JavaScript mapping: type EdgeSqlValue = null | number | string | { encoding: "base64"; data: string }; interface SqlResult { readonly rows: readonly Readonly<Record<string, EdgeSqlValue>>[]; readonly rowsWritten: number; } ActorStorage.execute(sql: string, params?: readonly EdgeSqlValue[]): Promise<SqlResult>.`
+const actorStorageQueryMapping = ` JavaScript mapping: ActorStorage.query(sql: string, params?: readonly EdgeSqlValue[]): Promise<SqlResult>.`
+const actorStorageTransactionMapping = ` JavaScript mapping: interface SqlStatement { readonly sql: string; readonly params?: readonly EdgeSqlValue[]; } ActorStorage.transaction(statements: readonly SqlStatement[]): Promise<{ readonly results: readonly SqlResult[]; }>.`
+const actorAlarmSetMapping = ` JavaScript mapping: ActorAlarm.set(atMillis: number): Promise<void>.`
+const actorAlarmGetMapping = ` JavaScript mapping: ActorAlarm.get(): Promise<number | null>.`
+const actorAlarmClearMapping = ` JavaScript mapping: ActorAlarm.clear(): Promise<void>.`
+
+const actorRuntimeJavaScriptFacadeDescription = `
+Selected unpublished-source TypeScript Actor class/context mapping:
+interface ActorSocket {
+  readonly id: string;
+  send(data: string | Uint8Array): void;
+  close(code?: number, reason?: string): void;
+  getAttachment(): Promise<Uint8Array | null>;
+  setAttachment(value: Uint8Array | null): Promise<void>;
+}
+
+interface ActorSocketErrorEvent {
+  readonly code: "transport_error";
+}
+
+interface ActorUpgradeResponse extends Response {
+  readonly status: 101;
+  readonly body: null;
+}
+
+interface ActorSockets {
+  accept(
+    request: Request,
+    options?: { protocol?: string; attachment?: Uint8Array },
+  ): Promise<{ response: ActorUpgradeResponse; socket: ActorSocket }>;
+  get(id: string): Promise<ActorSocket | null>;
+  list(): Promise<readonly ActorSocket[]>;
+}
+
+interface ActorContext {
+  readonly id: string;
+  readonly storage: ActorStorage;
+  readonly alarm: ActorAlarm;
+  readonly sockets: ActorSockets;
+}
+
+interface ActorTurn {
+  readonly signal: AbortSignal;
+}
+
+interface ActorInstance {
+  start?(turn: ActorTurn): void | Promise<void>;
+  fetch(request: Request, turn: ActorTurn): Response | Promise<Response>;
+  alarm(turn: ActorTurn): void | Promise<void>;
+  socketMessage(socket: ActorSocket, data: string | Uint8Array, turn: ActorTurn): void | Promise<void>;
+  socketClose(socket: ActorSocket, event: { code: number; reason: string; wasClean: boolean }, turn: ActorTurn): void | Promise<void>;
+  socketError(socket: ActorSocket, event: ActorSocketErrorEvent, turn: ActorTurn): void | Promise<void>;
+}
+
+type ActorConstructor = new (
+  context: ActorContext,
+  env: Readonly<Record<string, unknown>>,
+) => ActorInstance;
+`
+
 // ActorCandidateInterface is the exact forward class/context and socket
 // contract selected in the Actor proposal.  The current worker.actor
 // operation vocabulary remains the data-plane surface; the newly resolved
 // class, retirement, upgrade and socket rules are normative prose on this
 // forward identity rather than an invented provider-specific operation.
 func ActorCandidateInterface() InterfaceDefinition {
+	return actorCandidateInterface(false)
+}
+
+func selectedActorCandidateInterface() InterfaceDefinition {
+	return actorCandidateInterface(true)
+}
+
+func actorCandidateInterface(includeJavaScriptFacade bool) InterfaceDefinition {
 	definition := workerActorInterface()
 	definition.Version = ActorCandidateInterfaceVersion
 	definition.Title = "Addressable single-context actor with sockets"
@@ -79,12 +148,12 @@ func ActorCandidateInterface() InterfaceDefinition {
 		"keeps incarnation/id inventory, admission, alarms and broker; terminates child and proves quiescence before next " +
 		"same-id event. Deletion advances epoch, cancels/abandons " +
 		"work/upgrades, closes 1001 best effort and succeeds only after authoritative absence readback."
-
 	// Keep the existing operation descriptions and fixtures as the abstract
 	// actor data-plane witness, but make the changed invocation semantics
 	// visible on the operation that carries the HTTP call.
 	for index := range definition.Operations {
-		if definition.Operations[index].Name == "fetch" {
+		switch definition.Operations[index].Name {
+		case "fetch":
 			definition.Operations[index].Description = "Global Interface rules, not fetch-only: every weighted Version has class. " +
 				"Required fetch/alarm/socketMessage/socketClose/socketError and optional start are callable prototype methods, " +
 				"including inherited application methods. Accessors and per-instance replacements are refused. Constructor " +
@@ -98,6 +167,24 @@ func ActorCandidateInterface() InterfaceDefinition {
 			definition.Operations[index].Errors = []string{
 				"request_too_large", "request_aborted", "response_aborted", "backend_unavailable",
 			}
+		default:
+			if !includeJavaScriptFacade {
+				continue
+			}
+			switch definition.Operations[index].Name {
+			case "storageExecute":
+				definition.Operations[index].Description += actorStorageExecuteMapping
+			case "storageQuery":
+				definition.Operations[index].Description += actorStorageQueryMapping
+			case "storageTransaction":
+				definition.Operations[index].Description += actorStorageTransactionMapping
+			case "alarmSet":
+				definition.Operations[index].Description += actorAlarmSetMapping
+			case "alarmGet":
+				definition.Operations[index].Description += actorAlarmGetMapping
+			case "alarmClear":
+				definition.Operations[index].Description += actorAlarmClearMapping
+			}
 		}
 	}
 	return definition
@@ -107,8 +194,8 @@ func ActorCandidateInterface() InterfaceDefinition {
 // worker.actor Interface without touching InterfaceDefinitions or Forms.  The
 // resolver supplies the aggregate's worker.runtime Interface for the class
 // holder relation.
-func renderActorCandidatePair(runtimeInterface RenderedContract, formVersion string) (ActorCandidate, error) {
-	definition := ActorCandidateInterface()
+func renderActorCandidatePair(runtimeInterface RenderedContract, formVersion string, includeJavaScriptFacade bool) (ActorCandidate, error) {
+	definition := actorCandidateInterface(includeJavaScriptFacade)
 	if err := ValidateInterfaceDefinitions([]InterfaceDefinition{definition}); err != nil {
 		return ActorCandidate{}, fmt.Errorf("actor candidate Interface authoring: %w", err)
 	}

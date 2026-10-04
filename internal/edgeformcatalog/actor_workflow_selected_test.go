@@ -1,6 +1,7 @@
 package edgeformcatalog
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -133,6 +134,88 @@ func TestActorWorkflowSelectedWorkerVersionProseNamesItsExactRuntime(t *testing.
 	} {
 		if !strings.Contains(prose, want) || strings.Contains(prose, "worker.runtime@1.1.0") {
 			t.Errorf("%s must name exact selected runtime %s without stale 1.1.0: %q", label, want, prose)
+		}
+	}
+}
+
+func TestActorWorkflowSelectedInterfacesCarryExactJavaScriptActorFacade(t *testing.T) {
+	selected, err := RenderActorWorkflowSelectedSource()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var actor, runtime RenderedContract
+	for _, contract := range selected.Interfaces {
+		switch contract.Name {
+		case ActorCandidateInterfaceName:
+			actor = contract
+		case RuntimeCandidateInterfaceName:
+			runtime = contract
+		}
+	}
+	if actor.Name == "" || runtime.Name == "" {
+		t.Fatalf("selected Actor/runtime Interfaces missing: actor=%q runtime=%q", actor.Name, runtime.Name)
+	}
+	actorWant := []string{
+		"type EdgeSqlValue = null | number | string | { encoding: \"base64\"; data: string };",
+		"interface SqlResult { readonly rows: readonly Readonly<Record<string, EdgeSqlValue>>[]; readonly rowsWritten: number; }",
+		"ActorStorage.execute(sql: string, params?: readonly EdgeSqlValue[]): Promise<SqlResult>.",
+		"ActorStorage.query(sql: string, params?: readonly EdgeSqlValue[]): Promise<SqlResult>.",
+		"interface SqlStatement { readonly sql: string; readonly params?: readonly EdgeSqlValue[]; }",
+		"ActorStorage.transaction(statements: readonly SqlStatement[]): Promise<{ readonly results: readonly SqlResult[]; }>.",
+		"ActorAlarm.set(atMillis: number): Promise<void>.",
+		"ActorAlarm.get(): Promise<number | null>.",
+		"ActorAlarm.clear(): Promise<void>.",
+	}
+	runtimeWant := []string{
+		"interface ActorSocket {",
+		"readonly id: string;",
+		"send(data: string | Uint8Array): void;",
+		"close(code?: number, reason?: string): void;",
+		"getAttachment(): Promise<Uint8Array | null>;",
+		"setAttachment(value: Uint8Array | null): Promise<void>;",
+		"interface ActorSocketErrorEvent { readonly code: \"transport_error\"; }",
+		"interface ActorUpgradeResponse extends Response { readonly status: 101; readonly body: null; }",
+		"interface ActorSockets {",
+		"interface ActorTurn { readonly signal: AbortSignal; }",
+		"interface ActorContext { readonly id: string; readonly storage: ActorStorage; readonly alarm: ActorAlarm; readonly sockets: ActorSockets; }",
+		"accept(",
+		"options?: { protocol?: string; attachment?: Uint8Array },",
+		"): Promise<{ response: ActorUpgradeResponse; socket: ActorSocket }>;",
+		"get(id: string): Promise<ActorSocket | null>;",
+		"list(): Promise<readonly ActorSocket[]>;",
+		"interface ActorInstance {",
+		"start?(turn: ActorTurn): void | Promise<void>;",
+		"fetch(request: Request, turn: ActorTurn): Response | Promise<Response>;",
+		"alarm(turn: ActorTurn): void | Promise<void>;",
+		"socketMessage(socket: ActorSocket, data: string | Uint8Array, turn: ActorTurn): void | Promise<void>;",
+		"socketClose(socket: ActorSocket, event: { code: number; reason: string; wasClean: boolean }, turn: ActorTurn): void | Promise<void>;",
+		"socketError(socket: ActorSocket, event: ActorSocketErrorEvent, turn: ActorTurn): void | Promise<void>;",
+		"type ActorConstructor = new ( context: ActorContext, env: Readonly<Record<string, unknown>>, ) => ActorInstance;",
+	}
+	descriptions := func(contract RenderedContract) string {
+		var definition struct {
+			Description string `json:"description"`
+			Operations  []struct {
+				Description string `json:"description"`
+			} `json:"operations"`
+		}
+		if err := json.Unmarshal([]byte(contract.DefinitionJSON), &definition); err != nil {
+			t.Fatalf("decode %s@%s: %v", contract.Name, contract.Version, err)
+		}
+		all := []string{definition.Description}
+		for _, operation := range definition.Operations {
+			all = append(all, operation.Description)
+		}
+		return strings.Join(strings.Fields(strings.Join(all, " ")), " ")
+	}
+	for _, fragment := range actorWant {
+		if !strings.Contains(descriptions(actor), fragment) {
+			t.Errorf("worker.actor@%s JavaScript facade mapping omitted %q", actor.Version, fragment)
+		}
+	}
+	for _, fragment := range runtimeWant {
+		if !strings.Contains(descriptions(runtime), fragment) {
+			t.Errorf("worker.runtime@%s JavaScript facade mapping omitted %q", runtime.Version, fragment)
 		}
 	}
 }

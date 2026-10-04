@@ -127,9 +127,9 @@ export const DEPLOY_CONTRACT = Object.freeze({
       triggers: ["authority", "published-identity"],
       obligations: {
         provenance:
-          "The one clean canonical main commit is gated once. Released Core v1.1.0 verifies every exact package-index subject in the selected signed set, the exact publisher policy and trusted root, every Sigstore v0.3 bundle, the bounded signed API v1 checkpoint chain from genesis, every canonical statement digest, and every not-revoked decision. Publication separately verifies the complete Core-derived active, signed-historical, two explicitly retained, and three abandoned evidence-only release roots; only non-abandoned roots may have package tags. Source preparation alone never constitutes signed evidence or publication authority. All new evidence reports one protected-main publisher/source/workflow/build commit; package subjects, revocation source, retained inventory, abandoned recovery manifest, and publisher verification code remain byte-exact from that signed commit through publication.",
+          "The one clean canonical main commit is gated once. Released Core v1.1.0 verifies every exact package-index subject in the selected signed set, the exact publisher policy and trusted root, every Sigstore v0.3 bundle, the bounded signed API v1 checkpoint chain from genesis, every canonical statement digest, and every not-revoked decision. Publication separately verifies the complete Core-derived active, signed-historical, two explicitly retained, and three abandoned evidence-only release roots, plus the exact prior-source-only roots recorded by the bounded source-history inventory; source-history roots are byte/readback inventory only and never enter signed sets or package tags. Source preparation alone never constitutes signed evidence or publication authority. All new evidence reports one protected-main publisher/source/workflow/build commit; package subjects, revocation source, retained inventory, the exact forms/source-history.json inventory bytes, abandoned recovery manifest, and publisher verification code remain byte-exact from that signed commit through publication.",
         "post-conditions":
-          "After one ordinary atomic non-force push, credential-free verification reads origin main, every exact active and signed-historical publishable package tag from the verified publication plan, the three untagged abandoned evidence-only roots from the recovery manifest, the create-only forms/sets/<source-commit> tag, and every immutable forms/revocations/v<statement-version> tag; fetches public commits into fresh storage; compares package and revocation bytes; and replays Core v1.1.0 package, publisher, signature, checkpoint, continuity, and revocation verification.",
+          "After one ordinary atomic non-force push, credential-free verification reads origin main, every exact active and signed-historical publishable package tag from the verified publication plan, the three untagged abandoned evidence-only roots, and prior-source-only roots from the checked-in source-history inventory; source-history roots are never fetched as tags. It also reads the create-only forms/sets/<source-commit> tag and every immutable forms/revocations/v<statement-version> tag; fetches public commits into fresh storage; compares package and revocation bytes; and replays Core v1.1.0 package, publisher, signature, checkpoint, continuity, and revocation verification.",
         reversal:
           "Package tags, release paths, signed trust-set paths, set tags, revocation statements, checkpoints, and revocation tags are immutable and are never deleted, retagged, or overwritten. A bad publication cannot be rolled back in place; forward repair appends one new statement/checkpoint, signs a new source commit, and creates a new set, while changed package bytes also create a new Core-derived package identity.",
         "failure-handling":
@@ -1377,6 +1377,7 @@ function requireSignedSourceClosure(dependencies, trust, currentCommit) {
       currentCommit,
       "--",
       "forms/releases",
+      "forms/source-history.json",
       "forms/retained-packages.json",
       "forms/trust/abandoned-prepublication.json",
       "forms/revocations",
@@ -2523,7 +2524,8 @@ export function verifyPublicPublication(
       plan.releaseRootCount ??
       plan.formCount +
         (plan.retainedPackages ?? []).length +
-        (plan.evidenceOnlyPackages ?? []).length,
+        (plan.evidenceOnlyPackages ?? []).length +
+        (plan.sourceHistoryPackages ?? []).length,
     releaseTagCount: plan.formCount + (plan.retainedPackages ?? []).length,
     tagCount: plan.formCount,
     tags: plan.forms.map((form) => ({
@@ -2754,6 +2756,27 @@ function verifyFetchedReleaseTree(
       expected,
     );
   }
+  for (const historical of plan.sourceHistoryPackages ?? []) {
+    verifyFetchedReleaseRoot(
+      {
+        kind: historical.formRef.kind,
+        locator: {
+          apiVersion: "packages.forms.takoform.com/v1alpha5",
+          releaseId: historical.releaseId,
+          artifactId: historical.artifactId,
+          tag: historical.tag,
+          sourcePath: historical.sourcePath,
+        },
+        packageDigest: historical.packageDigest,
+        formRef: historical.formRef,
+      },
+      fetchedRoot,
+      localRoot,
+      dependencies,
+      mutationStarted,
+      expected,
+    );
+  }
   const allFiles = inventoryRelativeFiles(
     path.join(fetchedRoot, "forms", "releases"),
   );
@@ -2947,6 +2970,18 @@ function assertPlansEqual(before, after) {
       "abandoned evidence-only publication inventory changed during the owner gate",
     );
   }
+  const sourceHistory = (plan) =>
+    (plan.sourceHistoryPackages ?? [])
+      .map(
+        (entry) =>
+          `${entry.tag}:${entry.sourcePath}:${entry.packageDigest}:${JSON.stringify(entry.formRef)}`,
+      )
+      .join("\n");
+  if (sourceHistory(before) !== sourceHistory(after)) {
+    throw new DeployBlocked(
+      "unsigned source-history inventory changed during the owner gate",
+    );
+  }
 }
 
 function assertTrustReportsEqual(before, after) {
@@ -3001,7 +3036,8 @@ function dryRunEvidence(plan, trust, commit, missingPackageTags) {
       plan.releaseRootCount ??
       plan.formCount +
         (plan.retainedPackages ?? []).length +
-        (plan.evidenceOnlyPackages ?? []).length,
+        (plan.evidenceOnlyPackages ?? []).length +
+        (plan.sourceHistoryPackages ?? []).length,
     releaseTagCount: plan.formCount + (plan.retainedPackages ?? []).length,
     tagCount: plan.formCount,
     tags: plan.forms.map((form) => form.locator.tag),

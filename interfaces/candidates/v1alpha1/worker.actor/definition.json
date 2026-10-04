@@ -183,7 +183,7 @@
     },
     {
       "name": "storageExecute",
-      "description": "Run one effectful statement against THIS actor's private store. Unlike edge.sql it accepts schema statements: a single-writer store owns its own history. params and returned columns are EdgeSqlValue exactly. It is reachable only from the actor's own execution context, which is what makes every write single-writer without a lock.",
+      "description": "Run one effectful statement against THIS actor's private store. Unlike edge.sql it accepts schema statements: a single-writer store owns its own history. params and returned columns are EdgeSqlValue exactly. It is reachable only from the actor's own execution context, which is what makes every write single-writer without a lock. JavaScript mapping: type EdgeSqlValue = null | number | string | { encoding: \"base64\"; data: string }; interface SqlResult { readonly rows: readonly Readonly<Record<string, EdgeSqlValue>>[]; readonly rowsWritten: number; } ActorStorage.execute(sql: string, params?: readonly EdgeSqlValue[]): Promise<SqlResult>.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -314,7 +314,7 @@
     },
     {
       "name": "storageQuery",
-      "description": "Read from this actor's store inside an always-rolled-back transaction, so a read leaves no persistent effect without anyone guessing whether the SQL writes. rowsWritten is always 0.",
+      "description": "Read from this actor's store inside an always-rolled-back transaction, so a read leaves no persistent effect without anyone guessing whether the SQL writes. rowsWritten is always 0. JavaScript mapping: ActorStorage.query(sql: string, params?: readonly EdgeSqlValue[]): Promise<SqlResult>.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -444,7 +444,7 @@
     },
     {
       "name": "storageTransaction",
-      "description": "Run 1 to 100 statements under serializable all-or-none isolation, materializing every result before commit. A transaction that could report only a write count could not carry the rows a SELECT inside it returned, which would make the atomic path strictly weaker than the plain one.",
+      "description": "Run 1 to 100 statements under serializable all-or-none isolation, materializing every result before commit. A transaction that could report only a write count could not carry the rows a SELECT inside it returned, which would make the atomic path strictly weaker than the plain one. JavaScript mapping: interface SqlStatement { readonly sql: string; readonly params?: readonly EdgeSqlValue[]; } ActorStorage.transaction(statements: readonly SqlStatement[]): Promise<{ readonly results: readonly SqlResult[]; }>.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -603,7 +603,7 @@
     },
     {
       "name": "alarmSet",
-      "description": "Schedule this actor's wake-up, REPLACING any pending one. At most one alarm exists per actor, so there is no cancel-by-handle and no way to accumulate wake-ups. atMillis is milliseconds since the Unix epoch in UTC; a time already past fires as soon as the host can.",
+      "description": "Schedule this actor's wake-up, REPLACING any pending one. At most one alarm exists per actor, so there is no cancel-by-handle and no way to accumulate wake-ups. atMillis is milliseconds since the Unix epoch in UTC; a time already past fires as soon as the host can. JavaScript mapping: ActorAlarm.set(atMillis: number): Promise<void>.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -631,7 +631,7 @@
     },
     {
       "name": "alarmGet",
-      "description": "Read the pending alarm time, or report that none is pending. The two are different answers: a null time is no alarm at all, never an alarm at the epoch.",
+      "description": "Read the pending alarm time, or report that none is pending. The two are different answers: a null time is no alarm at all, never an alarm at the epoch. JavaScript mapping: ActorAlarm.get(): Promise<number | null>.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -662,7 +662,7 @@
     },
     {
       "name": "alarmClear",
-      "description": "Remove the pending alarm. It succeeds when none was pending: the outcome asked for is the outcome that holds, so a retry after a lost response is not an error.",
+      "description": "Remove the pending alarm. It succeeds when none was pending: the outcome asked for is the outcome that holds, so a retry after a lost response is not an error. JavaScript mapping: ActorAlarm.clear(): Promise<void>.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,

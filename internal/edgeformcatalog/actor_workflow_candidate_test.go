@@ -217,7 +217,7 @@ func TestActorWorkflowCandidateCarriesAdoptedWorkflowDeleteAndUpdateBoundary(t *
 }
 
 func TestActorWorkflowCandidateCompilesOneExactCoreSnapshotWithoutPromotingVector(t *testing.T) {
-	candidate, err := RenderActorWorkflowCandidate()
+	selected, err := RenderActorWorkflowSelectedSource()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,65 +225,48 @@ func TestActorWorkflowCandidateCompilesOneExactCoreSnapshotWithoutPromotingVecto
 	if err != nil {
 		t.Fatal(err)
 	}
-	forward := []RenderedForm{
-		candidate.ModuleWorker, candidate.Actor.Form, candidate.Workflow.Form,
-		candidate.WorkerVersion, candidate.WorkerDeployment,
-	}
-	forward = append(forward, candidate.RuntimeDependants...)
-	if len(forward) != 9 {
-		t.Fatalf("forward Forms = %d, want nine exact Actor+Workflow successors", len(forward))
+	if len(selected.Forms) != len(current) || len(selected.Forms) != 17 {
+		t.Fatalf("selected Forms = %d, want exact replacement roster of 17", len(selected.Forms))
 	}
 	input := coresnapshot.Input{HostAPI: "forms.takoform.com/v1"}
-	selected := make(map[string]formpackage.FormRef, len(current))
-	for _, form := range current {
-		root := filepath.Join("..", "..", "forms", "candidates", Family.APIVersion(), form.Slug)
-		report, err := formpackage.VerifyDirectory(root)
-		if err != nil {
-			t.Fatalf("current %s package: %v", form.Kind, err)
-		}
-		pkg, ok := report.VerifiedPackage()
-		if !ok {
-			t.Fatalf("current %s issued no Core package", form.Kind)
+	for index, form := range selected.Forms {
+		var pkg formpackage.VerifiedPackage
+		if reflect.DeepEqual(form, current[index]) {
+			root := filepath.Join("..", "..", "forms", "candidates", Family.APIVersion(), form.Slug)
+			report, err := formpackage.VerifyDirectory(root)
+			if err != nil {
+				t.Fatalf("retained %s package: %v", form.Kind, err)
+			}
+			verified, ok := report.VerifiedPackage()
+			if !ok {
+				t.Fatalf("retained %s issued no Core package", form.Kind)
+			}
+			pkg = verified
+		} else {
+			pkg = verifySourceOnlyPackage(t, form)
 		}
 		input.Packages = append(input.Packages, coresnapshot.PackageArtifact{
-			Origin: "current-" + form.Kind, ExpectedDigest: report.PackageDigest, Package: pkg,
-		})
-		selected[form.Kind] = report.FormRef
-	}
-	for _, form := range forward {
-		pkg := verifySourceOnlyPackage(t, form)
-		input.Packages = append(input.Packages, coresnapshot.PackageArtifact{
-			Origin: "forward-" + form.Kind, ExpectedDigest: pkg.PackageDigest(), Package: pkg,
+			Origin: form.Kind, ExpectedDigest: pkg.PackageDigest(), Package: pkg,
 		})
 		ref, err := renderedFormRef(form)
 		if err != nil {
 			t.Fatal(err)
 		}
-		selected[form.Kind] = formpackage.FormRef{
-			APIVersion: ref.APIVersion, Kind: ref.Kind,
-			DefinitionVersion: ref.DefinitionVersion, SchemaDigest: ref.SchemaDigest,
-		}
+		input.DefaultCreates = append(input.DefaultCreates, coresnapshot.DefaultPin{
+			Group: Family.APIVersion(), Kind: form.Kind,
+			Ref: formpackage.FormRef{
+				APIVersion: ref.APIVersion, Kind: ref.Kind,
+				DefinitionVersion: ref.DefinitionVersion, SchemaDigest: ref.SchemaDigest,
+			},
+		})
 	}
-	for kind, ref := range selected {
-		input.DefaultCreates = append(input.DefaultCreates, coresnapshot.DefaultPin{Group: Family.APIVersion(), Kind: kind, Ref: ref})
-	}
-	interfaces, err := RenderInterfaces()
-	if err != nil {
-		t.Fatal(err)
-	}
-	interfaces = append(interfaces, candidate.RuntimeInterface, candidate.Actor.Interface, candidate.Workflow.Interface)
-	for _, contract := range interfaces {
+	for _, contract := range selected.Interfaces {
 		input.Interfaces = append(input.Interfaces, coresnapshot.InterfaceArtifact{
 			Origin:         contract.Name + "@" + contract.Version,
 			ExpectedDigest: contract.SchemaDigest, Definition: []byte(contract.DefinitionJSON),
 		})
 	}
-	bindings, err := RenderBindings()
-	if err != nil {
-		t.Fatal(err)
-	}
-	bindings = append(bindings, candidate.Actor.Binding, candidate.Workflow.Binding)
-	for _, contract := range bindings {
+	for _, contract := range selected.Bindings {
 		input.Bindings = append(input.Bindings, coresnapshot.BindingArtifact{
 			Origin:         contract.Name + "@" + contract.Version,
 			ExpectedDigest: contract.SchemaDigest, Definition: []byte(contract.DefinitionJSON),
@@ -293,7 +276,12 @@ func TestActorWorkflowCandidateCompilesOneExactCoreSnapshotWithoutPromotingVecto
 	if compiled == nil || len(diagnostics) != 0 {
 		t.Fatalf("Core did not close Actor+Workflow successor: snapshot=%v diagnostics=%+v", compiled, diagnostics)
 	}
-	if got := len(compiled.Forms()); got != 26 {
-		t.Fatalf("Core Snapshot has %d Forms, want current 17 plus nine successors", got)
+	if got := len(compiled.Forms()); got != 17 {
+		t.Fatalf("Core Snapshot has %d Forms, want exact selected 17", got)
+	}
+	for _, form := range compiled.Forms() {
+		if form.Ref.Kind == "VectorIndex" {
+			t.Fatal("selected Actor+Workflow snapshot promoted the unrelated Vector candidate")
+		}
 	}
 }

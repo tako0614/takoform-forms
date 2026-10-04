@@ -6,7 +6,7 @@
     {
       "name": "module-worker.actor",
       "version": "2.0.0",
-      "schemaDigest": "sha256:1ffc205ba1790251a91c47f1f54f8ea46a8f2563bb77806072d58553aeda3ca3"
+      "schemaDigest": "sha256:27105094200ea4a9b743852eff656c820687edd22bfdf9de8763629eaa24d203"
     },
     {
       "name": "module-worker.edge-kv",

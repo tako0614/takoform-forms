@@ -26,12 +26,12 @@
     {
       "name": "worker.actor",
       "version": "2.0.0",
-      "schemaDigest": "sha256:b027b2129eb4e361d469f09d6d7fd7ab1abb2ee54e185da9169ec4c893487a51"
+      "schemaDigest": "sha256:f4d70bb6d63c436e43b2e6cc50069fa6ed68eca68aea2fbc10a77969738db156"
     },
     {
       "name": "worker.runtime",
       "version": "2.0.0",
-      "schemaDigest": "sha256:8c3fbdef49053c7522c55b9a540d03672c688b617404f23fa29e23b8dd57f37c"
+      "schemaDigest": "sha256:05dfb41739f5de6495389ec2669e8b055372210dd44928cb882cdcf19616850a"
     },
     {
       "name": "worker.service",

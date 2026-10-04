@@ -2,28 +2,39 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
-)
 
-const moduleWorkerPublicationJSON = `{
-  "apiVersion": "packages.forms.takoform.com/v1alpha5",
-  "releaseId": "k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2nn5shk3dfk5xxe23foi",
-  "artifactId": "sha256-a9909dd1ffb28a860c36b4d5bd35bcea89f233b926aa7a691fe2f8bca9dcddde",
-  "tag": "forms/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2nn5shk3dfk5xxe23foi/sha256-a9909dd1ffb28a860c36b4d5bd35bcea89f233b926aa7a691fe2f8bca9dcddde",
-  "sourcePath": "forms/releases/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2nn5shk3dfk5xxe23foi/sha256-a9909dd1ffb28a860c36b4d5bd35bcea89f233b926aa7a691fe2f8bca9dcddde"
-}
-`
+	"github.com/tako0614/takoform/formpackage"
+)
 
 func TestVerifyCommandEmitsExactPublicationIdentityJSON(t *testing.T) {
 	packageRoot := copyPackage(t, filepath.Join("..", "..", "forms", "candidates", "edge.forms.takoform.com", "module-worker"))
+	report, err := formpackage.VerifyDirectory(packageRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verified, ok := report.VerifiedPackage()
+	if !ok {
+		t.Fatal("Core did not issue a verified package")
+	}
+	wantLocator, err := formpackage.PublicationLocatorFor(verified.PackageIndex(), verified.PackageDigest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := json.MarshalIndent(wantLocator, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want = append(want, '\n')
 	var output bytes.Buffer
 	if err := run([]string{"verify", packageRoot}, &output); err != nil {
 		t.Fatal(err)
 	}
-	if output.String() != moduleWorkerPublicationJSON {
-		t.Fatalf("publication identity = %q, want %q", output.String(), moduleWorkerPublicationJSON)
+	if !bytes.Equal(output.Bytes(), want) {
+		t.Fatalf("publication identity = %q, want %q", output.String(), want)
 	}
 }
 
