@@ -1,7 +1,9 @@
 # Actor execution contract — concrete proposal
 
-Status: **unaccepted semantic proposal with selected, unpublished source
-targets**. The joint source targets worker.actor `2.0.0`, worker.runtime
+Status: **The JavaScript facade mapping in “Proposed JavaScript surface” is
+adopted only in the selected unpublished source candidates for worker.actor
+`2.0.0` and worker.runtime `2.0.0`; the proposal's remaining semantics are
+unaccepted.** The joint source targets worker.actor `2.0.0`, worker.runtime
 `2.0.0`, module-worker.actor `2.0.0` and ActorNamespace `0.2.0`; these numbers
 identify local source candidates, not admitted or published contracts. This is
 not an interpretation of an existing identity, an executable Host

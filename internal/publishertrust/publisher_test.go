@@ -134,25 +134,41 @@ func TestPrepareSigningRequestEmitsExactCoreSubjectsAndRefusesOverwrite(t *testi
 		t.Fatalf("genesis bytes = %q, want %q", genesis, canonicalGenesis)
 	}
 
+	candidateRoot := filepath.Join(repositoryRoot, "forms", "candidates", Family, "module-worker")
+	candidateReport, err := formpackage.VerifyDirectory(candidateRoot)
+	if err != nil {
+		t.Fatalf("verify selected ModuleWorker candidate with Core: %v", err)
+	}
+	verifiedCandidate, ok := candidateReport.VerifiedPackage()
+	if !ok {
+		t.Fatal("Core did not issue a verified selected ModuleWorker package")
+	}
+	moduleWorkerLocator, err := formpackage.PublicationLocatorFor(verifiedCandidate.PackageIndex(), verifiedCandidate.PackageDigest())
+	if err != nil {
+		t.Fatal(err)
+	}
 	packageSubject := filepath.Join(
 		output,
 		"packages",
-		"k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2nn5shk3dfk5xxe23foi",
-		"sha256-a9909dd1ffb28a860c36b4d5bd35bcea89f233b926aa7a691fe2f8bca9dcddde",
+		moduleWorkerLocator.ReleaseID,
+		moduleWorkerLocator.ArtifactID,
 		PackageIndexName,
 	)
+	var moduleWorkerSubject *SigningSubject
+	for index := range report.Subjects {
+		if report.Subjects[index].Role == "package-index" && report.Subjects[index].Path == filepath.ToSlash(filepath.Join("packages", moduleWorkerLocator.ReleaseID, moduleWorkerLocator.ArtifactID, PackageIndexName)) {
+			moduleWorkerSubject = &report.Subjects[index]
+			break
+		}
+	}
+	if moduleWorkerSubject == nil || moduleWorkerSubject.Digest != verifiedCandidate.PackageDigest() {
+		t.Fatalf("signing request omitted Core-verified selected ModuleWorker subject: %+v", moduleWorkerSubject)
+	}
 	actual, err := os.ReadFile(packageSubject)
 	if err != nil {
 		t.Fatal(err)
 	}
-	source, err := os.ReadFile(filepath.Join(
-		repositoryRoot,
-		"forms",
-		"releases",
-		"k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2nn5shk3dfk5xxe23foi",
-		"sha256-a9909dd1ffb28a860c36b4d5bd35bcea89f233b926aa7a691fe2f8bca9dcddde",
-		PackageIndexName,
-	))
+	source, err := os.ReadFile(filepath.Join(repositoryRoot, filepath.FromSlash(moduleWorkerLocator.SourcePath), PackageIndexName))
 	if err != nil {
 		t.Fatal(err)
 	}

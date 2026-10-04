@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import {
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -17,6 +18,7 @@ import {
   deriveSigningRoster,
   derivePublicationPlan,
   verifyPublicationTree,
+  verifyWithCore,
   writePublication,
 } from "./form-publication.mjs";
 
@@ -41,7 +43,7 @@ describe("Edge Form Package publication materialization", () => {
     expect(plan.formCount).toBe(17);
     expect(plan.retainedPackageCount).toBe(11);
     expect(plan.evidenceOnlyPackageCount).toBe(3);
-    expect(plan.releaseRootCount).toBe(31);
+    expect(plan.releaseRootCount).toBe(40);
     expect(plan.formCount + plan.retainedPackageCount).toBe(28);
     const former = plan.retainedPackages.filter(
       (entry) =>
@@ -323,7 +325,7 @@ describe("Edge Form Package publication materialization", () => {
     ).toThrow(/candidate FormRef differs/);
   });
 
-  test("writes every release directory when the publication root is empty", () => {
+  test("writes current release directories while preserving archive and retained roots", () => {
     const fixture = makeFixture();
     const verifyPackage = makeFixtureVerifier(fixture);
     const plan = derivePublicationPlan({ root: fixture, verifyPackage });
@@ -386,7 +388,7 @@ describe("Edge Form Package publication materialization", () => {
     });
 
     expect(checked.checked).toHaveLength(17);
-    expect(listPackageRoots(fixture)).toHaveLength(22);
+    expect(listPackageRoots(fixture)).toHaveLength(31);
     for (const snapshot of snapshots) {
       expect(
         snapshotTree(
@@ -395,6 +397,152 @@ describe("Edge Form Package publication materialization", () => {
       ).toEqual(snapshot.bytes);
     }
   });
+
+  test("preserves exact prior-source roots as unsigned history while appending the selected successors", () => {
+    const coreVerifier = (packageRoot) =>
+      verifyWithCore(packageRoot, repositoryRoot);
+    const { fixture, history, priorSnapshots } = makeSourceHistoryFixture();
+
+    const plan = derivePublicationPlan({
+      root: fixture,
+      verifyPackage: coreVerifier,
+    });
+    const initialRoots = listPackageRoots(fixture);
+    expect(plan.sourceHistoryPackageCount).toBe(9);
+    expect(plan.formCount).toBe(17);
+    expect(plan.retainedPackageCount).toBe(2);
+    expect(plan.evidenceOnlyPackageCount).toBe(3);
+    expect(plan.releaseRootCount).toBe(31);
+
+    writePublication({ root: fixture, verifyPackage: coreVerifier });
+    const checked = verifyPublicationTree(plan, {
+      root: fixture,
+      verifyPackage: coreVerifier,
+    });
+    expect(checked.checked).toHaveLength(17);
+    expect(initialRoots).toHaveLength(22);
+    expect(listPackageRoots(fixture)).toHaveLength(31);
+    for (const prior of priorSnapshots) {
+      expect(snapshotTree(prior.source)).toEqual(prior.bytes);
+    }
+
+    const roster = deriveSigningRoster({
+      root: fixture,
+      verifyPackage: coreVerifier,
+    });
+    expect(roster.activeReleasePaths).toHaveLength(17);
+    for (const entry of history.packages) {
+      expect(roster.activeReleasePaths).not.toContain(entry.sourcePath);
+    }
+  }, 60_000);
+
+  test("rejects unknown, incomplete, changed, duplicate, cross-classified and current roots before writing", () => {
+    const mutateCases = [
+      ["unknown", (history) => (history.packages[0].formRef.kind = "Unknown")],
+      ["missing", (history) => history.packages.pop()],
+      [
+        "duplicate",
+        (history) => history.packages.push({ ...history.packages[0] }),
+      ],
+      ["source mismatch", (history) => (history.sourceCommit = "0".repeat(40))],
+      [
+        "missing root",
+        (_history, fixture) => {
+          const history = JSON.parse(
+            readFileSync(
+              path.join(fixture, "forms", "source-history.json"),
+              "utf8",
+            ),
+          );
+          rmSync(path.join(fixture, history.packages[0].sourcePath), {
+            recursive: true,
+            force: true,
+          });
+        },
+      ],
+      ["extra field", (history) => (history.packages[0].extra = true)],
+      [
+        "cross classified",
+        (history, fixture) => {
+          const retained = JSON.parse(
+            readFileSync(
+              path.join(fixture, "forms", "retained-packages.json"),
+              "utf8",
+            ),
+          ).packages[0];
+          history.packages[0] = retained;
+        },
+      ],
+      [
+        "current as history",
+        (history, fixture) => {
+          const candidateSet = JSON.parse(
+            readFileSync(
+              path.join(
+                fixture,
+                "forms",
+                "candidates",
+                "edge.forms.takoform.com",
+                "candidate-set.json",
+              ),
+              "utf8",
+            ),
+          );
+          const current = candidateSet.forms.find(
+            (candidate) => candidate.kind === history.packages[0].formRef.kind,
+          );
+          const prior = history.packages[0];
+          prior.formRef = current.formRef;
+          prior.packageDigest = current.packageDigest;
+          prior.artifactId = current.packageDigest.replace(":", "-");
+          prior.tag = `forms/${prior.releaseId}/${prior.artifactId}`;
+          prior.sourcePath = `forms/releases/${prior.releaseId}/${prior.artifactId}`;
+        },
+      ],
+      [
+        "tampered bytes",
+        (_history, fixture) => {
+          const history = JSON.parse(
+            readFileSync(
+              path.join(fixture, "forms", "source-history.json"),
+              "utf8",
+            ),
+          );
+          const file = path.join(
+            fixture,
+            history.packages[0].sourcePath,
+            "definition.json",
+          );
+          writeFileSync(file, `${readFileSync(file, "utf8")}\nchanged\n`);
+        },
+      ],
+    ];
+    for (const [label, mutate] of mutateCases) {
+      const fixture = makeFixture();
+      const historyPath = path.join(fixture, "forms", "source-history.json");
+      const history = JSON.parse(readFileSync(historyPath, "utf8"));
+      mutate(history, fixture);
+      if (label !== "tampered bytes") {
+        writeFileSync(
+          path.join(fixture, "forms", "source-history.json"),
+          `${JSON.stringify(history, null, 2)}\n`,
+        );
+      }
+      const baselineRoots = listPackageRoots(fixture);
+      expect(
+        () =>
+          writePublication({
+            root: fixture,
+            verifyPackage: makeFixtureVerifier(fixture),
+          }),
+        label,
+      ).toThrow();
+      expect(listPackageRoots(fixture), `${label} wrote release roots`).toEqual(
+        baselineRoots,
+      );
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  }, 60_000);
 
   test("rejects a third Core-valid package root outside the retained inventory", () => {
     const fixture = makeFixture();
@@ -431,7 +579,7 @@ describe("Edge Form Package publication materialization", () => {
     expect(() => writePublication({ root: fixture, verifyPackage })).toThrow(
       /retained release root is missing/,
     );
-    expect(listPackageRoots(fixture)).toHaveLength(4);
+    expect(listPackageRoots(fixture)).toHaveLength(13);
     expect(plan.retainedPackageCount).toBe(2);
   });
 
@@ -548,7 +696,51 @@ function makeFixture() {
     const target = path.join(fixture, entry.sourcePath);
     cpSync(source, target, { recursive: true });
   }
+  const sourceHistoryPath = path.join(
+    repositoryRoot,
+    "forms",
+    "source-history.json",
+  );
+  cpSync(sourceHistoryPath, path.join(fixture, "forms", "source-history.json"));
+  const sourceHistory = JSON.parse(readFileSync(sourceHistoryPath, "utf8"));
+  for (const entry of sourceHistory.packages) {
+    cpSync(
+      path.join(repositoryRoot, entry.sourcePath),
+      path.join(fixture, entry.sourcePath),
+      { recursive: true },
+    );
+  }
   return fixture;
+}
+
+function makeSourceHistoryFixture() {
+  const fixture = makeFixture();
+  const coreVerifier = (packageRoot) =>
+    verifyWithCore(packageRoot, repositoryRoot);
+  const historyPath = path.join(fixture, "forms", "source-history.json");
+  const history = JSON.parse(readFileSync(historyPath, "utf8"));
+  const priorSnapshots = [];
+  for (const entry of history.packages) {
+    const source = path.join(repositoryRoot, entry.sourcePath);
+    const target = path.join(fixture, entry.sourcePath);
+    cpSync(source, target, { recursive: true });
+    priorSnapshots.push({ source: target, bytes: snapshotTree(target) });
+  }
+  const plan = derivePublicationPlan({
+    root: fixture,
+    verifyPackage: coreVerifier,
+  });
+  const replacedKinds = new Set(
+    history.packages.map((entry) => entry.formRef.kind),
+  );
+  for (const form of plan.forms) {
+    if (replacedKinds.has(form.kind)) continue;
+    const source = path.join(repositoryRoot, form.locator.sourcePath);
+    cpSync(source, path.join(fixture, form.locator.sourcePath), {
+      recursive: true,
+    });
+  }
+  return { fixture, history, priorSnapshots };
 }
 
 function makeFixtureVerifier(fixture) {

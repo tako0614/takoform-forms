@@ -25,6 +25,10 @@ export const EXPECTED_RETAINED_PACKAGE_COUNT = 2;
 export const EXPECTED_EVIDENCE_ONLY_PACKAGE_COUNT = 3;
 export const RETAINED_PACKAGE_INVENTORY_RELATIVE =
   "forms/retained-packages.json";
+export const SOURCE_HISTORY_RELATIVE = "forms/source-history.json";
+export const SOURCE_HISTORY_SOURCE_COMMIT =
+  "85b2f755a0cf104caf1ae8cb3738e475d55fe988";
+export const EXPECTED_SOURCE_HISTORY_PACKAGE_COUNT = 9;
 export const ABANDONED_PREPUBLICATION_RELATIVE =
   "forms/trust/abandoned-prepublication.json";
 export const ABANDONED_PREPUBLICATION_SET_ID =
@@ -332,6 +336,12 @@ export function derivePublicationPlan({
     ),
   ];
   retainedPackages.sort((left, right) => compareStrings(left.tag, right.tag));
+  const sourceHistoryPackages = readSourceHistory(
+    root,
+    forms,
+    [...retainedPackages, ...evidenceOnlyPackages],
+    verifyPackage,
+  );
   return {
     repositoryRoot: path.resolve(root),
     familyIndexPath,
@@ -342,11 +352,16 @@ export function derivePublicationPlan({
     currentPackageCount: forms.length,
     retainedPackageCount: retainedPackages.length,
     evidenceOnlyPackageCount: evidenceOnlyPackages.length,
+    sourceHistoryPackageCount: sourceHistoryPackages.length,
     releaseRootCount:
-      forms.length + retainedPackages.length + evidenceOnlyPackages.length,
+      forms.length +
+      retainedPackages.length +
+      evidenceOnlyPackages.length +
+      sourceHistoryPackages.length,
     forms,
     retainedPackages,
     evidenceOnlyPackages,
+    sourceHistoryPackages,
   };
 }
 
@@ -772,6 +787,281 @@ export function readRetainedPackageInventory(root = repositoryRoot) {
   });
 }
 
+function readSourceHistory(
+  root,
+  currentForms,
+  classifiedPackages,
+  verifyPackage,
+) {
+  const inventory = readJSON(
+    resolveRepositoryPath(root, SOURCE_HISTORY_RELATIVE),
+    "unsigned source-history inventory",
+  );
+  if (
+    inventory === null ||
+    typeof inventory !== "object" ||
+    Object.keys(inventory).sort().join(",") !==
+      "family,format,packages,sourceCommit" ||
+    inventory.format !== "takoform.source-history@v1" ||
+    inventory.family !== ACTIVE_FAMILY ||
+    inventory.sourceCommit !== SOURCE_HISTORY_SOURCE_COMMIT ||
+    !Array.isArray(inventory.packages)
+  ) {
+    throw new Error(
+      `unsigned source-history inventory must use the exact ${SOURCE_HISTORY_SOURCE_COMMIT} predecessor source`,
+    );
+  }
+
+  const priorCandidateBytes = readPinnedGitObject([
+    "show",
+    `${SOURCE_HISTORY_SOURCE_COMMIT}:${expectedCandidateSetRelative}`,
+  ]);
+  const priorCandidateSet = parseJSON(
+    priorCandidateBytes,
+    "pinned predecessor candidate set",
+  );
+  if (
+    priorCandidateSet?.format !== "takoform.form-family-candidates@v1" ||
+    priorCandidateSet.family !== ACTIVE_FAMILY ||
+    !Array.isArray(priorCandidateSet.forms)
+  ) {
+    throw new Error("pinned predecessor candidate set is invalid");
+  }
+  const currentByKind = new Map(currentForms.map((form) => [form.kind, form]));
+  const expectedByKind = new Map();
+  for (const candidate of priorCandidateSet.forms) {
+    if (
+      candidate === null ||
+      typeof candidate !== "object" ||
+      typeof candidate.kind !== "string" ||
+      candidate.formRef?.apiVersion !== ACTIVE_FAMILY ||
+      candidate.formRef.kind !== candidate.kind ||
+      !digestPattern.test(candidate.packageDigest ?? "")
+    ) {
+      throw new Error("pinned predecessor candidate has an invalid identity");
+    }
+    const current = currentByKind.get(candidate.kind);
+    if (current && current.packageDigest !== candidate.packageDigest) {
+      expectedByKind.set(candidate.kind, candidate);
+    }
+  }
+  if (
+    expectedByKind.size !== EXPECTED_SOURCE_HISTORY_PACKAGE_COUNT ||
+    inventory.packages.length !== EXPECTED_SOURCE_HISTORY_PACKAGE_COUNT
+  ) {
+    throw new Error(
+      `unsigned source-history inventory must contain exactly ${EXPECTED_SOURCE_HISTORY_PACKAGE_COUNT} replaced predecessor packages`,
+    );
+  }
+
+  const seenKinds = new Set();
+  const seenPaths = new Set();
+  const seenTags = new Set();
+  const seenDigests = new Set();
+  const result = inventory.packages.map((entry, index) => {
+    if (
+      entry === null ||
+      typeof entry !== "object" ||
+      Object.keys(entry).sort().join(",") !==
+        "artifactId,formRef,packageDigest,releaseId,sourcePath,tag"
+    ) {
+      throw new Error(`unsigned source-history entry[${index}] is invalid`);
+    }
+    const formRef = entry.formRef;
+    if (
+      formRef === null ||
+      typeof formRef !== "object" ||
+      Object.keys(formRef).sort().join(",") !==
+        "apiVersion,definitionVersion,kind,schemaDigest" ||
+      formRef.apiVersion !== ACTIVE_FAMILY ||
+      typeof formRef.kind !== "string" ||
+      typeof formRef.definitionVersion !== "string" ||
+      !digestPattern.test(formRef.schemaDigest) ||
+      !digestPattern.test(entry.packageDigest) ||
+      typeof entry.releaseId !== "string" ||
+      !releaseIdPattern.test(entry.releaseId) ||
+      typeof entry.artifactId !== "string" ||
+      !artifactIdPattern.test(entry.artifactId) ||
+      typeof entry.tag !== "string" ||
+      typeof entry.sourcePath !== "string"
+    ) {
+      throw new Error(`unsigned source-history entry[${index}] is invalid`);
+    }
+    const kind = formRef.kind;
+    const candidate = expectedByKind.get(kind);
+    if (
+      !candidate ||
+      seenKinds.has(kind) ||
+      JSON.stringify(formRef) !== JSON.stringify(candidate.formRef) ||
+      entry.packageDigest !== candidate.packageDigest
+    ) {
+      throw new Error(
+        `unsigned source-history entry[${index}] is unknown, duplicate, current, or differs from the exact predecessor source`,
+      );
+    }
+    const expectedArtifact = entry.packageDigest.replace(":", "-");
+    const expectedTag = `forms/${entry.releaseId}/${entry.artifactId}`;
+    const expectedSourcePath = `${publicationRootRelative}/${entry.releaseId}/${entry.artifactId}`;
+    if (
+      entry.artifactId !== expectedArtifact ||
+      entry.tag !== expectedTag ||
+      entry.sourcePath !== expectedSourcePath ||
+      seenPaths.has(entry.sourcePath) ||
+      seenTags.has(entry.tag) ||
+      seenDigests.has(entry.packageDigest) ||
+      classifiedPackages.some(
+        (classified) =>
+          classified.tag === entry.tag ||
+          classified.sourcePath === entry.sourcePath ||
+          classified.packageDigest === entry.packageDigest,
+      )
+    ) {
+      throw new Error(
+        `unsigned source-history entry ${kind} is malformed or cross-classified`,
+      );
+    }
+
+    const releasePath = resolveRepositoryPath(root, entry.sourcePath);
+    verifyGitSourceTree(entry.sourcePath, releasePath);
+    const locator = verifyPackage(releasePath, root);
+    const expectedLocator = {
+      apiVersion: "packages.forms.takoform.com/v1alpha5",
+      releaseId: entry.releaseId,
+      artifactId: entry.artifactId,
+      tag: entry.tag,
+      sourcePath: entry.sourcePath,
+    };
+    if (
+      !sameLocator(locator, expectedLocator) ||
+      locator.artifactId !== candidate.packageDigest.replace(":", "-")
+    ) {
+      throw new Error(
+        `unsigned source-history ${kind}: Core locator differs from the exact predecessor package`,
+      );
+    }
+    const packageIndex = readJSON(
+      path.join(releasePath, "package-index.json"),
+      `${kind} unsigned source-history package index`,
+    );
+    if (JSON.stringify(packageIndex.formRef) !== JSON.stringify(formRef)) {
+      throw new Error(
+        `unsigned source-history ${kind}: FormRef differs from the exact predecessor package`,
+      );
+    }
+    seenKinds.add(kind);
+    seenPaths.add(entry.sourcePath);
+    seenTags.add(entry.tag);
+    seenDigests.add(entry.packageDigest);
+    return {
+      formRef,
+      packageDigest: entry.packageDigest,
+      releaseId: entry.releaseId,
+      artifactId: entry.artifactId,
+      tag: entry.tag,
+      sourcePath: entry.sourcePath,
+      releasePath,
+    };
+  });
+  if (seenKinds.size !== expectedByKind.size) {
+    throw new Error("unsigned source-history inventory is incomplete");
+  }
+  return result.sort((left, right) => compareStrings(left.tag, right.tag));
+}
+
+function verifyGitSourceTree(sourcePath, releasePath) {
+  const listing = readPinnedGitObject([
+    "ls-tree",
+    "-r",
+    "-z",
+    "--full-tree",
+    SOURCE_HISTORY_SOURCE_COMMIT,
+    "--",
+    sourcePath,
+  ]);
+  const records = listing.toString("utf8").split("\0").filter(Boolean);
+  if (records.length === 0) {
+    throw new Error(
+      `unsigned source-history predecessor path is absent from ${SOURCE_HISTORY_SOURCE_COMMIT}: ${sourcePath}`,
+    );
+  }
+  const predecessorFiles = new Map();
+  for (const record of records) {
+    const separator = record.indexOf("\t");
+    const metadata = record.slice(0, separator).split(" ");
+    const repositoryPath = record.slice(separator + 1);
+    const [mode, type, objectId] = metadata;
+    const prefix = `${sourcePath}/`;
+    if (
+      separator < 0 ||
+      mode !== "100644" ||
+      type !== "blob" ||
+      !/^[0-9a-f]{40}$/u.test(objectId ?? "") ||
+      !repositoryPath.startsWith(prefix)
+    ) {
+      throw new Error(
+        `unsigned source-history predecessor tree is malformed at ${repositoryPath}`,
+      );
+    }
+    const relative = repositoryPath.slice(prefix.length);
+    if (
+      relative.length === 0 ||
+      relative
+        .split("/")
+        .some((part) => part === "" || part === "." || part === "..") ||
+      predecessorFiles.has(relative)
+    ) {
+      throw new Error(
+        `unsigned source-history predecessor tree has an invalid path ${repositoryPath}`,
+      );
+    }
+    predecessorFiles.set(relative, objectId);
+  }
+
+  const localFiles = inventoryFiles(releasePath);
+  if (
+    localFiles.length !== predecessorFiles.size ||
+    localFiles.some(([relative]) => !predecessorFiles.has(relative))
+  ) {
+    throw new Error(
+      `unsigned source-history bytes differ from predecessor Git tree ${sourcePath}`,
+    );
+  }
+  for (const [relative, objectId] of predecessorFiles) {
+    const expectedBytes = readPinnedGitObject(["cat-file", "blob", objectId]);
+    const actualBytes = readRegularFile(
+      path.join(releasePath, ...relative.split("/")),
+      `unsigned source-history file ${relative}`,
+    );
+    if (!expectedBytes.equals(actualBytes)) {
+      throw new Error(
+        `unsigned source-history file differs from predecessor Git object: ${sourcePath}/${relative}`,
+      );
+    }
+  }
+}
+
+function readPinnedGitObject(args) {
+  const result = spawnSync("git", ["-C", repositoryRoot, ...args], {
+    encoding: null,
+    maxBuffer: 32 * 1024 * 1024,
+    env: credentialFreeEnvironment(),
+  });
+  if (result.status !== 0) {
+    const detail = [result.stderr, result.stdout]
+      .map((value) =>
+        Buffer.from(value ?? "")
+          .toString("utf8")
+          .trim(),
+      )
+      .filter(Boolean)
+      .join("\n");
+    throw new Error(
+      `cannot verify pinned predecessor Git object ${args.join(" ")}${detail ? `:\n${detail}` : ""}`,
+    );
+  }
+  return Buffer.from(result.stdout ?? []);
+}
+
 /** Verify one complete package with the checked-in public Core CLI. */
 export function verifyWithCore(packageRoot, root = repositoryRoot) {
   const result = spawnSync(
@@ -881,6 +1171,34 @@ export function inspectPublicationTree(plan, { root = repositoryRoot } = {}) {
     }
   }
 
+  const sourceHistoryPackages = plan.sourceHistoryPackages ?? [];
+  for (const historical of sourceHistoryPackages) {
+    const releaseRoot = resolveRepositoryPath(root, historical.sourcePath);
+    const packageRoot = `${historical.releaseId}/${historical.artifactId}`;
+    expectedPackageRoots.add(packageRoot);
+    if (!pathExists(releaseRoot)) {
+      failures.push(
+        `${historical.sourcePath}: unsigned source-history release root is missing`,
+      );
+      continue;
+    }
+    if (
+      !releaseRoot.startsWith(
+        resolveRepositoryPath(root, publicationRootRelative) + path.sep,
+      )
+    ) {
+      throw new Error(
+        `${historical.formRef.kind}: unsigned source-history path escapes forms/releases`,
+      );
+    }
+    for (const [relative, digest] of inventoryFiles(releaseRoot)) {
+      expected.set(`${historical.sourcePath}/${relative}`, {
+        digest,
+        source: path.join(releaseRoot, ...relative.split("/")),
+      });
+    }
+  }
+
   const actual = new Map();
   const releaseRoot = resolveRepositoryPath(root, publicationRootRelative);
   if (pathExists(releaseRoot)) {
@@ -901,6 +1219,7 @@ export function inspectPublicationTree(plan, { root = repositoryRoot } = {}) {
   }
   const retainedRoots = new Set();
   const evidenceRoots = new Set();
+  const sourceHistoryRoots = new Set();
   for (const relative of actual.keys()) {
     if (expected.has(relative)) continue;
     const packageRoot = contentAddressedPackageRoot(
@@ -925,6 +1244,12 @@ export function inspectPublicationTree(plan, { root = repositoryRoot } = {}) {
         )
       ) {
         evidenceRoots.add(packageRoot);
+      } else if (
+        sourceHistoryPackages.some(
+          (entry) => `${entry.releaseId}/${entry.artifactId}` === packageRoot,
+        )
+      ) {
+        sourceHistoryRoots.add(packageRoot);
       } else {
         failures.push(`${relative}: extra release file`);
       }
@@ -936,6 +1261,7 @@ export function inspectPublicationTree(plan, { root = repositoryRoot } = {}) {
     failures,
     retainedRoots,
     evidenceRoots,
+    sourceHistoryRoots,
   };
 }
 
@@ -947,6 +1273,7 @@ export function verifyPublicationTree(
     requireComplete = true,
   } = {},
 ) {
+  verifyPlanSourceHistory(plan, { root, verifyPackage });
   const inspection = inspectPublicationTree(plan, { root });
   if (requireComplete && inspection.failures.length > 0) {
     throw new Error(
@@ -977,6 +1304,34 @@ export function verifyPublicationTree(
   };
 }
 
+function verifyPlanSourceHistory(
+  plan,
+  { root = repositoryRoot, verifyPackage = verifyWithCore } = {},
+) {
+  const verified = readSourceHistory(
+    root,
+    plan.forms,
+    [...(plan.retainedPackages ?? []), ...(plan.evidenceOnlyPackages ?? [])],
+    verifyPackage,
+  );
+  const identity = (entry) => ({
+    formRef: entry.formRef,
+    packageDigest: entry.packageDigest,
+    releaseId: entry.releaseId,
+    artifactId: entry.artifactId,
+    tag: entry.tag,
+    sourcePath: entry.sourcePath,
+  });
+  if (
+    JSON.stringify(verified.map(identity)) !==
+    JSON.stringify((plan.sourceHistoryPackages ?? []).map(identity))
+  ) {
+    throw new Error(
+      "unsigned source-history inventory changed after publication plan derivation",
+    );
+  }
+}
+
 export function writePublication({
   root = repositoryRoot,
   verifyPackage = verifyWithCore,
@@ -1003,6 +1358,7 @@ export function writePublication({
       `refusing to rewrite an existing release tree:\n${blockingFailures.join("\n")}`,
     );
   }
+  verifyPlanSourceHistory(plan, { root, verifyPackage });
   // Validate retained package bytes before staging any new tree. Retained
   // identities are never created, replaced, or removed by this writer.
   verifyRetainedPublicationRoots(plan, { root, verifyPackage });

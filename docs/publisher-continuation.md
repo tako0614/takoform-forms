@@ -60,14 +60,22 @@ pair; continuation is never inferred from `previous_set` alone.
 A later Container publication decision must separately promote an exact active
 roster (19 for the first Container proposal) in the owning candidate set and
 pinned current-family index. The current unpromoted 19-path request still fails.
-The publication plan admits old release roots only from Core-verified prior
-signed sets (plus the two pinned retained identities), verifies their exact
-Core locators and bytes, and requires their existing immutable public tags
-before a new publication. Abandoned evidence-only roots never become signed
-or tagged packages. The public readback checks the signed set history and the
-checkpoint-signer history independently; a repeated continuation adds a set
-tag, not a revocation tag. None of these source paths dispatches signing or
-publishes a release by itself.
+The publication plan admits publishable old release roots only from
+Core-verified prior signed sets (plus the two pinned retained identities),
+verifies their exact Core locators and bytes, and requires their existing
+immutable public tags before a new publication. Separately, the bounded
+`forms/source-history.json` inventory records exactly nine unsigned prior
+candidate package roots from source commit
+`85b2f755a0cf104caf1ae8cb3738e475d55fe988`. The publisher proves their bytes
+against that Git tree and Core-verifies their locators. They participate only
+in the checked-in release-tree and anonymous full-tree readback closure; they
+are never active roots, signed history, package tags, signing subjects, or
+trust authority. Unknown or missing entries fail closed. Abandoned
+evidence-only roots likewise never become signed or tagged packages. The
+public readback checks the signed set history and the checkpoint-signer
+history independently; a repeated continuation adds a set tag, not a
+revocation tag. None of these source paths dispatches signing or publishes a
+release by itself.
 
 Another no-revocation successor may follow a continuation or a real
 advancement and select a new active Form version. The old package can leave
@@ -79,7 +87,7 @@ fabricated acyclic chain cannot recurse without limit.
 It checks each set's lineage structure and signature before following that
 set's predecessor claim; cycle and depth checks still apply on every call.
 
-Later *real revocations* can each extend the immediately preceding set's
+Later _real revocations_ can each extend the immediately preceding set's
 checkpoint through Core's normal one-statement cumulative extension. Each
 signed lineage subject names the immediate set as `previousSetId`, even when
 the checkpoint being extended was signed by an older set. The package roster

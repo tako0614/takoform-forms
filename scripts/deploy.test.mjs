@@ -211,6 +211,33 @@ describe("Edge Form Package deploy surface", () => {
     );
   });
 
+  test("blocks source-history inventory drift from the signed source before mutation", () => {
+    const plan = makePlan();
+    const fixture = makeCommandDependencies(plan, {
+      sourceHistoryDiverges: true,
+    });
+
+    expect(
+      runDeploy(
+        [RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT],
+        fixture.dependencies,
+      ),
+    ).toBe(1);
+    expect(fixture.stderr).toContain(
+      "package subjects changed after the Core-verified signing source",
+    );
+    expect(
+      fixture.calls.some(
+        (call) => call.command === "bun" && call.args.join(" ") === "run check",
+      ),
+    ).toBe(false);
+    expect(
+      fixture.calls.some(
+        (call) => call.command === "git" && call.args[0] === "push",
+      ),
+    ).toBe(false);
+  });
+
   test("dry-run accepts a signed no-revocation set with an inherited checkpoint", () => {
     const plan = makePlan();
     const continuation = makeContinuationTrustReport(plan);
@@ -735,6 +762,10 @@ describe("Edge Form Package deploy surface", () => {
       path.join(tmpdir(), "takoform-public-verify-test-"),
     );
     const plan = makePlan(root);
+    const sourceHistory = makeSourceHistoryPackage();
+    plan.sourceHistoryPackages = [sourceHistory];
+    plan.sourceHistoryPackageCount = 1;
+    plan.releaseRootCount += 1;
     const trust = makeAdvancementTrustReport(plan);
     writePublicFixture(plan);
     const calls = [];
@@ -830,6 +861,9 @@ describe("Edge Form Package deploy surface", () => {
           const retained = (plan.retainedPackages ?? []).find((candidate) =>
             packageRoot.endsWith(candidate.sourcePath),
           );
+          const historical = (plan.sourceHistoryPackages ?? []).find(
+            (candidate) => packageRoot.endsWith(candidate.sourcePath),
+          );
           return retained
             ? ok(
                 `${JSON.stringify({
@@ -840,7 +874,17 @@ describe("Edge Form Package deploy surface", () => {
                   sourcePath: retained.sourcePath,
                 })}\n`,
               )
-            : fail("unknown package");
+            : historical
+              ? ok(
+                  `${JSON.stringify({
+                    apiVersion: "packages.forms.takoform.com/v1alpha5",
+                    releaseId: historical.releaseId,
+                    artifactId: historical.artifactId,
+                    tag: historical.tag,
+                    sourcePath: historical.sourcePath,
+                  })}\n`,
+                )
+              : fail("unknown package");
         }
         return fail(
           `unexpected read-only command: ${command} ${args.join(" ")}`,
@@ -853,7 +897,7 @@ describe("Edge Form Package deploy surface", () => {
     });
     expect(evidence.status).toBe("VERIFIED");
     expect(evidence.currentPackageCount).toBe(17);
-    expect(evidence.releaseRootCount).toBe(19);
+    expect(evidence.releaseRootCount).toBe(20);
     expect(evidence.releaseTagCount).toBe(19);
     expect(evidence.tagCount).toBe(17);
     expect(evidence.revocationTagCount).toBe(1);
@@ -872,6 +916,19 @@ describe("Edge Form Package deploy surface", () => {
       evidence.tags.every((tag) => tag.commit === EXISTING_TAG_COMMIT),
     ).toBe(true);
     expect(evidence.retainedTags).toHaveLength(2);
+    expect(evidence.tags.some((tag) => tag.tag === sourceHistory.tag)).toBe(
+      false,
+    );
+    expect(
+      evidence.retainedTags.some((tag) => tag.tag === sourceHistory.tag),
+    ).toBe(false);
+    expect(
+      calls.some(
+        (call) =>
+          call.command === "go" &&
+          call.args.at(-1).includes(sourceHistory.sourcePath),
+      ),
+    ).toBe(true);
     const pageEvidence = verifyPublicEdgeFormPackages(
       plan,
       trust,
@@ -1151,6 +1208,27 @@ function makePlan(
     releaseRootCount: forms.length + retainedPackages.length,
     forms,
     retainedPackages,
+    sourceHistoryPackages: [],
+  };
+}
+
+function makeSourceHistoryPackage() {
+  const formRef = {
+    apiVersion: "edge.forms.takoform.com",
+    kind: "ActorNamespace",
+    definitionVersion: "0.2.0",
+    schemaDigest: `sha256:${"e".repeat(64)}`,
+  };
+  const packageDigest = `sha256:${"f".repeat(64)}`;
+  const releaseId = "unsigned-source-history-actor";
+  const artifactId = packageDigest.replace(":", "-");
+  return {
+    formRef,
+    packageDigest,
+    releaseId,
+    artifactId,
+    tag: `forms/${releaseId}/${artifactId}`,
+    sourcePath: `forms/releases/${releaseId}/${artifactId}`,
   };
 }
 
@@ -1165,6 +1243,7 @@ function makeCommandDependencies(
     remoteTags = new Map(),
     retainedTagMode = "all",
     signedVerifierDiverges = false,
+    sourceHistoryDiverges = false,
     trustReport = makeTrustReport(plan),
     previousTrustReport = undefined,
     trustError = "",
@@ -1281,6 +1360,16 @@ function makeCommandDependencies(
       args.includes(plan.retainedPackages?.[0]?.sourcePath)
     ) {
       return fail("package bytes differ");
+    }
+    if (
+      args[0] === "diff" &&
+      args[1] === "--quiet" &&
+      args[2] === SOURCE_COMMIT &&
+      args[3] === COMMIT &&
+      args.includes("forms/source-history.json") &&
+      sourceHistoryDiverges
+    ) {
+      return fail("source-history inventory differs");
     }
     if (
       args[0] === "diff" &&
@@ -1676,6 +1765,17 @@ function writePublicFixture(plan) {
     writeFileSync(
       path.join(directory, "package-index.json"),
       `${JSON.stringify({ formRef: retained.formRef })}\n`,
+    );
+  }
+  for (const historical of plan.sourceHistoryPackages ?? []) {
+    const directory = path.join(
+      plan.repositoryRoot,
+      ...historical.sourcePath.split("/"),
+    );
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(
+      path.join(directory, "package-index.json"),
+      `${JSON.stringify({ formRef: historical.formRef })}\n`,
     );
   }
 }

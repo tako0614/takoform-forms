@@ -90,6 +90,14 @@ var actorWorkflowSourceFormVersions = runtimeFormVersions{
 // stated on this exact new Interface identity rather than represented by
 // invented provider-specific operations.
 func RuntimeCandidateInterface() InterfaceDefinition {
+	return runtimeCandidateInterface(false)
+}
+
+func selectedRuntimeCandidateInterface() InterfaceDefinition {
+	return runtimeCandidateInterface(true)
+}
+
+func runtimeCandidateInterface(includeActorFacade bool) InterfaceDefinition {
 	definition := workerRuntimeInterface()
 	definition.Version = RuntimeCandidateInterfaceVersion
 	definition.Title = "ES Module Worker and Actor runtime ABI"
@@ -114,6 +122,9 @@ func RuntimeCandidateInterface() InterfaceDefinition {
 		"provisional sends and returns HTTP 502 before any 101. The reservation has no independent timer: its lifetime " +
 		"is the original connected HTTP invocation and abort signal. This exact identity is a local candidate only; it " +
 		"does not reinterpret worker.runtime@1.1.0 or change published bytes."
+	if includeActorFacade {
+		definition.Description += actorRuntimeJavaScriptFacadeDescription
+	}
 	return definition
 }
 
@@ -181,12 +192,12 @@ func RenderRuntimeCandidate() (RuntimeCandidate, error) {
 // renderRuntimeCandidate shares the aggregate authoring path while selecting
 // only the independently adopted source-only capability pairs.
 func renderRuntimeCandidate(includeVector bool, versions runtimeFormVersions) (RuntimeCandidate, error) {
-	runtimeContract, err := renderRuntimeCandidateInterface()
+	runtimeContract, err := renderRuntimeCandidateInterface(versions.selectedSourceProse)
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
 
-	actor, err := renderActorCandidatePair(runtimeContract, versions.actor)
+	actor, err := renderActorCandidatePair(runtimeContract, versions.actor, versions.selectedSourceProse)
 	if err != nil {
 		return RuntimeCandidate{}, err
 	}
@@ -272,8 +283,11 @@ func renderRuntimeCandidate(includeVector bool, versions runtimeFormVersions) (R
 	return candidate, nil
 }
 
-func renderRuntimeCandidateInterface() (RenderedContract, error) {
+func renderRuntimeCandidateInterface(includeActorFacade bool) (RenderedContract, error) {
 	definition := RuntimeCandidateInterface()
+	if includeActorFacade {
+		definition = selectedRuntimeCandidateInterface()
+	}
 	if err := ValidateInterfaceDefinitions([]InterfaceDefinition{definition}); err != nil {
 		return RenderedContract{}, fmt.Errorf("runtime candidate Interface authoring: %w", err)
 	}

@@ -18,14 +18,20 @@ package examples. [How to read the model](docs/site.md#read-the-reference) expla
 Worker delivery, capability bindings and SQLite migrations. Older versions stay
 available under **Retained versions**, with their own historical definitions.
 
-The last published set signed 17 package subjects. The local append-only release
-tree now has 31 roots: those 17 earlier signed roots, nine newly prepared
-unsigned Actor/Workflow successors, two explicitly retained roots in
-[`forms/retained-packages.json`](forms/retained-packages.json), and three
-abandoned evidence-only roots. The existing 19 publishable package tags belong
-to the earlier 17 plus the two retained roots. Only after an independently
-reviewed successor set and publication could the nine new roots bring that
-total to 28; the three abandoned roots never receive tags.
+The last published set signed 17 package subjects. The selected source closure
+has 40 release roots: 17 current roots (eight unchanged and nine new
+Actor/Workflow successors), 11 signed-history/explicitly-retained roots, three
+abandoned evidence-only roots, and nine exact prior-source roots recorded in
+[`forms/source-history.json`](forms/source-history.json). That inventory is
+anchored to source commit `85b2f755a0cf104caf1ae8cb3738e475d55fe988`; the
+publisher verifies those package bytes against that Git tree and Core's
+package locator. These nine roots are unsigned source history only: they are
+included in local/anonymous full-tree closure, never in a signed set, package
+tag roster, or trust decision. The existing 19 publishable package tags belong
+to the earlier 17 plus the two explicitly retained roots. Only after an
+independently reviewed successor set and publication could the nine new
+current roots bring that total to 28; the three abandoned roots never receive
+tags.
 
 The current `module-worker.object-bucket@1.1.0` Binding projects the
 `edge.objects@1.0.0` API with length-aware streaming: `put` and `uploadPart`
@@ -109,8 +115,8 @@ forms/<releaseId>/sha256-<digest>
 ```
 
 `bun run write:publication` materializes missing current release directories.
-It does not sign or publish them, and never rewrites the two retained or three
-abandoned evidence-only roots. An exact
+It does not sign or publish them, and never rewrites historical, explicitly
+retained, source-history, or abandoned evidence-only roots. An exact
 protected-main commit is prepared for
 external keyless signing with:
 
@@ -161,10 +167,12 @@ bun run deploy -- form-packages-edge --trust-set <source-commit> --verify
 `main` and the matching tags; run `--verify` afterwards for anonymous public
 readback. Existing immutable package tags may point to an older commit only
 when their package paths are byte-identical to the signed source. Anonymous
-readback fetches every exact publishable current/historical package tag,
-compares their bytes, and reruns Core v1.1.0 over all local release roots.
-The currently public predecessor still has 19 package tags; the unsigned
-selected source has 31 local roots and cannot pass this publication step.
+readback fetches every exact publishable current/signed-historical package
+tag, compares their bytes, separately checks the untagged source-history roots
+from the anonymous main-tree readback, and reruns Core v1.1.0 over all local
+release roots. The currently public predecessor still has 19 package tags;
+the unsigned selected source has 40 local roots and cannot pass this
+publication step.
 Readback also verifies the
 signature bundles, pinned publisher policy and trusted root, signed checkpoint,
 and every not-revoked decision. Changing package bytes creates a

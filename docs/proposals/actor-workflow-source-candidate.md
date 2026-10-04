@@ -66,8 +66,12 @@ cannot substitute its native class base, credential plane or application
 name for these portable contracts. See
 [Actor execution](actor-execution-contract.md) and
 [Workflow execution](workflow-execution-contract.md) for the unaccepted
-semantic proposals. Source selection alone does not adopt them as released
-contracts or qualify either Host backend.
+semantic proposals. The selected unpublished `worker.actor@2.0.0` and
+`worker.runtime@2.0.0` Definitions now carry the exact JavaScript facade
+mapping from the Actor proposal's “Proposed JavaScript surface” section. That
+mapping is adopted only in these source candidates; it does not accept the
+proposal's remaining lifecycle semantics, change released contracts, or
+qualify either Host backend.
 
 For the new Workflow successor only, queued/running/sleeping/waiting instances
 are dependent execution identities under their Workflow UID. Generic DELETE
