@@ -15,6 +15,7 @@
     "check:edge-form-pages": "bun scripts/edge-form-pages.mjs --check",
     "check:edge-form-pages:source": "bun scripts/edge-form-pages.mjs --check-source",
     "check:edge-form-pages:browser": "node scripts/edge-form-pages-browser.mjs",
+    "check:edge-form-pages:browser:source": "node scripts/edge-form-pages-browser.mjs --source-preview",
     "generate": "bun scripts/current-form-families.mjs --write",
     "write:publication": "bun scripts/form-publication.mjs --write",
     "prepare:trust": "go run ./cmd/publisher-trust prepare --repository .",

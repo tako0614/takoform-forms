@@ -1,0 +1,101 @@
+---
+title: Hostで資源を作る
+description: 対応確認、作成、状態確認、更新、削除をHost API v2で進める手順。
+---
+
+# Hostで資源を作る
+
+以下は、EdgeKVNamespaceを一つ作る通信例です。説明用のHostを使っており、実環境での成功記録ではありません。
+HostがこのFormを実装し、利用者にSpaceへの権限があることを前提にします。認証方式、APIの接続先、料金はHostの案内で確認します。
+
+## 1. 接続先と対応するFormを確認する
+
+`GET https://host.example/.well-known/takoform/v2`で、APIの`baseUrl`、認証案内、上限、任意機能を確認します。
+以後はその`baseUrl`を使います。Formの仕様はこのサイトで読み、Hostから仕様を取り寄せる必要はありません。
+
+使うForm URLは次の文字列です。末尾の`/`まで含めて識別子で、転送先や別の版とは同一視しません。
+
+```text
+https://edge.forms.takoform.com/forms/EdgeKVNamespace/0.2.0/
+```
+
+`GET {baseUrl}/support?form={URLエンコードしたForm URL}`で`form`の一致と`supported:true`を確認します。
+Formに必須の操作が実装されていなければ、このHostでは利用できません。
+APIの版だけが同じでも、すべてのFormを扱えるとは限りません。
+
+Discoveryの`capabilities.offerings`が`true`なら、`GET {baseUrl}/offerings?form=...&space=...`で
+提供条件を選びます。選んだ`id`と`revision`を作成時に渡し、料金や制約の確認を省略しません。
+以下の例ではOfferingのないHostを使います。Offeringがないことは無料という意味ではありません。
+
+## 2. 作成する
+
+```http
+POST /apis/forms.takoform.com/v2/resources HTTP/1.1
+Host: host.example
+Content-Type: application/json
+Idempotency-Key: 0494f052-d72f-4a95-916a-5c5c3e791fd3
+
+{
+  "form": "https://edge.forms.takoform.com/forms/EdgeKVNamespace/0.2.0/",
+  "space": "personal",
+  "name": "page-cache",
+  "spec": {}
+}
+```
+
+認証ヘッダーは説明上省略しています。`spec:{}`は、このFormが調整可能な設定を持たないためです。
+結果整合性などの性質は、空の設定であっても個別仕様が定めます。
+
+HostはOperationを返します。`202`ならまだ処理中です。応答の`Location`でOperationを取得し、
+`status:succeeded`を確認した後、その`resourceUid`を使ってResourceを取得します。
+`failed`ならエラーと残った効果を確認します。`reconciling`は結果不明の調査中であり、別の作成を始める理由にはなりません。
+
+## 3. 状態を確認する
+
+`GET {baseUrl}/resources/{resourceUid}`で`generation`、`observedGeneration`、`observedAt`と
+Form固有の`observed`を確認します。取得時刻と外部の最終観測時刻は別です。
+このFormの管理操作が成功しても、Workerが接続済みとは限りません。利用するには別途WorkerVersionのBindingが必要です。
+
+## 4. 更新する
+
+```http
+PUT /apis/forms.takoform.com/v2/resources/r_kv_1 HTTP/1.1
+Host: host.example
+Content-Type: application/json
+Idempotency-Key: 55bdc29f-b7c5-4444-82fe-154ebdc1750b
+Takoform-Expected-Generation: 1
+
+{ "spec": {} }
+```
+
+このFormでは入力を変えられないため、同じ設定を照合する更新です。新しいキーの更新は新しいOperationと世代を持ちます。
+一般のFormではPUTが`spec`全体の置換になります。変更不能なbundleやWorkerVersionの内容を変える場合は、
+新しいResourceを作り、参照元を明示的に切り替えます。
+WorkerVersionの秘密値も実行する版の一部です。秘密を変更する場合は新しいWorkerVersionを用意し、
+Deploymentで切り替えます。同じUIDのまま、稼働中の版の意味を変えません。
+
+## 5. 削除する
+
+最新の世代を取得して、別の`Idempotency-Key`と`Takoform-Expected-Generation`を付けた
+`DELETE {baseUrl}/resources/{resourceUid}`を送ります。参照しているWorkerVersionが残っていれば、
+先に利用を終了し、その参照を片付ける必要があります。Hostは暗黙にアプリ全体を削除しません。
+Operationの成功が確認できるまで削除完了として扱いません。KVの内容も削除対象なので、必要なデータは事前に退避します。
+
+## 応答が消えた場合
+
+同じ操作の応答を受け取れなかった場合は、同じ認証主体、経路、本文、キーで再送します。
+タイムアウトだけでキーやResource名を変えると別の操作になります。Hostが知らせた再送保証期間とOperationの保持期限を確認し、
+保証期間を過ぎた場合は現状を照合してから判断します。再起動後も重複した外部資源を作らないことはHost実装側の要件です。
+
+秘密入力が必要なFormでは、再送や補給も[共通HTTP仕様](https://takoform.com/spec/host-api/v2/http)に従います。
+秘密値をURL、公開`spec`、ソース管理や確認用ログへ書きません。
+
+## コードとファイルを渡す
+
+WorkerBundle、StaticAssetBundle、SQLiteMigrationSetでは、manifestのHTTPS URLとSHA-256を指定します。
+Formの仕様URLとは別の、アプリの実データです。Hostはmanifestと各ファイルを検証して保持するため、
+後で配布元に接続できなくなっても、保持した資源を復旧できる必要があります。
+
+非公開コードを公開サイトへ置くことは必須ではありません。利用者に権限のあるHost管理の保管領域や、
+運用者が接続を許可した非公開の配布元も使えます。利用者がURLを書くだけで内部ネットワークへの接続や
+他の利用者のファイルへのアクセスが許可されるわけではありません。事前アップロード等の補助機能を提供するかはHostの選択です。

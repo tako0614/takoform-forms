@@ -1,9 +1,41 @@
 # Edge Form documentation
 
+## Human-authored Form specifications
+
+The new Host API v2 Form specifications are authored in Japanese under
+`spec/forms/<Kind>/<version>/index.md`. Their exact identifiers are
+`https://edge.forms.takoform.com/forms/<Kind>/<version>/`, including the trailing
+slash. At publication, each exact URL must serve its normative content directly;
+a redirect or a locale alias does not transfer its identity.
+The corresponding `/ja/` page is a reading view, not another Form identity.
+`spec/guides/` provides the overview, Host usage, Provider guidance and Migration.
+Guides are explanatory and their `/v2/` path denotes the Host API they discuss,
+not a collective Form release version.
+
+These sources are loaded independently of v1 package verification and rendered
+into the same site. They must not be inserted into a v1 signed set, promoted by
+the package generator, or treated as current Host/Provider capabilities. The
+existing v1 definitions, package bytes, history and versioned routes remain
+unchanged. An English reading view that contains the Japanese original must say
+so; only navigation and a language notice are not a translated specification.
+
+Before publishing a Form URL, review its complete normative body, exact links,
+examples and all referenced Form versions. Check direct-200 URL behavior and
+anonymous body readback on the actual site separately from local builds. Record
+the exact source commit and retain the published bytes; any later semantic
+change needs a new Form URL. The local documentation work does not perform
+that publication or establish Host runtime conformance.
+
+With authored sources present, `/` and `/ja/` introduce the new Forms. The v1
+overview remains at `/v1/` and `/ja/v1/`; all existing versioned Form routes keep
+their original definitions. `/v2/` is also a direct entry into the new guide.
+
+## Retained v1 package pages
+
 The human-facing reference lives at **edge.forms.takoform.com**. It is owned
-by this publisher, not the neutral Takoform API/Core site. It contains an index,
-17 published Form pages and two retained version pages. The selected source
-may contain newer, unpublished Form versions. Package publication,
+by this publisher, not the neutral Takoform API/Core site. The v1 section contains
+an index and the current and retained version pages derived from its selected
+package set. The selected source may contain newer, unpublished Form versions. Package publication,
 Host support, admission and actual hosting are separate concerns.
 
 English keeps the existing root routes; Japanese pages are under `/ja/`. The
@@ -96,20 +128,28 @@ renders real VitePress pages, and runs a Wrangler dry-run in a disposable
 directory. This source check is explicitly **UNPUBLISHED**: it consumes no
 trust set, emits no signed/public-readback assertion or unborn package-tag
 links, and deletes all preview assets. It is neither a site build target nor a
-deployment authorization. The signed `check:edge-form-pages` and
-`build:edge-form-pages` commands still require one exact installed signed set;
-the deploy gate retains that same strict requirement.
+deployment authorization. When authored Form sources are present, the signed
+`check:edge-form-pages` and `build:edge-form-pages` paths stop with
+`authored Form publication is not configured; use source-preview`.
+They cannot silently publish new immutable Form URLs as a routine v1 site update.
+The existing signed-set requirement remains unchanged for v1-only source trees.
+Publication of the new Form URLs needs its own reviewed, no-overwrite publication
+path; that path is not implemented by this documentation change.
 
 ```console
 bun install --frozen-lockfile
 go mod download
 bun run check
-bun run build:edge-form-pages
-bun run check:edge-form-pages:browser
+bun run check:edge-form-pages:browser:source
 ```
 
-The build prints a fresh temporary output directory; it never deletes a
-caller-selected nonempty directory. For a specific set/destination:
+The source browser lane builds one temporary preview, checks the rendered routes,
+and removes it on completion. It is explicitly **UNPUBLISHED** and does not
+qualify production CSP headers or public availability.
+
+For a v1-only source tree, the signed build prints a fresh temporary output
+directory; it never deletes a caller-selected nonempty directory. For a specific
+set/destination:
 
 ```console
 bun run build:edge-form-pages --trust-set <source-commit> --output <empty-directory>
@@ -119,11 +159,17 @@ The portable gate is read-only and validates exact packages, deterministic HTML,
 fixtures, history labels and the static build. The explicit browser lane needs
 installed Chrome/Chromium (`TAKOFORM_BROWSER` overrides its path); it neither
 downloads a browser nor uses a user profile. It checks every current and retained
-page at 320/375/414/768px under the generated CSP, navigation, JSON, semantics,
+page at 320/375/414/768px, navigation, JSON, semantics,
 keyboard disclosure, the mobile sidebar, local search and both color schemes.
+The default signed browser lane also checks the generated production CSP; the
+explicit source-preview lane checks local rendering without claiming that proof.
 Manual visual review still checks hierarchy, contrast and reading burden.
 
 ## Publish through this repository
+
+The following commands describe the retained v1 publication path. They do not
+publish the authored v2 Form URLs from the current source tree; its build guard
+stops before upload. Source preview is not a substitute publication artifact.
 
 Inspect `bun run deploy -- --contract`. Keep the authenticated account explicitly
 selected with `CLOUDFLARE_ACCOUNT_ID` outside source. Select a clean exact commit
