@@ -41,7 +41,7 @@ Deploymentの`worker.resourceUid`と一致しなければならない。Version 
 
 ## 選択と成立条件
 
-Hostは新たなfetch、scheduled、queue、Actor event、Workflowの新しい実行contextを受理する
+Hostは新たなHTTP要求、scheduled、queue、Actor event、Workflowの新しい実行contextを受理する
 時点の有効な配分からVersionを一つ選び、その一つを当該invocationの終了まで固定する。
 配分はbasis pointの比率であり、個別requestに決定的なhash結果や短期の正確な件数を保証しない。
 Worker Versionを選択できなければ別のVersionへ黙ってfallbackしない。Clientに見える失敗は
@@ -49,9 +49,14 @@ Worker Versionを選択できなければ別のVersionへ黙ってfallbackしな
 Actor event、Workflow contextを途中で切り替えない。Actorの次のeventとWorkflowの次の
 retry/wakeは、その時点の配分を再選択できる。
 
-`ready:true`として有効化する前にHostは全weighted Versionのbundle、handler、Binding、
-必要な秘密を確認する。添付されたendpoint/cron/queue consumerが要求するhandlerを、
-到達し得る全Versionが宣言・exportしなければならない。同じWorkerを参照するActorNamespaceと
+`ready:true`として有効化する前にHostは全weighted Versionの指定済みbundle、handler、
+asset、Binding、必要な秘密を確認する。添付されたEndpoint/CustomDomainまたは
+このWorkerを宛先とするservice Bindingがある場合、到達し得る全Versionは
+宣言・export済み`fetch`か検証済み`assets`のいずれかでHTTP要求へ応答できなければならない。
+cron/queue consumerが要求するhandlerは、到達し得る全Versionが宣言・exportしなければ
+ならない。添付後のDeployment作成・更新、または後からのAttachment作成・更新でも
+同じ全weighted Versionの条件を検証し、欠ける構成を有効にしてはならない。
+同じWorkerを参照するActorNamespaceと
 DurableWorkflowの全`className`を各Versionが正しいprototype ABIで提供しなければならない。
 Workflowのstep name・効果・出力について新旧コードの履歴互換性は作者の責任であり、Hostは
 既知の不整合を検出したら有効化を拒否し、検証できないことを互換性の証明として扱わない。
@@ -78,7 +83,7 @@ Readyが崩れたら新規受理を拒否し、残存状態を観測可能にす
   固定Versionで完了できるが、切替から15分を超えて残るcontextはHostが取消し、streamを
   閉じ、childの物理的退役を確認する。この退役は新配分の有効化を妨げないが、古いVersionの
   削除は退役が済むまで拒否する。Host障害時は所有記録から再開し、退役未確認を完了扱いしない。
-- 削除はまず新たなfetch・scheduled・queue・Actor event・Workflow contextの選択を閉じる。
+- 削除はまず新たなHTTP要求・scheduled・queue・Actor event・Workflow contextの選択を閉じる。
   既存invocationには取消signalを送り、HTTP body/Actor upgrade予約とHost所有streamを止め、
   child実行の物理的退役と古いownerのfenceを確認してから成功にする。Promise rejectionだけを
   退役の証明としない。Hostが確認できない間はOperationを未確定として照合を続ける。

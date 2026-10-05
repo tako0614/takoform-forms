@@ -15,7 +15,7 @@ hostApi: forms.takoform.com/v2
 
 | フィールド | 要件、既定値、範囲 | 作成後の変更 |
 | --- | --- | --- |
-| `worker` | 必須の `{ "resourceUid": "…" }`。ModuleWorker 0.3.0 Resourceを参照し、`fetch` handlerを提供します。既定値なし。 | Attachment UIDの間不変。変更には削除と新規作成が必要です。 |
+| `worker` | 必須の `{ "resourceUid": "…" }`。ModuleWorker 0.3.0 Resourceを参照します。active Deploymentの全weighted Versionが宣言済み`fetch`または検証済み`assets`でHTTP要求に応答できる必要があります。既定値なし。 | Attachment UIDの間不変。変更には削除と新規作成が必要です。 |
 
 ```json
 {
@@ -51,12 +51,12 @@ Hostは作成要求を受理するときにアドレスを割り当てます。�
 
 ## 操作、拒否、復旧
 
-- **作成:** Worker参照が同じHost・SpaceのModuleWorker 0.3.0であり、`fetch` handlerが宣言・提供されることを副作用前に検証します。一つのWorkerに有効なEndpointは最大1つです。2つ目や参照条件違反を拒否し、既存endpointを変更しません。
+- **作成:** Worker参照が同じHost・SpaceのModuleWorker 0.3.0であり、active Deploymentの全weighted Versionが宣言済み`fetch`または検証済み`assets`でHTTP要求に応答できることを副作用前に検証します。一つのWorkerに有効なEndpointは最大1つです。2つ目や参照条件違反を拒否し、既存endpointを変更しません。後のDeployment切替でも同じ条件を検証します。
 - **取得:** Attachment、最後に確定したroute観測、割当て済みならhostname/urlを返します。読み取りはroute設定を変更しません。
-- **更新:** Worker UIDの変更は副作用前に拒否します。同じWorkerへの再調整要求は現在のアドレスを保ったままrouteを収束させます。アドレスの差替えやschemeの変更はできません。
+- **更新:** Worker UIDの変更は副作用前に拒否します。全weighted VersionのHTTP応答条件を再確認し、同じWorkerへの再調整要求は現在のアドレスを保ったままrouteを収束させます。アドレスの差替えやschemeの変更はできません。
 - **削除:** endpoint routeと割当Attachmentを解除します。Worker Resourceまたはdeploymentは削除しません。Hostは既知の部分失敗と割当てを保持し、同じUIDの更新で再調整し、削除で後始末できる必要があります。
 
-Hostは割当アドレス、TLS構成、経路対象、Operationを永続化し、プロセス再起動後も同じUIDとアドレスを復元します。参照Workerは[ModuleWorker 0.3.0 runtime ABI](https://edge.forms.takoform.com/forms/ModuleWorker/0.3.0/#runtime)の `fetch` handlerを提供します。外部経路の作成後、応答を失うなど結果が不明な場合は `effect:unknown` として `reconciling` に保持し、別アドレスを盲目的に割り当てません。Hostが一部だけ設定したと確認した場合は `effect:partial` を返します。応答待ち時間超過や再起動のみで `effect:none` としてはいけません。既知の孤児経路を利用者に隠さず、同じUIDの明示的なupdate/deleteで収束・後始末します。未確定操作中に別UIDのendpointを同じWorkerへ発行しません。
+Hostは割当アドレス、TLS構成、経路対象、Operationを永続化し、プロセス再起動後も同じUIDとアドレスを復元します。外部HTTP要求は選択済みVersionの[asset/fetch配信規則](https://edge.forms.takoform.com/forms/WorkerVersion/0.5.0/)に従います。外部経路の作成後、応答を失うなど結果が不明な場合は `effect:unknown` として `reconciling` に保持し、別アドレスを盲目的に割り当てません。Hostが一部だけ設定したと確認した場合は `effect:partial` を返します。応答待ち時間超過や再起動のみで `effect:none` としてはいけません。既知の孤児経路を利用者に隠さず、同じUIDの明示的なupdate/deleteで収束・後始末します。未確定操作中に別UIDのendpointを同じWorkerへ発行しません。
 
 v2のIdempotency-Key再送は同じOperationを返します。経路/TLS側で安全に照合できるまで新しい作成を始めず、照合不可能なら `unknown` として止めます。作成成功後のアプリケーション応答は経路設定と別の責任です。
 
@@ -68,4 +68,4 @@ v2のIdempotency-Key再送は同じOperationを返します。経路/TLS側で�
 
 ## Interface、Binding、未知のフィールド
 
-このForm独自のInterfaceまたはBindingはありません。外部要求を受ける入口はModuleWorker ABIの `fetch` handlerです。`spec` と参照オブジェクトは閉じた形で、未知のフィールドは拒否します。参照オブジェクトの唯一のフィールドは `resourceUid` です。
+このForm独自のInterfaceまたはBindingはありません。外部要求はWorkerVersionのasset配信または宣言済み`fetch` handlerへ届きます。`spec` と参照オブジェクトは閉じた形で、未知のフィールドは拒否します。参照オブジェクトの唯一のフィールドは `resourceUid` です。

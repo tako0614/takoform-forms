@@ -7,8 +7,8 @@ hostApi: forms.takoform.com/v2
 
 # WorkerVersion 0.5.0
 
-WorkerVersionは一つの[ModuleWorker 0.3.0](../../ModuleWorker/0.3.0/)に属する実行snapshotである。
-bundle、handler宣言、非秘密変数、秘密変数の名前と封じた値、型付きBinding、任意のassetを
+WorkerVersionは一つの[ModuleWorker 0.3.0](../../ModuleWorker/0.3.0/)に属する配信・実行snapshotである。
+任意のbundle、handler宣言、非秘密変数、秘密変数の名前と封じた値、型付きBinding、任意のassetを
 固定する。秘密値は公開Resourceには現れないが、このVersion UIDに結び付く実行内容の一部である。
 トラフィックを受けるかどうかは[WorkerDeployment 0.4.0](../../WorkerDeployment/0.4.0/)が別に決める。
 本Formは`forms.takoform.com/v2`のResourceであり、公開・Host対応・稼働の証明ではない。
@@ -22,12 +22,19 @@ bundle、handler宣言、非秘密変数、秘密変数の名前と封じた値�
 「最新」への再解決はしない。参照先の削除・再作成は古いUIDを新しいResourceへ付け替えない。
 
 - **`worker`（必須）** — [ModuleWorker 0.3.0](../../ModuleWorker/0.3.0/)のUID。この版の所有Worker。
-- **`bundle`（必須）** — [WorkerBundle 0.2.0](../../WorkerBundle/0.2.0/)のUID。検証済みmanifestが示すmodule bytes。
-- **`handlers`（必須）** — 重複なしの1〜3個。`fetch`、`scheduled`、`queue`だけを受け付け、実際のdefault exportと一致させる。
+- **`bundle`（条件付き）** — [WorkerBundle 0.2.0](../../WorkerBundle/0.2.0/)のUID。検証済みmanifestが示すmodule bytes。handlerを一つでも宣言する場合は必須。省略できるのは以下の静的専用構成だけである。
+- **`handlers`（必須）** — 重複なしの0〜3個。`fetch`、`scheduled`、`queue`だけを受け付ける。bundleがある場合は実際のdefault exportと一致させる。空配列はhandlerを提供しない。
 - **`vars`（任意）** — 既定値は `{}`、最大64キー。非秘密JSON値を`env`へ投影する。
 - **`requiredSensitiveVars`（任意）** — 既定値は `[]`、重複なし最大64名。秘密値の**名前だけ**を公開し、値は`privateInputs`で与える。
 - **Binding配列（各任意）** — `kvBindings`、`sqliteBindings`、`bucketBindings`、`queueProducerBindings`、`serviceBindings`、`actorBindings`、`workflowBindings`。各既定値は `[]`、各最大64件。各要素は`{"name":string,"resource":{"resourceUid":string}}`。
 - **`assets`（任意）** — 省略時はasset配信なし。指定時は三キーとも必須。`bundle`は[StaticAssetBundle 0.2.0](../../StaticAssetBundle/0.2.0/)の参照、`runWorkerFirst`はboolean、`notFoundHandling`は`none`または`single_page_application`。
+
+WorkerBundleの`bundle`を省略する場合は、検証済みの`assets.bundle`を必ず指定し、
+`handlers:[]`、`assets.runWorkerFirst:false`、`vars:{}`、`requiredSensitiveVars:[]`、
+全Binding配列`[]`（省略した既定値を含む）だけを許す。moduleのない版にはhandler、
+named Actor/Workflow class、実行用envや秘密値を置けない。assetの検証・保持が未完了なら
+このVersionをReadyにしない。bundleがある版では空の`handlers`も許すが、module graphと
+default exportを検証する。bundleもassetsもない版は拒否する。
 
 例えば、既存の同一SpaceのWorkerとBundleを参照する最小の`spec`は次の形である。
 UIDは説明用で、これらのUIDの存在やHost対応を示さない。
@@ -37,6 +44,21 @@ UIDは説明用で、これらのUIDの存在やHost対応を示さない。
   "worker": { "resourceUid": "worker-uid" },
   "bundle": { "resourceUid": "bundle-uid" },
   "handlers": ["fetch"]
+}
+```
+
+静的ファイルだけを公開する最小の`spec`は次の形であり、コード用の空bundleやダミーの
+`fetch` exportは不要である。参照先assetは先に検証・保持されていなければならない。
+
+```json
+{
+  "worker": { "resourceUid": "worker-uid" },
+  "handlers": [],
+  "assets": {
+    "bundle": { "resourceUid": "assets-uid" },
+    "runWorkerFirst": false,
+    "notFoundHandling": "none"
+  }
 }
 ```
 
@@ -79,8 +101,9 @@ Hostが既設定値を失い一致を確認できない場合は、同じUIDに�
 
 ## 実行とBinding
 
-HostはBundleのmodule graph・media type・exportを[ModuleWorkerの実行Interface](../../ModuleWorker/0.3.0/)
-どおり検証する。`env`のown enumerable key集合は宣言した変数・秘密名・Binding名と正確に一致し、
+WorkerBundleがある場合、Hostはmodule graph・media type・exportを
+[ModuleWorkerの実行Interface](../../ModuleWorker/0.3.0/)どおり検証する。
+`env`のown enumerable key集合は宣言した変数・秘密名・Binding名と正確に一致し、
 宣言外の権限を与えない。Bindingは参照先への操作能力であり、参照やForm URLだけで利用者権限、
 Host credential、相手の秘密値を取得できない。解決できない必須BindingがあればReadyにしない。
 
@@ -103,7 +126,8 @@ Host credential、相手の秘密値を取得できない。解決できない�
 同一WorkerがActor/Workflow namespaceを提供する場合、全weighted Versionのmain moduleは
 対応する`className`のnamed exportとcallable prototypeを持たなければならない。
 WorkerVersion作成時にまだnamespaceがなくても後のDeploymentで検証し、循環した作成順序を
-要求しない。任意のclassが欠けるVersionを稼働へ選択してはならない。
+要求しない。bundleのない静的専用Versionはnamed classを提供できない。任意のclassが欠ける
+Versionを稼働へ選択してはならない。
 
 assetがある場合、探索keyはworkerへ渡す`Request.url`のURL pathnameから作る。
 Hostは同じURL構文のpathname（percent-encodedのまま、queryは除外）を`/`で分割し、
@@ -114,18 +138,27 @@ decode後に`/`・backslash・制御文字を含むsegment、`.`/`..` segment、
 文字列で完全一致させ、extension補完・外部取得はしない。探索不能ならasset missであり、
 SPA fallbackも適用しない。query文字列はkeyに影響しない。
 
-`runWorkerFirst:false`ではこのasset探索を先に行い、miss時だけfetchを呼ぶ。`true`では
-fetchがHTTP 404を返した後だけ探索する。assetが見つかればその応答を返す。
-`notFoundHandling:single_page_application`では有効な探索keyに対応するassetが無い場合だけ
-bundle rootの`index.html`を返す。indexが無いbundleはVersion保存前に拒否する。
-assetもSPA fallbackもmissならfetchの応答を保つ。fetch handlerを宣言しないVersionでは
-asset missをHTTP 404とし、未宣言handlerを暗黙に呼ばない。asset添付はbundleを変更せず、
-Workerへの隠れたBindingを作らない。
+asset探索とSPA fallbackは`GET`/`HEAD`要求にだけ適用する。assetが見つかれば
+manifestに宣言したmedia typeのHTTP 200応答を返す。asset応答の`HEAD`は同じpathの
+`GET`用assetと同じheaderを持ち、bodyだけを送らない。`runWorkerFirst:false`では
+asset探索（必要ならSPA fallback）を先に行い、
+miss時だけ宣言済みfetchを呼ぶ。`true`ではfetchを先に呼び、その応答がHTTP 404のときだけ
+asset探索（必要ならSPA fallback）を行い、assetが見つかればその応答を返し、missなら元の
+fetch応答を保つ。`notFoundHandling:single_page_application`は有効な探索keyに一致する
+assetが無い場合だけasset bundle rootの`index.html`を返す。indexが無いasset bundleは
+Version保存前に拒否する。`GET`/`HEAD`以外はassetを探索せず、宣言済みfetchがあれば
+そのhandlerへ渡し、なければHTTP 404を返す。fetchを宣言しないVersionでは
+`runWorkerFirst:true`を拒否し、assetもSPA fallbackもmissならHTTP 404を返す。
+未宣言handlerを暗黙に呼ばない。公開Endpoint、CustomDomain、service BindingのHTTP要求は
+同じ選択済みVersionのこの規則で配送し、入口ごとにassetの優先順位を変えない。
+asset添付はWorkerBundleを変更せず、Workerへの隠れたBindingを作らない。
 
 ## 状態、CRUD、所有
 
-`observed`は未観測なら `{}`。確認済みなら`ready:boolean`、`bundleVerified:boolean`、
-`resolvedBindings:boolean`を持つ。`ready:true`は必要な参照、秘密、module exportが解決され、
+`observed`は未観測なら `{}`。確認済みなら`ready:boolean`と`resolvedBindings:boolean`を持ち、
+WorkerBundleを指定した場合だけ`bundleVerified:boolean`を持つ。bundleを省略した静的専用
+Versionでは`bundleVerified`を省略し、`false`で代用しない。`ready:true`は必要な参照、
+asset bytes、秘密、指定されたmodule exportが解決され、
 この版を選択可能であることだけを表す。`output`は `{}`。GETは最後の確認結果を返し、
 現在トラフィックを受けている保証ではない。
 

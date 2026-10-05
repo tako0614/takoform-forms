@@ -49,9 +49,17 @@ Formのcanonical URLは `https://edge.forms.takoform.com/forms/EdgeKVNamespace/0
 
 HostはResourceの`create`、`read`、`update`、`delete`を実装します。空の`spec`と異なる更新は副作用前に拒否します。同じ空`spec`のPUTはHost API v2に従う新generation・新Operationとして受理し、名前空間の実在と管理対応を再確認します。HTTP受付と管理Operationは[Host API v2](https://takoform.com/spec/host-api/v2/http)に従います。次表の関数はWorkerのJavaScriptから直接呼び出し、個別のHTTP経路や管理Operation IDを持ちません。
 
-作成では空名前空間を一つ作ります。既に存在する名前空間を別Resourceとして初期化または引き継いではいけません。失敗時に作成有無が不明ならHostはResourceと不確実状態を保持し、同じResourceのread、同一`spec`のPUT、またはdeleteで照合・復旧します。新しいUIDで盲目的に作り直してはいけません。
+作成では空名前空間を一つ作ります。既に存在する名前空間を別Resourceとして初期化または引き継いではいけません。新しいUIDで盲目的に作り直してはいけません。
 
-readは管理記録と最後に確認したnamespace状態を返します。外部状態を確認できない場合は不在と断定しません。deleteは対象namespaceとその配下データを削除し、完了が不明なら同じResourceのdeleteで照合します。WorkerVersionから参照されている間は、削除を受理せず`409 dependency_conflict`を返します。参照先WorkerVersionを連鎖削除してはいけません。key/valueのPUT応答が失われた場合、その呼出しにHost管理Operation IDや管理用再送keyはありません。アプリケーションが再試行の効果を決めます。二重書込みを避ける必要がある場合、keyとvalueに応じた条件付けやアプリケーション側の重複防止を用います。
+作成や削除の応答を失った場合、元要求の再送は[Host API v2の再試行と保持](https://takoform.com/spec/host-api/v2/http#retry)に従います。保持期間内の同一要求・同一`Idempotency-Key`の再送は元Operationを返します。期限後はResource/Operationを照合し、結果不明のまま盲目的に再送してはいけません。Resource GETとOperation GETは観測だけを行い、実行を始めません。
+
+Hostは元の実行先と識別子を使い、バックグラウンドで結果の照合を試みます。結果を安全に判定できない間は`reconciling`を維持し、運用者による確定を待ちます。元Operationが非終端の間、同じResourceへの新しいPUT/DELETEを受理してはいけません。
+
+元Operationが`failed`で終了した後は、最新generationを指定した新しいPUT/DELETEで同じUIDの状態を収束させます。既知の部分削除は保存した進捗から再開し、対象の不在を確認できれば削除を成功にできます。PUTによる一般的な名前空間の再作成・初期化は保証しません。
+
+readは管理記録と最後に確認したnamespace状態を返します。外部状態を確認できない場合は不在と断定しません。deleteは対象namespaceとその配下データを削除します。WorkerVersionから参照されている間は削除を受理せず`409 dependency_conflict`を返し、参照元のWorkerVersionを連鎖削除しません。
+
+key/valueのPUT応答が失われた場合、その呼出しにHost管理Operation IDや管理用再送keyはありません。アプリケーションが再試行の効果を決めます。二重書込みを避ける必要がある場合、keyとvalueに応じた条件付けやアプリケーション側の重複防止を用います。
 
 以下の名前はWorker Bindingで呼ぶJavaScript関数名です。すべてPromiseを返し、成功時は表の値で解決します。関数固有の失敗は、`name`がerror codeである`Error`によりPromiseを拒否します。引数型やoptionsの形が不正なら`TypeError`です。Host APIのHTTP応答や管理Operation IDは使いません。
 

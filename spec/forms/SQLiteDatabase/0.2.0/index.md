@@ -39,7 +39,15 @@ Worker関数は後述する位置引数だけを受け付けます。省略し�
 
 ## 5. 操作と失敗
 
-Host API Resource操作は作成・取得・更新・削除です。createは空databaseと空migration ledgerを作ります。既存databaseを初期化・上書きしてはいけません。結果不明ならResourceと実行先対応を保持し、同じResourceのread、同一`spec`のPUT、またはdeleteで照合します。空`spec`と異なる更新は副作用前に拒否します。同じ空`spec`のPUTは新generation・新Operationを作り、管理対応を再確認します。deleteはdatabase全体を消すため、WorkerVersionまたはSQLiteMigrationApplicationが参照中なら受理せず`409 dependency_conflict`を返し、何も削除しません。参照先を強制削除する連鎖処理はありません。参照がなく削除を始めた後に失敗・中断した場合、進捗を保持し、同じResourceのdeleteで再開または照合します。
+Host API Resource操作は作成・取得・更新・削除です。createは空databaseと空migration ledgerを作ります。既存databaseを初期化・上書きしてはいけません。空`spec`と異なる更新は副作用前に拒否します。同じ空`spec`のPUTは新generation・新Operationを作り、管理対応を再確認します。
+
+作成や削除の応答を失った場合、元要求の再送は[Host API v2の再試行と保持](https://takoform.com/spec/host-api/v2/http#retry)に従います。保持期間内の同一要求・同一`Idempotency-Key`の再送は元Operationを返します。期限後はResource/Operationを照合し、結果不明のまま盲目的に再送してはいけません。Resource GETとOperation GETは観測だけを行い、実行を始めません。
+
+Hostは元の実行先と識別子を使い、バックグラウンドで結果の照合を試みます。結果を安全に判定できない間は`reconciling`を維持し、運用者による確定を待ちます。元Operationが非終端の間、同じResourceへの新しいPUT/DELETEを受理してはいけません。
+
+元Operationが`failed`で終了した後は、最新generationを指定した新しいPUT/DELETEで同じUIDの状態を収束させます。既知の部分削除は保存した進捗から再開し、対象の不在を確認できれば削除を成功にできます。PUTによる一般的なdatabaseの再作成・初期化は保証しません。
+
+deleteはdatabase全体を消します。WorkerVersionまたはSQLiteMigrationApplicationが参照中なら受理せず`409 dependency_conflict`を返し、何も削除しません。参照元を強制削除する連鎖処理はありません。
 
 SQL関数はPromiseを返します。成功した値は下表の通りです。関数固有の失敗ではPromiseを、表のcodeを`name`に持つ`Error`で拒否します。引数型・配列長・値形状の不正は`TypeError`です。Worker呼出しにはHost API HTTP ProblemやResource管理Operation IDはありません。SQLは一つだけ実行し、後続は空白・commentだけに限ります。複数statement、transaction制御文（`BEGIN`、`COMMIT`、`END`、`ROLLBACK`、`SAVEPOINT`、`RELEASE`）、schemaを変更する文（`CREATE`、`ALTER`、`DROP`。一時schemaやindex、view、triggerを含む）、`ATTACH`、`DETACH`、`VACUUM`、`PRAGMA`、`load_extension`、`sqlite_schema`またはmigration ledgerへのアクセス・変更は`sql_error`です。HostはSQLite parserとauthorizer等で構文および実際の作用を検査して禁止します。SQL本文を単語検索して判定してはいけません。文字列literal、comment、識別子、または許可された文から呼び出す既存triggerの本文に禁止語が現れることだけを理由に、実際には禁止作用のないSQLを拒否してはいけません。
 

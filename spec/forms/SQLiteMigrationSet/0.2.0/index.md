@@ -76,7 +76,7 @@ Hostが任意のopaque pathに秘密があるかを完全判定できるとは�
 ## 4. 観測状態、output、利用可能状態
 
 未検証の`observed`は `{}`。検証後は`manifestSha256`（小文字hex 64桁の文字列）、`fileCount`（1〜512の整数）、
-`totalBytes`（1〜134217728の整数）、`files`を含める。`files`はmanifestと同じ順序の配列で、各要素は正確に
+`totalBytes`（0〜134217728の整数）、`files`を含める。`files`はmanifestと同じ順序の配列で、各要素は正確に
 `path`（文字列）、`sha256`（接頭部分のない小文字hex 64桁）、`mediaType`（文字列）、`byteSize`（0〜16777216の
 整数）を持つ。`fileCount`は配列長、`totalBytes`は各`byteSize`の合計と一致する。取得URLは含めない。全fileの
 digest照合と永続保持が済むまで、検証済みとして報告してはならない。`output`は常に `{}`。

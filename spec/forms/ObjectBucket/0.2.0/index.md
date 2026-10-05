@@ -48,7 +48,15 @@ Canonical Form URLは`https://edge.forms.takoform.com/forms/ObjectBucket/0.2.0/`
 
 ## 5. 操作と失敗
 
-Host API Resource操作は作成・取得・更新・削除です。空の`spec`と異なる更新は副作用前に拒否します。同じ空`spec`のPUTはHost API v2に従う新generation・新Operationとなり、保管場所の実在と管理対応を再確認します。作成では空の保管場所を一つ作ります。所有を確認できない既存bucketを初期化・引き継いではいけません。作成結果が不明なら同じResourceの取得、同一`spec` PUT、または削除で照合し、新UIDで作り直しません。削除はこの保管場所と中の全objectを消します。部分失敗では進捗を保持し、同じResourceの削除を続行します。取得は管理記録と最後の観測を返します。
+Host API Resource操作は作成・取得・更新・削除です。空の`spec`と異なる更新は副作用前に拒否します。同じ空`spec`のPUTはHost API v2に従う新generation・新Operationとなり、保管場所の実在と管理対応を再確認します。作成では空の保管場所を一つ作ります。所有を確認できない既存bucketを初期化・引き継いではいけません。
+
+作成や削除の応答を失った場合、元要求の再送は[Host API v2の再試行と保持](https://takoform.com/spec/host-api/v2/http#retry)に従います。保持期間内の同一要求・同一`Idempotency-Key`の再送は元Operationを返します。期限後はResource/Operationを照合し、結果不明のまま盲目的に再送してはいけません。Resource GETとOperation GETは観測だけを行い、実行を始めません。
+
+Hostは元の実行先と識別子を使い、バックグラウンドで結果の照合を試みます。結果を安全に判定できない間は`reconciling`を維持し、運用者による確定を待ちます。元Operationが非終端の間、同じResourceへの新しいPUT/DELETEを受理してはいけません。
+
+元Operationが`failed`で終了した後は、最新generationを指定した新しいPUT/DELETEで同じUIDの状態を収束させます。既知の部分削除は保存した進捗から再開し、対象の不在を確認できれば削除を成功にできます。PUTによる一般的な保管場所の再作成・初期化は保証しません。
+
+削除はこの保管場所と中の全objectを消します。取得は管理記録と最後の観測を返します。
 
 次の関数はWorker Bindingで呼び出します。すべてPromiseを返し、成功時は表の値で解決します。関数固有の失敗は、`name`がerror codeである`Error`によりPromiseを拒否します。引数型やoptionsの形が不正なら`TypeError`です。これらの読書きはHost APIのHTTP経路、管理Operation ID、管理用再送keyを持ちません。
 

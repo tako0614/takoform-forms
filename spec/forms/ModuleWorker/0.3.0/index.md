@@ -24,7 +24,7 @@ hostApi: forms.takoform.com/v2
 `spec`は必須の空オブジェクト `{}` だけである。既定値も秘密入力もない。未知のキー、
 `null`、配列は拒否する。GETの`spec`も `{}` である。`observed`は未確認なら `{}`、確認済みなら
 `activeDeploymentUid`（有効なDeploymentがなければ`null`）と`ready`（真偽値）を返す。
-`ready:true`は、選ばれたDeploymentとその版がこのFormの実行条件を満たし、Hostが新しい
+`ready:true`は、選ばれたDeploymentとその版がこのFormの配信・実行条件を満たし、Hostが新しい
 イベントを受け付けられる状態を意味する。これは特定のHTTP要求の成功や外部到達性を保証しない。
 `observedAt`と`observedGeneration`は共通APIの時点を示す。`output`は `{}` である。
 
@@ -39,11 +39,13 @@ hostApi: forms.takoform.com/v2
 
 ## 実行Interface: module Worker {#runtime}
 
-HostがこのFormを対応表に載せるには、以下のABIを一体として実装する。WorkerVersionの
-`bundle`が指す[WorkerBundle 0.2.0](../../WorkerBundle/0.2.0/)のmain ES moduleを読み、
+HostがこのFormを対応表に載せるには、以下のABIと[WorkerVersionのasset配信](../../WorkerVersion/0.5.0/)を
+一体として実装する。コードを持つWorkerVersionでは`bundle`が指す
+[WorkerBundle 0.2.0](../../WorkerBundle/0.2.0/)のmain ES moduleを読み、
 その`default` exportはplain object、`fetch`、`scheduled`、`queue`は宣言されたものだけが
 callableなown propertyでなければならない。Versionが宣言していないhandlerや未exportの
-handlerを推測して呼ばない。import可能なmedia typeは
+handlerを推測して呼ばない。bundleのない静的専用Versionではmoduleを読み込まず、
+handlerやnamed class exportを実行しない。import可能なmedia typeは
 `application/javascript+module`、`text/plain`（UTF-8文字列）、
 `application/octet-stream`（ArrayBuffer）、`application/wasm`（コンパイル済みModule）である。
 source mapは補助物でありimport対象にしない。JSON moduleはこのABIにない。
@@ -76,7 +78,8 @@ WebAssemblyのinstantiateやimport objectはアプリが選び、Hostは自動�
 `scheduled(event, env, ctx): void | Promise<void>`、
 `queue(batch, env, ctx): void | Promise<void>`である。`event`はUTCの`scheduledTime`
 （Unixミリ秒）と一致した5-field `cron`を持つ。`batch`は`batchId`（1〜256文字）、
-queue名（1〜63文字）、1〜100件の順序付きmessage列を持つ。各messageには安定した
+queue名（対象Queue Resourceの`name`そのまま。共通Host APIのResource名文法
+`[A-Za-z0-9][A-Za-z0-9._-]{0,127}`に従う1〜128文字）、1〜100件の順序付きmessage列を持つ。各messageには安定した
 `id`（1〜256文字）、受理時の非負整数`timestampMillis`、body bytes、1から始まる整数
 `attempts`を含む。JavaScriptのbodyは`Uint8Array`であり、JSONや文字列へ暗黙変換しない。
 queueの明示的なack/retryと未settle時の扱いは
@@ -143,7 +146,8 @@ interface WorkerService {
 ```
 
 このfetchはHost内の**論理的なWorker UID**に届き、相手の現在有効なDeploymentが
-選ぶVersionの`fetch` handlerを呼ぶ。public endpoint、DNS名、公開HTTP routeは不要で、
+選ぶVersionのHTTP経路（asset探索または宣言済み`fetch` handler）を、公開endpointと
+同じ[WorkerVersionの配信規則](../../WorkerVersion/0.5.0/)で実行する。public endpoint、DNS名、公開HTTP routeは不要で、
 URLのhost名は配送先の選択に使わない。RequestとResponseのbodyは双方streamし、配送前に
 全文bufferしない。相手handlerの未捕捉例外は相手のHost生成500 ResponseとしてPromiseが
 resolveする。配送を開始できない場合だけ`Error.name === "backend_unavailable"`でrejectする。

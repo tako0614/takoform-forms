@@ -82,7 +82,7 @@ ASCII 8192文字以下の絶対HTTPS URLで、userinfo・query・fragmentなし�
 ## 4. 観測状態、output、利用可能状態
 
 未検証の`observed`は `{}`。検証後の`manifestSha256`は小文字hex 64桁の文字列、`fileCount`は1〜512の整数、
-`totalBytes`は1〜134217728の整数、`entrypoint`はmanifestのpath文字列と完全一致する。`files`はmanifestと同じ
+`totalBytes`は0〜134217728の整数、`entrypoint`はmanifestのpath文字列と完全一致する。`files`はmanifestと同じ
 順序の配列で、各要素は正確に`path`（文字列）、`sha256`（接頭部分のない小文字hex 64桁）、`mediaType`
 （文字列）、`byteSize`（0〜16777216の整数）を持つ。各pathとmediaTypeはmanifest値と完全一致し、`fileCount`は
 配列長、`totalBytes`は`byteSize`の合計と一致する。URLは含めない。全byteのdigest照合と永続保持が済むまで、

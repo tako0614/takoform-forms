@@ -99,3 +99,30 @@ Formの仕様URLとは別の、アプリの実データです。Hostはmanifest�
 非公開コードを公開サイトへ置くことは必須ではありません。利用者に権限のあるHost管理の保管領域や、
 運用者が接続を許可した非公開の配布元も使えます。利用者がURLを書くだけで内部ネットワークへの接続や
 他の利用者のファイルへのアクセスが許可されるわけではありません。事前アップロード等の補助機能を提供するかはHostの選択です。
+
+## 静的ファイルだけを公開する場合
+
+対応するHostでは、[StaticAssetBundle 0.2.0](https://edge.forms.takoform.com/forms/StaticAssetBundle/0.2.0/)を先に作成・検証し、
+[ModuleWorker 0.3.0](https://edge.forms.takoform.com/forms/ModuleWorker/0.3.0/)の空の同一性を作ります。そのWorkerとassetの
+UIDを使い、[WorkerVersion 0.5.0](https://edge.forms.takoform.com/forms/WorkerVersion/0.5.0/)を例えば次の`spec`で作成します。
+コード用WorkerBundleやダミーの`fetch` handlerは必要ありません。UIDは説明用です。
+
+```json
+{
+  "worker": { "resourceUid": "worker-uid" },
+  "handlers": [],
+  "assets": {
+    "bundle": { "resourceUid": "assets-uid" },
+    "runWorkerFirst": false,
+    "notFoundHandling": "none"
+  }
+}
+```
+
+その版を10000 basis pointで選ぶ[WorkerDeployment 0.4.0](https://edge.forms.takoform.com/forms/WorkerDeployment/0.4.0/)を
+作り、[WorkerEndpoint 0.3.0](https://edge.forms.takoform.com/forms/WorkerEndpoint/0.3.0/)か
+[WorkerCustomDomain 0.3.0](https://edge.forms.takoform.com/forms/WorkerCustomDomain/0.3.0/)をWorkerへ添付します。
+GET/HEADは検証済みassetを探索し、該当しなければ404を返します。その他のmethodも
+この静的専用構成では404です。SPA fallbackを選ぶ場合はasset bundle rootに`index.html`が
+必要です。公開前にHostのSupport、各Operation、Version/Deployment/入口のReady観測を
+確認します。この例は特定Hostの対応や公開済みサイトの存在を示しません。
