@@ -56,8 +56,15 @@ asset、Binding、必要な秘密を確認する。添付されたEndpoint/Custo
 cron/queue consumerが要求するhandlerは、到達し得る全Versionが宣言・exportしなければ
 ならない。添付後のDeployment作成・更新、または後からのAttachment作成・更新でも
 同じ全weighted Versionの条件を検証し、欠ける構成を有効にしてはならない。
-同じWorkerを参照するActorNamespaceと
-DurableWorkflowの全`className`を各Versionが正しいprototype ABIで提供しなければならない。
+同じWorkerを参照する削除未完了のActorNamespaceとDurableWorkflow（作成Operationを
+受理済みのものを含む）の全`className`を各Versionが正しいprototype ABIで提供しなければ
+ならない。Namespace/Workflowの作成と、このDeploymentの作成・配分更新は、受理済みで
+未完了のOperationを含めて整合性を保つ。後から作るNamespace/Workflowは現在の
+有効配分を不適合にしてはならず、その作成を`409 dependency_conflict`で副作用前に拒否する。
+両方が成功すると不適合な配分が有効になる組合せを認めない。Hostはこの整合性を
+実装方法に依存せず守る。作成・更新の受理後に並行変更との衝突が確定した場合も、
+不適合な配分を有効化せず、その受理済みOperationの結果と残存効果を共通Host API v2に
+従って報告する。受理済みOperationを後からHTTPの事前拒否へ置き換えない。
 Workflowのstep name・効果・出力について新旧コードの履歴互換性は作者の責任であり、Hostは
 既知の不整合を検出したら有効化を拒否し、検証できないことを互換性の証明として扱わない。
 Hostは移行・履歴書換え・Actor store初期化で不整合を隠さない。参照先の後続削除や秘密消失で

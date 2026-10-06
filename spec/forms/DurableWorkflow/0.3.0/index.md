@@ -24,6 +24,14 @@ ModuleWorker 0.3.0であり、呼出者に利用権限があると副作用前�
 参照先Worker Resourceは作成時に存在しなければならない。Deploymentだけは未作成でも
 Workflowを作成できるが、全weighted Versionに正しいclassが揃うまでReadyでない。
 UID参照は名前やlatestへ再解決しない。
+Workflow作成要求の受理前に、有効なDeploymentの現在の配分と、先に受理された
+未完了のDeployment作成・配分更新の適用予定をそれぞれ調べる。対象となる全weighted
+Versionは、この`className`のWorkflow class ABIを満たさなければならない。classの
+欠落・ABI不適合が確定した場合は`409 dependency_conflict`で副作用前に拒否し、既存の
+Deploymentとその配分を変更しない。対象Versionの検証が未完了で判定できない場合は
+`409 resource_busy`で受理せず、未検証を不適合と断定しない。有効なDeploymentもその
+未完了の作成・配分更新もなければ、先行作成を許し、正しいVersionが選ばれるまでは
+Readyにしない。受理済みOperationの結果は後からHTTPの事前拒否へ置き換えない。
 
 `spec`の例（UIDは説明用）:
 

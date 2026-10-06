@@ -24,6 +24,14 @@ eventは逐次実行する。HostがこのFormに対応すると主張するに�
 コードはWorkerの現在有効な[WorkerDeployment 0.4.0](../../WorkerDeployment/0.4.0/)が
 選ぶ全weighted [WorkerVersion 0.5.0](../../WorkerVersion/0.5.0/)から得る。
 Namespaceを先に作ることもできるため、Deploymentがまだない間はReadyにしない。
+Namespace作成要求の受理前に、有効なDeploymentの現在の配分と、先に受理された
+未完了のDeployment作成・配分更新の適用予定をそれぞれ調べる。対象となる全weighted
+Versionは、この`className`のActor class ABIを満たさなければならない。classの欠落・
+ABI不適合が確定した場合は`409 dependency_conflict`で副作用前に拒否し、既存のDeploymentと
+その配分を変更しない。対象Versionの検証が未完了で判定できない場合は
+`409 resource_busy`で受理せず、未検証を不適合と断定しない。有効なDeploymentもその
+未完了の作成・配分更新もなければ、先行作成を許し、正しいVersionが選ばれるまでは
+Readyにしない。受理済みOperationの結果は後からHTTPの事前拒否へ置き換えない。
 
 `spec`の例（UIDは説明用）:
 

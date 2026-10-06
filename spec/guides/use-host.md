@@ -126,3 +126,26 @@ GET/HEADは検証済みassetを探索し、該当しなければ404を返しま�
 この静的専用構成では404です。SPA fallbackを選ぶ場合はasset bundle rootに`index.html`が
 必要です。公開前にHostのSupport、各Operation、Version/Deployment/入口のReady観測を
 確認します。この例は特定Hostの対応や公開済みサイトの存在を示しません。
+
+## ActorとWorkflowのclassを追加・撤去する
+
+新しいWorkerなら、空のModuleWorkerを作り、ActorNamespaceまたはDurableWorkflowを先に
+作れます。Deploymentがない間、それらはまだReadyではありません。必要なclassと
+Bindingを含むWorkerVersionを作り、全weighted Versionがclass ABIを満たす
+WorkerDeploymentを作ると、新しいeventを受け付けられます。WorkerVersionのBindingは
+先に作ったNamespace/WorkflowのUIDを参照します。
+
+すでに稼働中のWorkerへclassを追加する場合は、先に全weighted Versionをそのclassを
+提供する版へ切り替え、切替Operationの成功を確認してからNamespace/Workflowを作ります。
+古い版と新しい版を併用する間も全版にclassが必要です。classのない版が一つでも
+現在の配分に残れば、Namespace/Workflowの作成は`409 dependency_conflict`で拒否され、
+既存の配分は維持されます。作成後にそのUIDを使うBindingが必要なら、新しい
+WorkerVersionを作ってDeploymentを切り替えます。
+
+稼働を続けながらclassとBindingを外す場合は、まずclassを残しBindingだけを外した
+中間WorkerVersionへ切り替えます。旧Versionの実行退役を確認し、Namespace/Workflowを
+Bindingしている未削除Versionをすべて削除してから、Namespace/Workflowを削除します。
+その後にclassも外した版へ切り替えられます。Bindingを持つ版を残したまま
+Namespace/Workflowを削除したり、Namespace/Workflowが残るうちにclassのない版を
+選んだりはできません。削除対象のActor dataやWorkflow履歴は各FormのDELETE条件に従い、
+Deployment切替では暗黙に消えません。
