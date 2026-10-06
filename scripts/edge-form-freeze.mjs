@@ -265,6 +265,7 @@ function repositoryHistory(root) {
     root,
     [
       "log",
+      "--full-history",
       "--reverse",
       "--format=%H",
       "--diff-filter=A",
@@ -279,6 +280,7 @@ function repositoryHistory(root) {
     root,
     [
       "log",
+      "--full-history",
       "--format=%H",
       "--diff-filter=D",
       "--root",
@@ -344,17 +346,14 @@ function verifyAppendOnlyHistory(root, history, problems) {
     );
     return;
   }
-  const commitsResult = runGit(root, [
-    "rev-list",
-    "--first-parent",
-    "--reverse",
-    "HEAD",
-  ]);
-  const commits = commitsResult.stdout.trim().split(/\s+/u).filter(Boolean);
-  const start = commits.indexOf(history.firstAddCommit);
-  if (start === -1) {
+  const ancestor = runGit(
+    root,
+    ["merge-base", "--is-ancestor", history.firstAddCommit, "HEAD"],
+    { allowFailure: true },
+  );
+  if (ancestor.status !== 0) {
     problems.push(
-      "first-add commit is not on HEAD's first-parent history; provenance is unknown",
+      "first-add commit is not an ancestor of HEAD; provenance is unknown",
     );
     return;
   }
@@ -362,44 +361,53 @@ function verifyAppendOnlyHistory(root, history, problems) {
   problems.push(
     ...firstSnapshot.problems.map((problem) => `first-add: ${problem}`),
   );
-  let previousForms = firstSnapshot.manifest?.forms ?? [];
-  if (!Array.isArray(previousForms)) return;
-
-  const touchedResult = runGit(
+  const descendantsResult = runGit(
     root,
     [
-      "log",
-      "--first-parent",
+      "rev-list",
+      "--ancestry-path",
+      "--topo-order",
       "--reverse",
-      "--format=%H",
+      "--parents",
       `${history.firstAddCommit}..HEAD`,
-      "--",
-      "spec/forms",
-      FREEZE_PATH,
     ],
     { allowFailure: true },
   );
-  if (touchedResult.status !== 0) {
+  if (descendantsResult.status !== 0) {
     problems.push(
-      `cannot inspect Form source history: ${touchedResult.stderr.trim()}`,
+      `cannot inspect Form source history: ${descendantsResult.stderr.trim()}`,
     );
     return;
   }
-  const touched = touchedResult.stdout.trim().split(/\s+/u).filter(Boolean);
-  for (const commit of touched) {
+  const descendants = descendantsResult.stdout
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => line.split(/\s+/u));
+  const descendantCommits = new Set(descendants.map(([commit]) => commit));
+  const snapshots = new Map([[history.firstAddCommit, firstSnapshot]]);
+  for (const [commit, ...parents] of descendants) {
     const current = manifestSnapshot(root, commit);
+    snapshots.set(commit, current);
     problems.push(
       ...current.problems.map((problem) => `history ${commit}: ${problem}`),
     );
     const nextForms = current.manifest?.forms;
     if (!Array.isArray(nextForms)) continue;
-    if (
-      nextForms.length < previousForms.length ||
-      previousForms.some((entry, index) => !sameEntry(entry, nextForms[index]))
-    ) {
-      problems.push(`${FREEZE_PATH} is not append-only at commit ${commit}`);
+    for (const parent of parents) {
+      if (parent !== history.firstAddCommit && !descendantCommits.has(parent))
+        continue;
+      const previousForms = snapshots.get(parent)?.manifest?.forms;
+      if (!Array.isArray(previousForms)) continue;
+      if (
+        nextForms.length < previousForms.length ||
+        previousForms.some(
+          (entry, index) => !sameEntry(entry, nextForms[index]),
+        )
+      ) {
+        problems.push(`${FREEZE_PATH} is not append-only at commit ${commit}`);
+      }
     }
-    previousForms = nextForms;
   }
 }
 
