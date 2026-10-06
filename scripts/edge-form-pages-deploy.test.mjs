@@ -5,8 +5,10 @@ import path from "node:path";
 
 import {
   DEPLOY_CONTRACT,
+  EDGE_V2_FORMS_SURFACE,
   assertEdgePageHeaders,
   readEdgeFormPages,
+  readPublicEdgeV2Forms,
   parseDeployInvocation as parseOwnerInvocation,
   runDeploy as runOwnerDeploy,
 } from "./deploy.mjs";
@@ -26,6 +28,74 @@ const runDeploy = (args, dependencies) =>
   runOwnerDeploy(target(args), dependencies);
 
 describe("Edge Form human page deploy surface", () => {
+  const frozenForm = {
+    url: "https://edge.forms.takoform.com/forms/ModuleWorker/0.3.0/",
+    path: "spec/forms/ModuleWorker/0.3.0/index.md",
+    sha256: "sha256:" + "a".repeat(64),
+  };
+  test("routine site update cannot mint a frozen Form; explicit identity surface can", () => {
+    for (const surface of [EDGE_FORM_PAGES_SURFACE, EDGE_V2_FORMS_SURFACE]) {
+      const f = pageDependencies();
+      f.dependencies.readEdgeFormFreeze = () => ({
+        status: "FROZEN",
+        frozen: [frozenForm],
+        pending: [],
+      });
+      f.dependencies.readPublicEdgeV2Forms = () => [];
+      f.dependencies.buildEdgeFormPages = ({ publishedForms }) => {
+        expect(publishedForms).toEqual(
+          surface === EDGE_V2_FORMS_SURFACE ? [frozenForm] : [],
+        );
+        return { routes: ["/"], files: [], digest: "sha256:" + "b".repeat(64) };
+      };
+      expect(runDeploy([surface, "--trust-set", SET_ID], f.dependencies)).toBe(
+        0,
+      );
+      expect(
+        f.calls.filter((call) => call.command.endsWith("wrangler")),
+      ).toHaveLength(1);
+    }
+  });
+
+  test("published Form absent from local frozen source blocks before upload", () => {
+    const f = pageDependencies();
+    f.dependencies.readPublicEdgeV2Forms = () => [frozenForm];
+    expect(
+      runDeploy(
+        [EDGE_FORM_PAGES_SURFACE, "--trust-set", SET_ID],
+        f.dependencies,
+      ),
+    ).toBe(1);
+    expect(f.stderr).toContain("not frozen unchanged");
+    expect(
+      f.calls.filter((call) => call.command.endsWith("wrangler")),
+    ).toHaveLength(0);
+  });
+
+  test("rejects remote inventory URL injection before requesting its routes", () => {
+    let requests = 0;
+    const dependencies = {
+      runReadOnly(command, args) {
+        expect(command).toBe("curl");
+        requests++;
+        writeFileSync(
+          args[args.indexOf("--output") + 1],
+          JSON.stringify({
+            kind: "edge.forms.site-publication",
+            forms: [
+              {
+                ...frozenForm,
+                url: "https://attacker.example/forms/ModuleWorker/0.3.0/",
+              },
+            ],
+          }),
+        );
+        return { exitCode: 0, stdout: "200", stderr: "" };
+      },
+    };
+    expect(() => readPublicEdgeV2Forms(dependencies, [frozenForm])).toThrow();
+    expect(requests).toBe(1);
+  });
   test("reads encoded asset paths without following redirects or relaxing bytes", () => {
     const temporary = mkdtempSync(path.join(tmpdir(), "edge-asset-readback-"));
     const assetsDirectory = path.join(temporary, "assets");
@@ -374,7 +444,14 @@ describe("Edge Form human page deploy surface", () => {
     expect(fixture.publicChecks).toBe(2);
     expect(fixture.calls).toContainEqual({
       command: "bun",
-      args: ["run", "check:edge-form-pages", "--trust-set", SET_ID],
+      args: [
+        "run",
+        "check:edge-form-pages",
+        "--trust-set",
+        SET_ID,
+        "--published-forms",
+        Buffer.from("[]").toString("base64url"),
+      ],
     });
     const wrangler = fixture.calls.find((call) =>
       call.command.endsWith("wrangler"),
@@ -461,6 +538,12 @@ function pageDependencies({ publicFailure, readbackFailure } = {}) {
     tags: [],
   };
   state.dependencies = {
+    readEdgeFormFreeze() {
+      return { status: "UNFROZEN", frozen: [], pending: [] };
+    },
+    readPublicEdgeV2Forms() {
+      return [];
+    },
     readEdgeHistory() {
       return {
         absent: false,

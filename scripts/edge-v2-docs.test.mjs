@@ -12,6 +12,27 @@ import path from "node:path";
 import { loadEdgeV2Docs, writeEdgeV2Docs } from "./edge-v2-docs.mjs";
 
 describe("authored Host API v2 documentation routes", () => {
+  test("production selection excludes every pending authored Form and guide before first publication", () => {
+    const root = fixtureRoot();
+    const docsRoot = path.join(root, "generated");
+    try {
+      write(root, formPath("HostAPI", "2.0.0"), formSource());
+      write(root, "spec/guides/index.md", guideSource("Draft guide"));
+      const result = writeEdgeV2Docs({
+        root,
+        docsRoot,
+        selectedForms: [],
+        sourcePreview: false,
+      });
+      expect(result.entries).toEqual([]);
+      expect(result.routes).toEqual([]);
+      expect(
+        readFileSync(path.join(root, formPath("HostAPI", "2.0.0")), "utf8"),
+      ).toContain("日本語の規範本文");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
   test("loads Japanese Form and guide sources into stable localized routes", () => {
     const root = fixtureRoot();
     const docsRoot = path.join(root, "generated");

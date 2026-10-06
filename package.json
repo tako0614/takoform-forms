@@ -4,7 +4,7 @@
   "version": "0.0.0-private",
   "packageManager": "bun@1.3.14",
   "scripts": {
-    "check": "bun run check:tools && bun run format:check && bun run check:boundary && bun run check:integrity && bun run check:generation && bun run check:publication && bun run check:trust && bun run check:edge-form-pages:source && bun run lint && bun run typecheck && bun run test:portable && bun run build:portable",
+    "check": "bun run check:tools && bun run format:check && bun run check:boundary && bun run check:integrity && bun run check:generation && bun run check:publication && bun run check:trust && bun run check:edge-form-freeze && bun run check:edge-form-pages:source && bun run check:edge-v2-forms && bun run lint && bun run typecheck && bun run test:portable && bun run build:portable",
     "check:tools": "set -eu; for tool in bun go gofmt node; do command -v \"$tool\" >/dev/null || { printf 'Required portable check tool is missing: %s\\n' \"$tool\" >&2; exit 127; }; done; test -x node_modules/.bin/prettier || { printf 'Run bun install --frozen-lockfile before check; pinned Prettier is missing.\\n' >&2; exit 127; }",
     "format:check": "set -eu; unformatted=\"$(gofmt -l .)\"; if [ -n \"$unformatted\" ]; then printf 'The following files need gofmt:\\n%s\\n' \"$unformatted\"; exit 1; fi; node_modules/.bin/prettier --check $(git ls-files -- '*.js' '*.mjs' '*.mts')",
     "check:boundary": "node scripts/check-boundary.mjs",
@@ -14,6 +14,8 @@
     "check:trust": "go run ./cmd/publisher-trust check --repository .",
     "check:edge-form-pages": "bun scripts/edge-form-pages.mjs --check",
     "check:edge-form-pages:source": "bun scripts/edge-form-pages.mjs --check-source",
+    "check:edge-form-freeze": "node --check scripts/edge-form-freeze.mjs && node scripts/edge-form-freeze.mjs --check --require-frozen",
+    "check:edge-v2-forms": "bun scripts/edge-form-pages.mjs --check --trust-set e7f8a39311dd011b8467e97e7f300cabb9a6b06c --publish-frozen",
     "check:edge-form-pages:browser": "node scripts/edge-form-pages-browser.mjs",
     "check:edge-form-pages:browser:source": "node scripts/edge-form-pages-browser.mjs --source-preview",
     "generate": "bun scripts/current-form-families.mjs --write",

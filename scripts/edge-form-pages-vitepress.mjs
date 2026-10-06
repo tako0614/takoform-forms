@@ -15,6 +15,7 @@ import {
   edgeV2SidebarItems,
   loadEdgeV2Docs,
   writeEdgeV2Docs,
+  writeEdgeV2PublicationAssets,
 } from "./edge-v2-docs.mjs";
 
 // Input is the verified package closure assembled by edge-form-pages.mjs.
@@ -27,16 +28,23 @@ export function renderVitePressPages({
   isPublic,
   origin,
   sourcePreview = false,
+  publishedForms = [],
 }) {
   const v1Routes = ["en", "ja"].flatMap((locale) => [
     locale === "ja" ? "/ja/" : "/",
     ...forms.map((form) => routeFor(form, locale)),
   ]);
-  const authoredEntries = loadEdgeV2Docs(root);
-  if (!sourcePreview && authoredEntries.some((entry) => entry.kind === "form"))
-    throw new Error(
-      "authored Form publication is not configured; use source-preview",
-    );
+  const authoredEntries = sourcePreview
+    ? loadEdgeV2Docs(root)
+    : publishedForms.length
+      ? loadEdgeV2Docs(root).filter(
+          (entry) =>
+            entry.kind === "guide" ||
+            publishedForms.some(
+              (form) => form.url === `${origin}${entry.route}`,
+            ),
+        )
+      : [];
   const hasV2Home = authoredEntries.some((entry) => entry.route === "/");
   const routes = hasV2Home
     ? [
@@ -72,6 +80,8 @@ export function renderVitePressPages({
       root,
       docsRoot: source,
       existingRoutes: routes,
+      selectedForms: publishedForms,
+      sourcePreview,
     });
     for (const route of v2Docs.routes)
       if (!routes.includes(route)) routes.push(route);
@@ -320,6 +330,12 @@ export function renderVitePressPages({
         path.join(outputDirectory, "_headers"),
         headersFor(outputDirectory, routes),
       );
+    if (!sourcePreview)
+      writeEdgeV2PublicationAssets({
+        root,
+        outputDirectory,
+        entries: publishedForms,
+      });
     return routes;
   } finally {
     rmSync(temporary, { recursive: true, force: true });

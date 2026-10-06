@@ -16,10 +16,15 @@ import path from "node:path";
 
 import {
   EDGE_FORM_PAGES_ORIGIN,
+  PUBLISHED_V1_SET_ID,
   buildEdgeFormPages,
   buildEdgeFormSourcePreview,
+  publishedV1PagePlan,
+  readInstalledTrustSet,
+  readPublishedV1Guide,
   validateReadingGuide,
 } from "./edge-form-pages.mjs";
+import { verifyEdgeFormFreeze } from "./edge-form-freeze.mjs";
 import { derivePublicationPlan } from "./form-publication.mjs";
 import { loadEdgeV2Docs } from "./edge-v2-docs.mjs";
 import { renderVitePressPages } from "./edge-form-pages-vitepress.mjs";
@@ -28,7 +33,44 @@ import { renderForSearch, tokenize } from "../site/.vitepress/search.mjs";
 const SET_ID = "e7f8a39311dd011b8467e97e7f300cabb9a6b06c";
 
 describe("publisher-owned Edge Form pages", () => {
-  test("refuses production rendering when authored Form docs are present", () => {
+  test("builds frozen v2 Forms beside all 19 already-published v1 versions without signing new v1 candidates", () => {
+    const root = path.resolve(".");
+    const trust = readInstalledTrustSet(PUBLISHED_V1_SET_ID);
+    const plan = publishedV1PagePlan(derivePublicationPlan(), trust);
+    const freeze = verifyEdgeFormFreeze(root, {
+      mode: "check",
+      requireFrozen: true,
+    });
+    expect(freeze.status).toBe("FROZEN");
+    const output = mkdtempSync(path.join(tmpdir(), "edge-v2-frozen-build-"));
+    try {
+      const build = buildEdgeFormPages({
+        outputDirectory: output,
+        plan,
+        trust,
+        publishedForms: freeze.frozen,
+        readingGuide: readPublishedV1Guide(),
+      });
+      expect(build.formCount).toBe(17);
+      expect(build.retainedCount).toBe(2);
+      expect(build.publishedV2FormCount).toBe(17);
+      expect(build.routes).toContain("/forms/ModuleWorker/0.1.0/");
+      expect(build.routes).toContain("/forms/ModuleWorker/0.3.0/");
+      expect(build.routes).toContain("/ja/forms/ModuleWorker/0.3.0/");
+      expect(
+        readFileSync(path.join(output, "forms/ModuleWorker/0.3.0/source.md")),
+      ).toEqual(readFileSync("spec/forms/ModuleWorker/0.3.0/index.md"));
+      expect(
+        readFileSync(
+          path.join(output, "forms/ModuleWorker/0.3.0/index.html"),
+          "utf8",
+        ),
+      ).toContain("ModuleWorker 0.3.0");
+    } finally {
+      rmSync(output, { recursive: true, force: true });
+    }
+  }, 60_000);
+  test("does not let authored drafts replace a missing v1 production roster", () => {
     const output = mkdtempSync(path.join(tmpdir(), "edge-v2-prod-guard-"));
     try {
       expect(() =>
@@ -40,9 +82,7 @@ describe("publisher-owned Edge Form pages", () => {
           isPublic: false,
           origin: EDGE_FORM_PAGES_ORIGIN,
         }),
-      ).toThrow(
-        "authored Form publication is not configured; use source-preview",
-      );
+      ).toThrow("current WorkerVersion Form is required");
       expect(readdirSync(output)).toEqual([]);
     } finally {
       rmSync(output, { recursive: true, force: true });

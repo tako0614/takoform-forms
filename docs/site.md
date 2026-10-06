@@ -26,6 +26,17 @@ the exact source commit and retain the published bytes; any later semantic
 change needs a new Form URL. The local documentation work does not perform
 that publication or establish Host runtime conformance.
 
+`spec/forms.freeze.json` is a publisher-local, append-only first-add anchor for
+the exact Japanese Markdown bytes at each version-fixed URL. Its check requires
+complete Git history. A frozen entry is only eligible for publication; it does
+not claim the URL is already public. The published site also serves those exact
+bytes at the derived `source.md` path beside each Form page. This companion
+asset and the site's `_edge-forms-publication.json` inventory are readback
+evidence for this publisher, not Takoform API endpoints, Host discovery, or
+required distribution formats. The canonical Form URL itself remains the
+direct-200 HTML reading view; its presentation can change without changing the
+normative Markdown source.
+
 With authored sources present, `/` and `/ja/` introduce the new Forms. The v1
 overview remains at `/v1/` and `/ja/v1/`; all existing versioned Form routes keep
 their original definitions. `/v2/` is also a direct entry into the new guide.
@@ -128,13 +139,14 @@ renders real VitePress pages, and runs a Wrangler dry-run in a disposable
 directory. This source check is explicitly **UNPUBLISHED**: it consumes no
 trust set, emits no signed/public-readback assertion or unborn package-tag
 links, and deletes all preview assets. It is neither a site build target nor a
-deployment authorization. When authored Form sources are present, the signed
-`check:edge-form-pages` and `build:edge-form-pages` paths stop with
-`authored Form publication is not configured; use source-preview`.
-They cannot silently publish new immutable Form URLs as a routine v1 site update.
-The existing signed-set requirement remains unchanged for v1-only source trees.
-Publication of the new Form URLs needs its own reviewed, no-overwrite publication
-path; that path is not implemented by this documentation change.
+deployment authorization. The signed site build uses the explicitly selected
+already-published v1 set, not the newer unsigned v1 candidate roster. Its
+historical reading guide is read byte-exact from pinned Git history. The normal
+build includes only previously published v2 Form URLs; frozen but not yet
+published Forms cannot appear through the routine site-update surface. The
+explicit publication build below selects all frozen entries and preserves all
+19 previously published v1 versioned routes. It requires no new v1 package
+signature for v2 prose.
 
 ```console
 bun install --frozen-lockfile
@@ -147,12 +159,15 @@ The source browser lane builds one temporary preview, checks the rendered routes
 and removes it on completion. It is explicitly **UNPUBLISHED** and does not
 qualify production CSP headers or public availability.
 
-For a v1-only source tree, the signed build prints a fresh temporary output
+By default, the signed build prints a fresh temporary v1-only output
 directory; it never deletes a caller-selected nonempty directory. For a specific
 set/destination:
 
 ```console
 bun run build:edge-form-pages --trust-set <source-commit> --output <empty-directory>
+
+# Offline candidate only: include all frozen authored v2 Form versions.
+bun run build:edge-form-pages --trust-set <published-v1-set> --output <empty-directory> --publish-frozen
 ```
 
 The portable gate is read-only and validates exact packages, deterministic HTML,
@@ -167,9 +182,29 @@ Manual visual review still checks hierarchy, contrast and reading burden.
 
 ## Publish through this repository
 
-The following commands describe the retained v1 publication path. They do not
-publish the authored v2 Form URLs from the current source tree; its build guard
-stops before upload. Source preview is not a substitute publication artifact.
+Source preview is not a substitute publication artifact. A local frozen-Form
+build is only a candidate: it does not prove public URL readback or authorize an
+upload. Publishing the first v2 Form URLs is a separate, consumer-pinned identity
+surface in this repository:
+
+```console
+bun run deploy -- edge-v2-forms --trust-set <published-v1-set> --environment production --commit <exact-public-main-commit> --dry-run
+bun run deploy -- edge-v2-forms --trust-set <published-v1-set> --environment production --commit <exact-public-main-commit>
+bun run deploy -- edge-v2-forms --trust-set <published-v1-set> --environment production --verify
+```
+
+Before its one full-asset Worker upload, this path proves the selected frozen
+source and checks that every previously published Form URL and raw source still
+exist unchanged. It requires each new canonical URL and companion source path
+to be absent, retains the old published inventory, and rechecks provider history
+and public source immediately before upload. After upload, the same public
+readback compares the complete generated asset closure, including old/new Form
+pages and raw normative source. If an upload or readback becomes uncertain,
+inspect provider history and public URLs; never blindly retry or remove a
+published URL. Cloudflare does not provide an atomic compare-and-swap for this
+whole static-asset replacement: an independent concurrent writer can still race
+the final preflight, so publication must be operationally serialized. The
+publisher does not introduce an admission service or a cross-Host registry.
 
 Inspect `bun run deploy -- --contract`. Keep the authenticated account explicitly
 selected with `CLOUDFLARE_ACCOUNT_ID` outside source. Select a clean exact commit

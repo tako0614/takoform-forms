@@ -1,11 +1,22 @@
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+
+export const EDGE_V2_PUBLICATION_ASSET = "_edge-forms-publication.json";
+const formRoute = /^\/forms\/([A-Za-z][A-Za-z0-9]*)\/(\d+\.\d+\.\d+)\/$/u;
+const digest = /^sha256:[a-f0-9]{64}$/u;
 
 const FORM_PUBLICATION_NOTICE = `::: warning Form specification not formally published
 This authored Form specification is not a formally published Form release. Host and provider support are separate and are not implied here.
 :::`;
 const FORM_PUBLICATION_NOTICE_JA = `::: warning Form仕様は未公開
 このForm仕様は正式に公開されたFormリリースではありません。Host・providerの対応は別であり、この文書では断定しません。
+:::`;
+const FORM_PUBLISHED_NOTICE = `::: info Version-fixed Form specification
+This version-fixed URL serves the Japanese normative source. <a href="__SOURCE_URL__">Read the exact source</a>. Publication does not imply Host or provider support.
+:::`;
+const FORM_PUBLISHED_NOTICE_JA = `::: info 版が固定されたForm仕様
+この版で固定されたURLの規範本文は日本語です。<a href="__SOURCE_URL__">原文を読む</a>。公開はHostやproviderの対応を意味しません。
 :::`;
 
 const FORM_SOURCE = /^spec\/forms\/([^/]+)\/([^/]+)\/index\.md$/u;
@@ -58,8 +69,44 @@ export function loadEdgeV2Docs(root) {
 }
 
 /** Materialize both locale routes. Japanese remains the canonical authored body. */
-export function writeEdgeV2Docs({ root, docsRoot, existingRoutes = [] }) {
-  const entries = loadEdgeV2Docs(root);
+export function writeEdgeV2Docs({
+  root,
+  docsRoot,
+  existingRoutes = [],
+  selectedForms,
+  sourcePreview = true,
+}) {
+  const all = loadEdgeV2Docs(root);
+  const selected =
+    selectedForms === undefined
+      ? null
+      : validateEdgeV2PublicationEntries(selectedForms);
+  const selectedUrls = new Set((selected ?? []).map((entry) => entry.url));
+  const entries = sourcePreview
+    ? all
+    : selectedUrls.size
+      ? all.filter(
+          (entry) =>
+            entry.kind === "guide" ||
+            selectedUrls.has(`https://edge.forms.takoform.com${entry.route}`),
+        )
+      : [];
+  if (!sourcePreview) {
+    for (const entry of selected ?? []) {
+      if (!entries.some((candidate) => candidate.file === entry.path))
+        throw new Error(`published Form source is not authored: ${entry.path}`);
+    }
+    for (const entry of entries) {
+      for (const match of entry.source.matchAll(
+        /\]\((\/forms\/[A-Za-z][A-Za-z0-9]*\/\d+\.\d+\.\d+\/)(?:#[^)]*)?\)/gu,
+      )) {
+        if (!selectedUrls.has(`https://edge.forms.takoform.com${match[1]}`))
+          throw new Error(
+            `published document links to an unpublished Form: ${entry.file} -> ${match[1]}`,
+          );
+      }
+    }
+  }
   const occupied = new Set(existingRoutes.map(normalizeRoute));
   const routes = [];
   for (const entry of entries) {
@@ -82,9 +129,14 @@ The original specification and guide are authored in Japanese. The Japanese rout
 :::`);
       if (entry.kind === "form")
         notices.push(
-          locale === "ja"
-            ? FORM_PUBLICATION_NOTICE_JA
-            : FORM_PUBLICATION_NOTICE,
+          sourcePreview
+            ? locale === "ja"
+              ? FORM_PUBLICATION_NOTICE_JA
+              : FORM_PUBLICATION_NOTICE
+            : (locale === "ja"
+                ? FORM_PUBLISHED_NOTICE_JA
+                : FORM_PUBLISHED_NOTICE
+              ).replace("__SOURCE_URL__", `${entry.route}source.md`),
         );
       const localizedSource =
         locale === "ja"
@@ -98,6 +150,84 @@ The original specification and guide are authored in Japanese. The Japanese rout
     }
   }
   return { entries, routes };
+}
+
+/** Publisher-local deployment inventory, not a Takoform API or Form identity. */
+export function validateEdgeV2PublicationEntries(entries) {
+  if (!Array.isArray(entries) || entries.length > 256)
+    throw new Error("invalid Edge Form publication inventory size");
+  const seenUrls = new Set();
+  const seenPaths = new Set();
+  for (const entry of entries) {
+    if (
+      !entry ||
+      Object.keys(entry).sort().join() !== "path,sha256,url" ||
+      typeof entry.url !== "string" ||
+      typeof entry.path !== "string" ||
+      typeof entry.sha256 !== "string" ||
+      !digest.test(entry.sha256)
+    )
+      throw new Error("invalid Edge Form publication inventory entry");
+    const url = new URL(entry.url);
+    const match = formRoute.exec(url.pathname);
+    if (
+      url.origin !== "https://edge.forms.takoform.com" ||
+      !match ||
+      entry.url !== `https://edge.forms.takoform.com${url.pathname}` ||
+      entry.path !== `spec/forms/${match[1]}/${match[2]}/index.md` ||
+      seenUrls.has(entry.url) ||
+      seenPaths.has(entry.path)
+    )
+      throw new Error("invalid or duplicate Edge Form publication identity");
+    seenUrls.add(entry.url);
+    seenPaths.add(entry.path);
+  }
+  return entries;
+}
+
+export function edgeV2PublicationBytes(entries) {
+  return `${JSON.stringify({ kind: "edge.forms.site-publication", forms: validateEdgeV2PublicationEntries(entries) })}\n`;
+}
+
+export function parseEdgeV2PublicationBytes(bytes) {
+  if (!bytes || bytes.length > 131072)
+    throw new Error("invalid Edge Form public inventory size");
+  let value;
+  try {
+    value = JSON.parse(bytes.toString("utf8"));
+  } catch {
+    throw new Error("invalid Edge Form public inventory JSON");
+  }
+  if (
+    !value ||
+    Object.keys(value).sort().join() !== "forms,kind" ||
+    value.kind !== "edge.forms.site-publication"
+  )
+    throw new Error("invalid Edge Form public inventory kind");
+  return validateEdgeV2PublicationEntries(value.forms);
+}
+
+export function writeEdgeV2PublicationAssets({
+  root,
+  outputDirectory,
+  entries,
+}) {
+  for (const entry of validateEdgeV2PublicationEntries(entries)) {
+    const source = readFileSync(path.join(root, entry.path));
+    if (
+      `sha256:${createHash("sha256").update(source).digest("hex")}` !==
+      entry.sha256
+    )
+      throw new Error(`frozen Form source bytes changed: ${entry.path}`);
+    const route = new URL(entry.url).pathname;
+    const destination = path.join(outputDirectory, route.slice(1), "source.md");
+    mkdirSync(path.dirname(destination), { recursive: true });
+    writeFileSync(destination, source);
+  }
+  writeFileSync(
+    path.join(outputDirectory, EDGE_V2_PUBLICATION_ASSET),
+    edgeV2PublicationBytes(entries),
+  );
 }
 
 export function edgeV2SidebarItems(entries, locale = "en") {
