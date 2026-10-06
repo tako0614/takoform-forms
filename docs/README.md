@@ -3,6 +3,18 @@
 This repository is the provider-neutral source and package publisher for the
 Edge Form family.
 
+- [Host API v2 Form guide](../spec/guides/index.md): choose a resource and read
+  its full human specification. Authoring source is `spec/forms/`, independent
+  of the v1 package generator; each new Form has its own exact HTTPS URL.
+- [Use a Host](../spec/guides/use-host.md): support, Offering selection,
+  create/read/update/delete and uncertain responses.
+- [Terraform/OpenTofu](../spec/guides/providers.md): the Provider's scope,
+  version checks and composition with other Providers.
+- [Migration](../spec/guides/migration.md): v1 identities and state remain
+  distinct from the new URL-identified Forms.
+
+## Retained v1 reference and publisher maintenance
+
 - [Read the Edge Form reference](https://edge.forms.takoform.com/): choose a
   contract, inspect fields and exact examples, and follow related Forms.
 - [Site and reader guide](site.md): the resource model, examples versus runnable
@@ -22,7 +34,13 @@ Edge Form family.
 
 ## Source and generated files
 
-Go catalogs under `internal/` are the authoring source. The JSON trees under
+For new Host API v2 Form specifications, `spec/forms/<Kind>/<version>/index.md`
+is the Japanese normative source. `spec/guides/` is explanatory, not another
+contract version. The English site can expose this original with an explicit
+Japanese-language notice; that is not an English translation or a Host support
+claim. Published meaning must never be edited under the same Form URL.
+
+For retained v1 packages, Go catalogs under `internal/` are the authoring source. The JSON trees under
 `forms/candidates/`, `interfaces/candidates/`, and `bindings/candidates/` are
 generated candidate output. `forms/releases/` contains content-addressed
 copies checked against those candidates before publication.

@@ -1,0 +1,90 @@
+{
+  "kind": "edge.forms.freeze",
+  "forms": [
+    {
+      "url": "https://edge.forms.takoform.com/forms/ActorNamespace/0.3.0/",
+      "path": "spec/forms/ActorNamespace/0.3.0/index.md",
+      "sha256": "sha256:7b1c43c242e458d2548a2840fb926b2c68efbbf42b5bd8ca0d7dfaaff75648d2"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/AtLeastOnceQueue/0.2.0/",
+      "path": "spec/forms/AtLeastOnceQueue/0.2.0/index.md",
+      "sha256": "sha256:d874adaa32fca9c39de9ede4faee86d697c598d30cfe24418b322c15ebcce7dc"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/DurableWorkflow/0.3.0/",
+      "path": "spec/forms/DurableWorkflow/0.3.0/index.md",
+      "sha256": "sha256:e52290f3bf873583fb903d1cbf009478330c8198135d79f018f152a91c6a9ba7"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/EdgeKVNamespace/0.2.0/",
+      "path": "spec/forms/EdgeKVNamespace/0.2.0/index.md",
+      "sha256": "sha256:04ada0e7dce5417647c4869d3284a45632e5478fe396c1331c0041b934736749"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/ModuleWorker/0.3.0/",
+      "path": "spec/forms/ModuleWorker/0.3.0/index.md",
+      "sha256": "sha256:928f17c1b44a0ec860079c6561d272be332b2b20ccfe0bfff0a89c291bd6557e"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/ObjectBucket/0.2.0/",
+      "path": "spec/forms/ObjectBucket/0.2.0/index.md",
+      "sha256": "sha256:51e8f86cc64b4a854f735ff7ffed9a7b04c0c3329865cd280fe59cdc6487567d"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/QueueConsumer/0.3.0/",
+      "path": "spec/forms/QueueConsumer/0.3.0/index.md",
+      "sha256": "sha256:83887f74e603290446f48848849d0b76c462df2e8e272456cba9635ee7b63efc"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/SQLiteDatabase/0.2.0/",
+      "path": "spec/forms/SQLiteDatabase/0.2.0/index.md",
+      "sha256": "sha256:6b4c44596b65f433a2e2b2872f42d9dc7cee803ca8b1dd7a9e6d750fa08ee42e"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/SQLiteMigrationApplication/0.2.0/",
+      "path": "spec/forms/SQLiteMigrationApplication/0.2.0/index.md",
+      "sha256": "sha256:cffcabbef65487682b4484d2a983e3cc1484236b7a48a5dee3b980ca8a0ab9c2"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/SQLiteMigrationSet/0.2.0/",
+      "path": "spec/forms/SQLiteMigrationSet/0.2.0/index.md",
+      "sha256": "sha256:deb29b35ea3b52d10efe68ca02934131dc176b4a114d0044c9364fd7515b454a"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/StaticAssetBundle/0.2.0/",
+      "path": "spec/forms/StaticAssetBundle/0.2.0/index.md",
+      "sha256": "sha256:fcf8db4ccbf001c74ae614c5eb47ce5887359ee7da065f9e903acdd22515e5a6"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/WorkerBundle/0.2.0/",
+      "path": "spec/forms/WorkerBundle/0.2.0/index.md",
+      "sha256": "sha256:e3b844d56f28e39407b8a3e9af43f263870f4336dc7a3305d63e27285e3a546a"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/WorkerCronTrigger/0.3.0/",
+      "path": "spec/forms/WorkerCronTrigger/0.3.0/index.md",
+      "sha256": "sha256:ba3e42977b0a228e23d26ff9dbf78d3a55f7aeda99feefc28089eebc6f47c430"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/WorkerCustomDomain/0.3.0/",
+      "path": "spec/forms/WorkerCustomDomain/0.3.0/index.md",
+      "sha256": "sha256:cbafc6d8393ca2561a77a4b1b3da413833e47ab3cf2e7fbc9dcf3b61c7537fe3"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/WorkerDeployment/0.4.0/",
+      "path": "spec/forms/WorkerDeployment/0.4.0/index.md",
+      "sha256": "sha256:ff99df34f1300eaa4d39bd49a2ad21b53dbdf51b15c07cd5f11590c08d64d9c1"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/WorkerEndpoint/0.3.0/",
+      "path": "spec/forms/WorkerEndpoint/0.3.0/index.md",
+      "sha256": "sha256:c598ef97e5423d7617b17415209945ecc75d988c1e8c57ae2c5b1abf7ae2d58f"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/WorkerVersion/0.5.0/",
+      "path": "spec/forms/WorkerVersion/0.5.0/index.md",
+      "sha256": "sha256:98d2651f3d40a9edc998ed7c75a381bbc34bb9c116d305730cd4f81c50bd8f5e"
+    }
+  ]
+}

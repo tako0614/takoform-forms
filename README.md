@@ -1,5 +1,21 @@
 # Takoform Forms
 
+This repository defines resource contracts for JavaScript edge applications.
+For the new URL-identified Forms using **Host API v2**, start with
+[the reader guide](spec/guides/index.md), then the individual normative documents
+under `spec/forms/`. They describe inputs, runtime interfaces, resource ownership,
+updates, deletion and recovery independently of a package distribution format.
+These documents are authored source; their formal publication and Host/Provider
+implementation have not been performed by this documentation change.
+
+The publisher is `tako0614`, with no privileged status over other publishers.
+The website is **edge.forms.takoform.com**. The common API belongs to
+[takoform.com](https://takoform.com/); Terraform/OpenTofu usage belongs to the
+[Provider documentation](spec/guides/providers.md). Each Form has its own version.
+There is no aggregate Edge release or separately numbered Specification stream.
+
+## Retained v1 packages and source
+
 Takoform Forms is a provider-neutral catalog of resource contracts for
 JavaScript edge runtimes. The model covers Worker applications and revisions,
 traffic and endpoint attachments, KV, SQLite, queues, durable workflows, and
@@ -98,10 +114,16 @@ go run ./cmd/form-package verify forms/candidates/edge.forms.takoform.com/module
 
 Focused checks: `bun run check:generation`, `bun run check:publication`, and
 `bun run check:trust`.
+Those commands concern the retained v1 package pipeline; they do not sign or
+publish the new human-authored v2 Form specifications.
 For unpublished selected source, `bun run check:edge-form-pages:source` builds
-and discards an honest preview. `bun run build:edge-form-pages` and the explicit
-browser lane `bun run check:edge-form-pages:browser` apply only after an exact
-signed set is installed; see [site maintenance](docs/site.md).
+and discards an honest preview. The production site build keeps the exact
+previously signed v1 roster and excludes the unsigned successor packages.
+Authored v2 Forms enter a local publication candidate only when their exact
+Markdown is frozen; the explicit `edge-v2-forms` deploy surface alone may add
+new version-fixed URLs. No public upload has been performed by this source work.
+See [site maintenance](docs/site.md) for the offline build, public readback and
+no-overwrite limits.
 
 ## Preparing and publishing packages
 

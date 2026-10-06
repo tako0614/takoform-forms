@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  copyFileSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -10,6 +11,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import {
+  edgeV2SidebarItems,
+  loadEdgeV2Docs,
+  writeEdgeV2Docs,
+  writeEdgeV2PublicationAssets,
+} from "./edge-v2-docs.mjs";
 
 // Input is the verified package closure assembled by edge-form-pages.mjs.
 // Only presentation lives here; this renderer does not resolve or trust packages.
@@ -21,13 +28,35 @@ export function renderVitePressPages({
   isPublic,
   origin,
   sourcePreview = false,
+  publishedForms = [],
 }) {
-  const temporary = mkdtempSync(path.join(tmpdir(), "edge-vitepress-source-"));
-  const source = path.join(temporary, "docs");
-  const routes = ["en", "ja"].flatMap((locale) => [
+  const v1Routes = ["en", "ja"].flatMap((locale) => [
     locale === "ja" ? "/ja/" : "/",
     ...forms.map((form) => routeFor(form, locale)),
   ]);
+  const authoredEntries = sourcePreview
+    ? loadEdgeV2Docs(root)
+    : publishedForms.length
+      ? loadEdgeV2Docs(root).filter(
+          (entry) =>
+            entry.kind === "guide" ||
+            publishedForms.some(
+              (form) => form.url === `${origin}${entry.route}`,
+            ),
+        )
+      : [];
+  const hasV2Home = authoredEntries.some((entry) => entry.route === "/");
+  const routes = hasV2Home
+    ? [
+        "/",
+        "/ja/",
+        "/v1/",
+        "/ja/v1/",
+        ...v1Routes.filter((route) => route !== "/" && route !== "/ja/"),
+      ]
+    : v1Routes;
+  const temporary = mkdtempSync(path.join(tmpdir(), "edge-vitepress-source-"));
+  const source = path.join(temporary, "docs");
   try {
     // Generated Vue modules resolve their dependencies from their source root.
     // Link only inside this build's fresh directory; no installed files change.
@@ -37,13 +66,41 @@ export function renderVitePressPages({
       "dir",
     );
     mkdirSync(source);
+    // VitePress 1.6 derives .temp from its config root, not userConfig.tempDir.
+    // Isolate that root too: concurrent checks must not remove each other's SSR
+    // modules. Only the two owned config inputs are copied, never build residue.
+    const configRoot = path.join(source, ".vitepress");
+    mkdirSync(configRoot);
+    for (const name of ["config.mts", "search.mjs"])
+      copyFileSync(
+        path.join(root, "site/.vitepress", name),
+        path.join(configRoot, name),
+      );
+    const v2Docs = writeEdgeV2Docs({
+      root,
+      docsRoot: source,
+      existingRoutes: routes,
+      selectedForms: publishedForms,
+      sourcePreview,
+    });
+    for (const route of v2Docs.routes)
+      if (!routes.includes(route)) routes.push(route);
     for (const locale of ["en", "ja"]) {
       const localeRoot = locale === "ja" ? path.join(source, "ja") : source;
       mkdirSync(localeRoot, { recursive: true });
-      writeFileSync(
-        path.join(localeRoot, "index.md"),
-        renderIndex(forms, isPublic, locale, sourcePreview),
-      );
+      if (!hasV2Home)
+        writeFileSync(
+          path.join(localeRoot, "index.md"),
+          renderIndex(forms, isPublic, locale, sourcePreview),
+        );
+      else {
+        const legacyRoot = path.join(source, locale === "ja" ? "ja/v1" : "v1");
+        mkdirSync(legacyRoot, { recursive: true });
+        writeFileSync(
+          path.join(legacyRoot, "index.md"),
+          renderIndex(forms, isPublic, locale, sourcePreview),
+        );
+      }
       for (const form of forms) {
         const directory = path.join(source, routeFor(form, locale));
         mkdirSync(directory, { recursive: true });
@@ -57,33 +114,116 @@ export function renderVitePressPages({
           text: locale === "ja" ? "概要" : "Overview",
           link: locale === "ja" ? "/ja/" : "/",
         },
-        ...[false, true].map((retained) => ({
-          text:
-            locale === "ja"
-              ? retained
-                ? "過去のバージョン"
-                : sourcePreview
-                  ? "選択中のソース一覧（未公開）"
-                  : "現在のForms"
-              : retained
-                ? "Retained versions"
-                : sourcePreview
-                  ? "Selected source roster (unpublished)"
-                  : "Current Forms",
-          collapsed: false,
-          items: forms
-            .filter((form) => !!form.retained === retained)
-            .map((form) => ({
-              text: `${form.formRef.kind} ${form.formRef.definitionVersion}`,
-              link: routeFor(form, locale),
-            })),
-        })),
+        ...(hasV2Home
+          ? [
+              {
+                text:
+                  locale === "ja" ? "Host API v2ガイド" : "Host API v2 guides",
+                collapsed: false,
+                items: [
+                  ...edgeV2SidebarItems(
+                    v2Docs.entries.filter(
+                      (entry) => entry.kind === "guide" && entry.route !== "/",
+                    ),
+                    locale,
+                  ),
+                  ...(v2Docs.entries.some((entry) => entry.kind === "form")
+                    ? [
+                        {
+                          text:
+                            locale === "ja"
+                              ? "Host API v2向けForms"
+                              : "Forms for Host API v2",
+                          collapsed: false,
+                          items: edgeV2SidebarItems(
+                            v2Docs.entries.filter(
+                              (entry) => entry.kind === "form",
+                            ),
+                            locale,
+                          ),
+                        },
+                      ]
+                    : []),
+                ],
+              },
+              {
+                text:
+                  locale === "ja"
+                    ? "Host API v1（過去の仕様）"
+                    : "Host API v1 (historical)",
+                link: locale === "ja" ? "/ja/v1/" : "/v1/",
+                collapsed: false,
+                items: [
+                  ...[false, true].map((retained) => ({
+                    text:
+                      locale === "ja"
+                        ? retained
+                          ? "過去のFormバージョン"
+                          : sourcePreview
+                            ? "選択中の未公開ソース一覧"
+                            : "現在のForms"
+                        : retained
+                          ? "Retained Form versions"
+                          : sourcePreview
+                            ? "Selected unpublished source roster"
+                            : "Current Forms",
+                    collapsed: false,
+                    items: forms
+                      .filter((form) => !!form.retained === retained)
+                      .map((form) => ({
+                        text: `${form.formRef.kind} ${form.formRef.definitionVersion}`,
+                        link: routeFor(form, locale),
+                      })),
+                  })),
+                ],
+              },
+            ]
+          : [
+              ...[false, true].map((retained) => ({
+                text:
+                  locale === "ja"
+                    ? retained
+                      ? "過去のバージョン"
+                      : sourcePreview
+                        ? "選択中のソース一覧（未公開）"
+                        : "現在のForms"
+                    : retained
+                      ? "Retained versions"
+                      : sourcePreview
+                        ? "Selected source roster (unpublished)"
+                        : "Current Forms",
+                collapsed: false,
+                items: forms
+                  .filter((form) => !!form.retained === retained)
+                  .map((form) => ({
+                    text: `${form.formRef.kind} ${form.formRef.definitionVersion}`,
+                    link: routeFor(form, locale),
+                  })),
+              })),
+            ]),
+        ...(v2Docs.entries.length && !hasV2Home
+          ? [
+              {
+                text: v2Docs.entries.some((entry) => entry.kind === "guide")
+                  ? locale === "ja"
+                    ? "Host API v2ガイド"
+                    : "Host API v2 guides"
+                  : locale === "ja"
+                    ? "Host API v2向けForms"
+                    : "Forms for Host API v2",
+                collapsed: false,
+                items: edgeV2SidebarItems(v2Docs.entries, locale),
+              },
+            ]
+          : []),
         {
           text: locale === "ja" ? "関連リンク" : "Related links",
           items: [
             {
               text:
-                locale === "ja" ? "TakoformのHost API" : "Takoform Host API",
+                locale === "ja"
+                  ? "TakoformのHost API v1（過去の仕様）"
+                  : "Takoform Host API v1 (historical)",
               link:
                 locale === "ja"
                   ? "https://takoform.com/host-api/"
@@ -100,15 +240,65 @@ export function renderVitePressPages({
         path.join(temporary, `sidebar-${locale}.json`),
         JSON.stringify(sidebar),
       );
+      const v2Landing =
+        v2Docs.entries.find((entry) => entry.route === "/") ??
+        v2Docs.entries.find((entry) => entry.route === "/v2/") ??
+        v2Docs.entries.find((entry) => entry.kind === "guide");
+      const nav = [
+        {
+          text: "Forms",
+          link: locale === "ja" ? "/ja/" : "/",
+        },
+        ...(hasV2Home
+          ? [
+              {
+                text: locale === "ja" ? "利用ガイド" : "Guides",
+                link: locale === "ja" ? "/ja/v2/" : "/v2/",
+              },
+              {
+                text: "Takoform API v2",
+                link: `https://takoform.com/${locale === "ja" ? "" : "en/"}spec/host-api/v2/`,
+              },
+            ]
+          : v2Landing
+            ? [
+                {
+                  text: "Host API v2",
+                  link: `${locale === "ja" ? "/ja" : ""}${v2Landing.route}`,
+                },
+              ]
+            : []),
+        ...(!hasV2Home && !v2Landing
+          ? [
+              {
+                text:
+                  locale === "ja"
+                    ? "Host API v1（過去の仕様）"
+                    : "Host API v1 (historical)",
+                link: `https://takoform.com/${locale === "ja" ? "" : "en/"}host-api/`,
+              },
+            ]
+          : []),
+        ...(!hasV2Home
+          ? [
+              {
+                text: "Takoform",
+                link:
+                  locale === "ja"
+                    ? "https://takoform.com/"
+                    : "https://takoform.com/en/",
+              },
+            ]
+          : []),
+      ];
+      writeFileSync(
+        path.join(temporary, `nav-${locale}.json`),
+        JSON.stringify(nav),
+      );
     }
     const result = spawnSync(
       path.join(root, "node_modules/.bin/vitepress"),
-      [
-        "build",
-        path.join(root, "site"),
-        "--outDir",
-        path.resolve(outputDirectory),
-      ],
+      ["build", source, "--outDir", path.resolve(outputDirectory)],
       {
         cwd: root,
         encoding: "utf8",
@@ -140,6 +330,12 @@ export function renderVitePressPages({
         path.join(outputDirectory, "_headers"),
         headersFor(outputDirectory, routes),
       );
+    if (!sourcePreview)
+      writeEdgeV2PublicationAssets({
+        root,
+        outputDirectory,
+        entries: publishedForms,
+      });
     return routes;
   } finally {
     rmSync(temporary, { recursive: true, force: true });
@@ -212,13 +408,13 @@ description: 未公開のTakoform Edge Formソース一覧を確認する一時�
 
 この一時ビルドは、Coreで検証したソース一覧を読むためのものです。選択中の一覧全体は**未公開**です。個々のパッケージの公開・署名状態は断定しません。公開URLからの取得、Host対応、配備可能性も証明せず、公開サイトとして配備できません。
 
-## 選択中のソース一覧
+## 選択中のソース一覧 {#current-forms}
 
 | Form | 用途 |
 | --- | --- |
 ${current.map((form) => `| ${formLink(form, locale)} | ${literal(form.guide.ja.purpose)} |`).join("\n")}
 
-## 過去のバージョン
+## 過去のバージョン {#retained-versions}
 
 これらは選択中の候補には含まれません。
 
@@ -236,13 +432,13 @@ description: Temporary review of Takoform Edge Form source roster not yet publis
 
 This temporary build reads a Core-verified source roster that is **UNPUBLISHED as a set**. It does not assert whether each package was previously signed or published. It does not prove public readback, Host support, or deployability. Do not deploy it as the public site.
 
-## Selected source roster
+## Selected source roster {#current-forms}
 
 | Form | Purpose |
 | --- | --- |
 ${current.map((form) => `| ${formLink(form)} | ${literal(form.guide.purpose)} |`).join("\n")}
 
-## Retained versions
+## Retained versions {#retained-versions}
 
 These are outside the selected candidate set.
 

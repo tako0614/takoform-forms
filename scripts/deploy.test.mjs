@@ -12,6 +12,7 @@ import path from "node:path";
 import {
   credentialFreeInvocation,
   DEPLOY_CONTRACT,
+  EDGE_V2_FORMS_SURFACE,
   RELEASE_SURFACE,
   REPOSITORY_URL,
   runDeploy,
@@ -31,7 +32,25 @@ const SECOND_REVOCATION_TAG = "forms/revocations/v1.1.0";
 describe("Edge Form Package deploy surface", () => {
   test("exposes the exact contract and accepts only the documented CLI", () => {
     expect(DEPLOY_CONTRACT.kind).toBe("takos.deploy-contract@v2");
-    expect(DEPLOY_CONTRACT.surfaces).toHaveLength(4);
+    expect(DEPLOY_CONTRACT.surfaces).toHaveLength(5);
+    expect(
+      new Set(DEPLOY_CONTRACT.surfaces.map((surface) => surface.surface)).size,
+    ).toBe(5);
+    const authoredForms = DEPLOY_CONTRACT.surfaces.find(
+      (surface) => surface.surface === EDGE_V2_FORMS_SURFACE,
+    );
+    const routinePages = DEPLOY_CONTRACT.surfaces.find(
+      (surface) => surface.surface === "edge-form-pages",
+    );
+    expect(authoredForms.target).toContain("version-fixed authored Form URLs");
+    expect(authoredForms.triggers).toEqual(["published-identity"]);
+    expect(authoredForms.obligations["no-overwrite"]).toContain(
+      "new canonical and source routes must be absent",
+    );
+    expect(authoredForms.obligations["post-conditions"]).toContain(
+      "exact raw normative source bytes",
+    );
+    expect(routinePages.triggers).toEqual([]);
     const publication = DEPLOY_CONTRACT.surfaces.find(
       (surface) => surface.surface === RELEASE_SURFACE,
     );
@@ -54,6 +73,67 @@ describe("Edge Form Package deploy surface", () => {
       "exact signed source commit",
     );
     expect(parseDeployInvocation(["--contract"])).toEqual({ mode: "contract" });
+    expect(
+      parseDeployInvocation([
+        EDGE_V2_FORMS_SURFACE,
+        "--trust-set",
+        SOURCE_COMMIT,
+        "--environment",
+        "production",
+        "--commit",
+        COMMIT,
+      ]),
+    ).toEqual({
+      surface: EDGE_V2_FORMS_SURFACE,
+      mode: "publish",
+      trustSet: SOURCE_COMMIT,
+      environment: "production",
+      commit: COMMIT,
+    });
+    expect(
+      parseDeployInvocation([
+        EDGE_V2_FORMS_SURFACE,
+        "--trust-set",
+        SOURCE_COMMIT,
+        "--dry-run",
+        "--environment",
+        "production",
+        "--commit",
+        COMMIT,
+      ]),
+    ).toEqual({
+      surface: EDGE_V2_FORMS_SURFACE,
+      mode: "dry-run",
+      trustSet: SOURCE_COMMIT,
+      environment: "production",
+      commit: COMMIT,
+    });
+    expect(
+      parseDeployInvocation([
+        EDGE_V2_FORMS_SURFACE,
+        "--trust-set",
+        SOURCE_COMMIT,
+        "--verify",
+        "--environment",
+        "production",
+      ]),
+    ).toEqual({
+      surface: EDGE_V2_FORMS_SURFACE,
+      mode: "verify",
+      trustSet: SOURCE_COMMIT,
+      environment: "production",
+    });
+    expect(() =>
+      parseDeployInvocation([
+        EDGE_V2_FORMS_SURFACE,
+        "--trust-set",
+        SOURCE_COMMIT,
+        "--environment",
+        "integration",
+        "--commit",
+        COMMIT,
+      ]),
+    ).toThrow();
     expect(
       parseDeployInvocation([RELEASE_SURFACE, "--trust-set", SOURCE_COMMIT]),
     ).toEqual({

@@ -1,9 +1,52 @@
 # Edge Form documentation
 
+## Human-authored Form specifications
+
+The new Host API v2 Form specifications are authored in Japanese under
+`spec/forms/<Kind>/<version>/index.md`. Their exact identifiers are
+`https://edge.forms.takoform.com/forms/<Kind>/<version>/`, including the trailing
+slash. At publication, each exact URL must serve its normative content directly;
+a redirect or a locale alias does not transfer its identity.
+The corresponding `/ja/` page is a reading view, not another Form identity.
+`spec/guides/` provides the overview, Host usage, Provider guidance and Migration.
+Guides are explanatory and their `/v2/` path denotes the Host API they discuss,
+not a collective Form release version.
+
+These sources are loaded independently of v1 package verification and rendered
+into the same site. They must not be inserted into a v1 signed set, promoted by
+the package generator, or treated as current Host/Provider capabilities. The
+existing v1 definitions, package bytes, history and versioned routes remain
+unchanged. An English reading view that contains the Japanese original must say
+so; only navigation and a language notice are not a translated specification.
+
+Before publishing a Form URL, review its complete normative body, exact links,
+examples and all referenced Form versions. Check direct-200 URL behavior and
+anonymous body readback on the actual site separately from local builds. Record
+the exact source commit and retain the published bytes; any later semantic
+change needs a new Form URL. The local documentation work does not perform
+that publication or establish Host runtime conformance.
+
+`spec/forms.freeze.json` is a publisher-local, append-only first-add anchor for
+the exact Japanese Markdown bytes at each version-fixed URL. Its check requires
+complete Git history. A frozen entry is only eligible for publication; it does
+not claim the URL is already public. The published site also serves those exact
+bytes at the derived `source.md` path beside each Form page. This companion
+asset and the site's `_edge-forms-publication.json` inventory are readback
+evidence for this publisher, not Takoform API endpoints, Host discovery, or
+required distribution formats. The canonical Form URL itself remains the
+direct-200 HTML reading view; its presentation can change without changing the
+normative Markdown source.
+
+With authored sources present, `/` and `/ja/` introduce the new Forms. The v1
+overview remains at `/v1/` and `/ja/v1/`; all existing versioned Form routes keep
+their original definitions. `/v2/` is also a direct entry into the new guide.
+
+## Retained v1 package pages
+
 The human-facing reference lives at **edge.forms.takoform.com**. It is owned
-by this publisher, not the neutral Takoform API/Core site. It contains an index,
-17 published Form pages and two retained version pages. The selected source
-may contain newer, unpublished Form versions. Package publication,
+by this publisher, not the neutral Takoform API/Core site. The v1 section contains
+an index and the current and retained version pages derived from its selected
+package set. The selected source may contain newer, unpublished Form versions. Package publication,
 Host support, admission and actual hosting are separate concerns.
 
 English keeps the existing root routes; Japanese pages are under `/ja/`. The
@@ -96,34 +139,72 @@ renders real VitePress pages, and runs a Wrangler dry-run in a disposable
 directory. This source check is explicitly **UNPUBLISHED**: it consumes no
 trust set, emits no signed/public-readback assertion or unborn package-tag
 links, and deletes all preview assets. It is neither a site build target nor a
-deployment authorization. The signed `check:edge-form-pages` and
-`build:edge-form-pages` commands still require one exact installed signed set;
-the deploy gate retains that same strict requirement.
+deployment authorization. The signed site build uses the explicitly selected
+already-published v1 set, not the newer unsigned v1 candidate roster. Its
+historical reading guide is read byte-exact from pinned Git history. The normal
+build includes only previously published v2 Form URLs; frozen but not yet
+published Forms cannot appear through the routine site-update surface. The
+explicit publication build below selects all frozen entries and preserves all
+19 previously published v1 versioned routes. It requires no new v1 package
+signature for v2 prose.
 
 ```console
 bun install --frozen-lockfile
 go mod download
 bun run check
-bun run build:edge-form-pages
-bun run check:edge-form-pages:browser
+bun run check:edge-form-pages:browser:source
 ```
 
-The build prints a fresh temporary output directory; it never deletes a
-caller-selected nonempty directory. For a specific set/destination:
+The source browser lane builds one temporary preview, checks the rendered routes,
+and removes it on completion. It is explicitly **UNPUBLISHED** and does not
+qualify production CSP headers or public availability.
+
+By default, the signed build prints a fresh temporary v1-only output
+directory; it never deletes a caller-selected nonempty directory. For a specific
+set/destination:
 
 ```console
 bun run build:edge-form-pages --trust-set <source-commit> --output <empty-directory>
+
+# Offline candidate only: include all frozen authored v2 Form versions.
+bun run build:edge-form-pages --trust-set <published-v1-set> --output <empty-directory> --include-frozen
 ```
 
 The portable gate is read-only and validates exact packages, deterministic HTML,
 fixtures, history labels and the static build. The explicit browser lane needs
 installed Chrome/Chromium (`TAKOFORM_BROWSER` overrides its path); it neither
 downloads a browser nor uses a user profile. It checks every current and retained
-page at 320/375/414/768px under the generated CSP, navigation, JSON, semantics,
+page at 320/375/414/768px, navigation, JSON, semantics,
 keyboard disclosure, the mobile sidebar, local search and both color schemes.
+The default signed browser lane also checks the generated production CSP; the
+explicit source-preview lane checks local rendering without claiming that proof.
 Manual visual review still checks hierarchy, contrast and reading burden.
 
 ## Publish through this repository
+
+Source preview is not a substitute publication artifact. A local frozen-Form
+build is only a candidate: it does not prove public URL readback or authorize an
+upload. Publishing the first v2 Form URLs is a separate, consumer-pinned identity
+surface in this repository:
+
+```console
+bun run deploy -- edge-v2-forms --trust-set <published-v1-set> --environment production --commit <exact-public-main-commit> --dry-run
+bun run deploy -- edge-v2-forms --trust-set <published-v1-set> --environment production --commit <exact-public-main-commit>
+bun run deploy -- edge-v2-forms --trust-set <published-v1-set> --environment production --verify
+```
+
+Before its one full-asset Worker upload, this path proves the selected frozen
+source and checks that every previously published Form URL and raw source still
+exist unchanged. It requires each new canonical URL and companion source path
+to be absent, retains the old published inventory, and rechecks provider history
+and public source immediately before upload. After upload, the same public
+readback compares the complete generated asset closure, including old/new Form
+pages and raw normative source. If an upload or readback becomes uncertain,
+inspect provider history and public URLs; never blindly retry or remove a
+published URL. Cloudflare does not provide an atomic compare-and-swap for this
+whole static-asset replacement: an independent concurrent writer can still race
+the final preflight, so publication must be operationally serialized. The
+publisher does not introduce an admission service or a cross-Host registry.
 
 Inspect `bun run deploy -- --contract`. Keep the authenticated account explicitly
 selected with `CLOUDFLARE_ACCOUNT_ID` outside source. Select a clean exact commit

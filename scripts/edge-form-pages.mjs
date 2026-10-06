@@ -15,6 +15,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderVitePressPages } from "./edge-form-pages-vitepress.mjs";
+import { verifyEdgeFormFreeze } from "./edge-form-freeze.mjs";
+import { validateEdgeV2PublicationEntries } from "./edge-v2-docs.mjs";
 
 import {
   ABANDONED_PREPUBLICATION_SET_ID,
@@ -26,6 +28,11 @@ import {
 export const EDGE_FORM_PAGES_ORIGIN = "https://edge.forms.takoform.com";
 export const EDGE_FORM_PAGES_SURFACE = "edge-form-pages";
 export const EDGE_FORM_PAGES_WORKER = "takoform-edge-form-pages";
+export const PUBLISHED_V1_SET_ID = "e7f8a39311dd011b8467e97e7f300cabb9a6b06c";
+export const PUBLISHED_V1_GUIDE_COMMIT =
+  "79a31729e80f9210b951fc6c0e4f857816e4d2ab";
+export const PUBLISHED_V1_GUIDE_SHA256 =
+  "b9f4f498428c94000019f3e1e2928142a7f34510e9aeb2b5473779f80de1eb24";
 
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -43,9 +50,25 @@ export function buildEdgeFormPages({
   plan,
   trust,
   publicReadback,
+  publishedForms = [],
+  readingGuide,
   root = repositoryRoot,
 }) {
   if (!outputDirectory) throw new Error("outputDirectory is required");
+  validateEdgeV2PublicationEntries(publishedForms);
+  if (publishedForms.length) {
+    const freeze = verifyEdgeFormFreeze(root, {
+      mode: "check",
+      requireFrozen: true,
+    });
+    if (freeze.status !== "FROZEN")
+      throw new Error("invalid Edge Form freeze manifest");
+    const frozen = new Map(freeze.frozen.map((entry) => [entry.url, entry]));
+    for (const entry of publishedForms) {
+      if (JSON.stringify(frozen.get(entry.url)) !== JSON.stringify(entry))
+        throw new Error(`selected Form is not frozen: ${entry.url}`);
+    }
+  }
   const current = exactSignedForms(plan, trust, root);
   const retained = (plan.retainedPackages ?? []).map((entry) =>
     readPagePackage(
@@ -57,7 +80,7 @@ export function buildEdgeFormPages({
       root,
     ),
   );
-  const forms = preparePageForms(current, retained, root);
+  const forms = preparePageForms(current, retained, root, readingGuide);
   const isPublic = validatePublicReadback(publicReadback, current, trust);
   if (
     isPublic &&
@@ -83,6 +106,7 @@ export function buildEdgeFormPages({
     trust,
     isPublic,
     origin: EDGE_FORM_PAGES_ORIGIN,
+    publishedForms,
   });
   const files = assetFiles(outputDirectory);
   const digest = createHash("sha256");
@@ -99,6 +123,7 @@ export function buildEdgeFormPages({
     publicPackageReadback: isPublic,
     formCount: current.length,
     retainedCount: retained.length,
+    publishedV2FormCount: publishedForms.length,
     routes,
     files,
     digest: `sha256:${digest.digest("hex")}`,
@@ -157,8 +182,9 @@ function prepareOutputDirectory(outputDirectory) {
   mkdirSync(outputDirectory, { recursive: true });
 }
 
-function preparePageForms(current, retained, root) {
-  const guide = readJSON(path.join(root, "site/reading-guide.json"));
+function preparePageForms(current, retained, root, readingGuide) {
+  const guide =
+    readingGuide ?? readJSON(path.join(root, "site/reading-guide.json"));
   validateReadingGuide(guide, current);
   const forms = [...current, ...retained];
   const identities = new Set(
@@ -178,6 +204,74 @@ function preparePageForms(current, retained, root) {
     );
   }
   return forms;
+}
+
+/** Site-only view of the already signed v1 roster; never promotes current candidates. */
+export function publishedV1PagePlan(sourcePlan, trust) {
+  if (
+    trust?.status !== "verified" ||
+    trust?.family !== sourcePlan?.family ||
+    !Array.isArray(trust.packages) ||
+    trust.packages.length !== trust.packageCount
+  )
+    throw new Error(
+      "cannot derive published v1 pages without an exact verified set",
+    );
+  const activeTags = new Set(trust.packages.map((entry) => entry.locator?.tag));
+  if (activeTags.size !== trust.packages.length || activeTags.has(undefined))
+    throw new Error("signed v1 page roster has duplicate or missing locators");
+  const retainedPackages = (sourcePlan.retainedPackages ?? []).filter(
+    (entry) => !activeTags.has(entry.tag),
+  );
+  return {
+    ...sourcePlan,
+    formCount: trust.packageCount,
+    forms: trust.packages,
+    retainedPackages,
+  };
+}
+
+/** Exact last pre-successor reading guide from this repository's public history. */
+export function readPublishedV1Guide(root = repositoryRoot) {
+  const ancestor = spawnSync(
+    "git",
+    [
+      "--no-replace-objects",
+      "merge-base",
+      "--is-ancestor",
+      PUBLISHED_V1_GUIDE_COMMIT,
+      "HEAD",
+    ],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, GIT_NO_REPLACE_OBJECTS: "1" },
+    },
+  );
+  if (ancestor.status !== 0)
+    throw new Error("published v1 reading-guide source is not in HEAD history");
+  const read = spawnSync(
+    "git",
+    [
+      "--no-replace-objects",
+      "show",
+      `${PUBLISHED_V1_GUIDE_COMMIT}:site/reading-guide.json`,
+    ],
+    {
+      cwd: root,
+      encoding: null,
+      env: { ...process.env, GIT_NO_REPLACE_OBJECTS: "1" },
+    },
+  );
+  if (
+    read.status !== 0 ||
+    `sha256:${createHash("sha256").update(read.stdout).digest("hex")}` !==
+      `sha256:${PUBLISHED_V1_GUIDE_SHA256}`
+  )
+    throw new Error(
+      "published v1 reading-guide bytes differ from pinned history",
+    );
+  return JSON.parse(read.stdout.toString("utf8"));
 }
 
 export function validateReadingGuide(guide, current) {
@@ -384,50 +478,92 @@ function parseCLI(args) {
   if (args.length === 1 && args[0] === "--check-source")
     return { mode: "source-check" };
   if (
-    args.length === 3 &&
+    [3, 4, 5].includes(args.length) &&
     args[0] === "--check" &&
     args[1] === "--trust-set" &&
-    commitPattern.test(args[2])
+    commitPattern.test(args[2]) &&
+    (args.length === 3 ||
+      (args.length === 4 && args[3] === "--include-frozen") ||
+      (args.length === 5 && args[3] === "--published-forms"))
   )
-    return { mode: "check", setId: args[2] };
+    return {
+      mode: "check",
+      setId: args[2],
+      includeFrozen: args.length === 4,
+      publishedForms:
+        args.length === 5 ? parsePublishedFormsArgument(args[4]) : [],
+    };
   if (args.length === 1 && args[0] === "--check") return { mode: "check" };
   if (
-    args.length === 4 &&
+    [4, 5].includes(args.length) &&
     args[0] === "--trust-set" &&
     commitPattern.test(args[1]) &&
-    args[2] === "--output"
+    args[2] === "--output" &&
+    (args.length === 4 || args[4] === "--include-frozen")
   ) {
     return {
       mode: "build",
       setId: args[1],
       outputDirectory: path.resolve(args[3]),
+      includeFrozen: args.length === 5,
     };
   }
   throw new Error(
-    "usage: bun scripts/edge-form-pages.mjs --check-source | --check [--trust-set <40-hex-set>] | --trust-set <40-hex-set> --output <directory>",
+    "usage: bun scripts/edge-form-pages.mjs --check-source | --check [--trust-set <40-hex-set> [--published-forms <base64url-json>|--include-frozen]] | --trust-set <40-hex-set> --output <directory> [--include-frozen]",
   );
+}
+
+function parsePublishedFormsArgument(value) {
+  if (
+    typeof value !== "string" ||
+    value.length > 65536 ||
+    !/^[A-Za-z0-9_-]+$/u.test(value)
+  )
+    throw new Error("invalid --published-forms argument");
+  let entries;
+  try {
+    entries = JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
+  } catch {
+    throw new Error("invalid --published-forms JSON");
+  }
+  return validateEdgeV2PublicationEntries(entries);
 }
 
 function runCLI(args) {
   const invocation = parseCLI(args);
-  const plan = derivePublicationPlan();
+  const sourcePlan = derivePublicationPlan();
   let setId = invocation.setId;
   let outputDirectory = invocation.outputDirectory;
   let temporary;
-  if (invocation.mode !== "source-check" && !setId)
-    setId = selectInstalledPageSet(plan);
+  if (invocation.mode !== "source-check" && !setId) setId = PUBLISHED_V1_SET_ID;
   if (!outputDirectory) {
     temporary = mkdtempSync(path.join(tmpdir(), "edge-form-pages-check-"));
     outputDirectory = path.join(temporary, "assets");
   }
   try {
+    const trust =
+      invocation.mode === "source-check" ? null : readInstalledTrustSet(setId);
+    const plan = trust ? publishedV1PagePlan(sourcePlan, trust) : sourcePlan;
+    const freeze = invocation.includeFrozen
+      ? verifyEdgeFormFreeze(repositoryRoot, {
+          mode: "check",
+          requireFrozen: true,
+        })
+      : null;
+    if (freeze && (freeze.status !== "FROZEN" || !freeze.frozen.length))
+      throw new Error(
+        `no frozen authored Form closure for publication build: ${freeze.status}`,
+      );
+    const publishedForms = freeze?.frozen ?? invocation.publishedForms ?? [];
     const result =
       invocation.mode === "source-check"
         ? buildEdgeFormSourcePreview({ outputDirectory, plan })
         : buildEdgeFormPages({
             outputDirectory,
             plan,
-            trust: readInstalledTrustSet(setId),
+            trust,
+            publishedForms,
+            readingGuide: readPublishedV1Guide(),
           });
     if (invocation.mode === "check" || invocation.mode === "source-check") {
       const wrangler = spawnSync(
@@ -459,50 +595,6 @@ function runCLI(args) {
     if (temporary && invocation.mode !== "build")
       rmSync(temporary, { recursive: true, force: true });
   }
-}
-
-function selectInstalledPageSet(plan) {
-  const installed = readdirSync(
-    path.join(repositoryRoot, "forms", "trust", "sets"),
-  )
-    .filter(
-      (name) =>
-        commitPattern.test(name) && name !== ABANDONED_PREPUBLICATION_SET_ID,
-    )
-    .sort();
-  const matching = [];
-  for (const candidate of installed) {
-    const trust = readInstalledTrustSet(candidate);
-    try {
-      exactSignedForms(plan, trust);
-      matching.push(trust);
-    } catch (error) {
-      if (
-        !String(error instanceof Error ? error.message : error).includes(
-          "signed package closure differs",
-        )
-      ) {
-        throw error;
-      }
-    }
-  }
-  if (matching.length === 0) {
-    throw new Error(
-      "no installed signed set exactly matches the current package closure",
-    );
-  }
-  const highestSequence = Math.max(
-    ...matching.map((trust) => trust.checkpoint?.pin?.sequence ?? -1),
-  );
-  const current = matching.filter(
-    (trust) => trust.checkpoint?.pin?.sequence === highestSequence,
-  );
-  if (highestSequence < 0 || current.length !== 1) {
-    throw new Error(
-      "installed signed sets do not identify one latest checkpoint for the current package closure",
-    );
-  }
-  return current[0].setId;
 }
 
 if (import.meta.main) {

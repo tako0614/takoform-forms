@@ -29,7 +29,18 @@ import {
   EDGE_FORM_PAGES_SURFACE,
   EDGE_FORM_PAGES_WORKER,
   buildEdgeFormPages,
+  publishedV1PagePlan,
+  readPublishedV1Guide,
 } from "./edge-form-pages.mjs";
+import {
+  deriveEdgeFormFreezeCandidates,
+  verifyEdgeFormFreeze,
+} from "./edge-form-freeze.mjs";
+import {
+  EDGE_V2_PUBLICATION_ASSET,
+  parseEdgeV2PublicationBytes,
+  validateEdgeV2PublicationEntries,
+} from "./edge-v2-docs.mjs";
 import {
   DOMAIN_CONTRACT,
   DOMAIN_SURFACE,
@@ -43,6 +54,7 @@ export const REPOSITORY_URL = "https://github.com/tako0614/takoform-forms.git";
 export const REPOSITORY = "tako0614/takoform-forms";
 export const OWNER_GATE = "bun run check";
 export const EDGE_FORM_PAGES_GATE = "bun run check:edge-form-pages";
+export const EDGE_V2_FORMS_SURFACE = "edge-v2-forms";
 export const TRUST_SET_TAG_PREFIX = "forms/sets/";
 export const REVOCATION_TAG_PREFIX = "forms/revocations/v";
 export const PUBLISHER_REPOSITORY = `https://github.com/${REPOSITORY}`;
@@ -74,6 +86,11 @@ const edgePageSources = [
   "scripts/form-publication.mjs",
   "scripts/edge-form-pages.mjs",
   "scripts/edge-form-pages-vitepress.mjs",
+  "scripts/edge-v2-docs.mjs",
+  "scripts/edge-form-freeze.mjs",
+  "spec/forms.freeze.json",
+  "spec/forms",
+  "spec/guides",
   "scripts/deploy.mjs",
   "site/.vitepress",
   "site/reading-guide.json",
@@ -163,6 +180,27 @@ export const DEPLOY_CONTRACT = Object.freeze({
           "This surface replaces only the static Worker version. It has no Git push, package tag, signed-set, revocation, Form identity, or package mutation path.",
       },
     },
+    {
+      surface: EDGE_V2_FORMS_SURFACE,
+      target: `${EDGE_FORM_PAGES_WORKER} at ${EDGE_FORM_PAGES_ORIGIN}; version-fixed authored Form URLs`,
+      covers: edgePageSources,
+      requiresScripts: ["check:edge-form-pages", "deploy"],
+      requiresTools: ["git", "bun", "go", "curl", "wrangler"],
+      requiresEnv: ["CLOUDFLARE_ACCOUNT_ID"],
+      triggers: ["published-identity"],
+      obligations: {
+        provenance:
+          "Clean exact public-main commit, publisher-local first-add Form freeze proof, signed v1 package closure, and one generated static asset digest. Frozen is not published until this explicit surface succeeds.",
+        "post-conditions":
+          "Provider 100% deployment history and anonymous direct-200 readback of every old and new Form URL, exact raw normative source bytes, inventory, and the complete generated asset closure.",
+        reversal:
+          "A newly published Form URL and its normative source cannot be deleted or overwritten. Repair its meaning only at a new version-fixed URL; presentation Worker rollback must retain all published URLs and raw sources.",
+        "failure-handling":
+          "Preflight rejects missing/changed old source, present new URLs, stale provider history, and changed source before one upload. After uncertainty inspect provider and public state; never blindly retry or delete.",
+        "no-overwrite":
+          "Before upload, old inventory and every raw normative source must match frozen bytes; new canonical and source routes must be absent. Every full-asset build retains all prior published Form URLs. A concurrent external writer between final readback and upload cannot be excluded without provider compare-and-swap; operator must serialize publication.",
+      },
+    },
   ],
 });
 
@@ -236,7 +274,11 @@ export function parseDeployInvocation(args) {
   if (args[0] === DOMAIN_SURFACE)
     return { surface: DOMAIN_SURFACE, mode: "domain", args: args.slice(1) };
   if (
-    [EDGE_FORM_PAGES_SURFACE, "edge-form-pages-bootstrap"].includes(args[0]) &&
+    [
+      EDGE_FORM_PAGES_SURFACE,
+      EDGE_V2_FORMS_SURFACE,
+      "edge-form-pages-bootstrap",
+    ].includes(args[0]) &&
     args[1] === "--trust-set" &&
     commitPattern.test(args[2] ?? "")
   ) {
@@ -300,9 +342,11 @@ export function runDeploy(args, dependencies = defaultDependencies()) {
     if (invocation.surface === DOMAIN_SURFACE)
       return runDomainCLI(invocation.args);
     if (
-      [EDGE_FORM_PAGES_SURFACE, "edge-form-pages-bootstrap"].includes(
-        invocation.surface,
-      )
+      [
+        EDGE_FORM_PAGES_SURFACE,
+        EDGE_V2_FORMS_SURFACE,
+        "edge-form-pages-bootstrap",
+      ].includes(invocation.surface)
     ) {
       return runEdgeFormPagesDeploy(invocation, dependencies);
     }
@@ -401,6 +445,7 @@ export function runDeploy(args, dependencies = defaultDependencies()) {
           );
     const pageSurface = [
       EDGE_FORM_PAGES_SURFACE,
+      EDGE_V2_FORMS_SURFACE,
       "edge-form-pages-bootstrap",
     ].includes(invocation?.surface);
     const prefix = blocked.mutationStarted
@@ -429,6 +474,36 @@ export function runEdgeFormPagesDeploy(invocation, dependencies) {
   );
   let sourceCommit = null;
   const bootstrap = invocation.surface === "edge-form-pages-bootstrap";
+  const formPublication = invocation.surface === EDGE_V2_FORMS_SURFACE;
+  const freeze = readEdgeFormFreeze(dependencies);
+  if (
+    freeze.status === "INVALID" ||
+    (formPublication && freeze.status !== "FROZEN")
+  )
+    throw new DeployBlocked(
+      `Edge Form freeze is ${freeze.status}: ${(freeze.problems ?? []).join("; ")}`,
+    );
+  const frozen = validateEdgeV2PublicationEntries(freeze.frozen ?? []);
+  const publicForms = bootstrap
+    ? []
+    : readPublicEdgeV2Forms(dependencies, frozen);
+  const prior = validateEdgeV2PublicationEntries(publicForms);
+  const byUrl = new Map(frozen.map((entry) => [entry.url, entry]));
+  for (const entry of prior) {
+    if (JSON.stringify(byUrl.get(entry.url)) !== JSON.stringify(entry))
+      throw new DeployBlocked(
+        `public Form source is not frozen unchanged: ${entry.url}`,
+      );
+  }
+  const publishedForms = formPublication ? frozen : prior;
+  if (
+    formPublication &&
+    publishedForms.length === prior.length &&
+    invocation.mode !== "verify"
+  )
+    throw new DeployBlocked(
+      "no new frozen Form URL to publish; use --verify to settle existing publication",
+    );
   let before;
 
   if (invocation.mode !== "verify") {
@@ -450,7 +525,7 @@ export function runEdgeFormPagesDeploy(invocation, dependencies) {
       throw new DeployBlocked(
         "routine update requires a provider predecessor identity for rollback",
       );
-    runEdgeFormPageGate(dependencies, invocation.trustSet);
+    runEdgeFormPageGate(dependencies, invocation.trustSet, publishedForms);
     const after = readEdgeFormPageInputs(dependencies, invocation.trustSet);
     assertPlansEqual(inputs.plan, after.plan);
     assertTrustReportsEqual(inputs.trust, after.trust);
@@ -465,6 +540,7 @@ export function runEdgeFormPagesDeploy(invocation, dependencies) {
       sourceCommit
     )
       throw new DeployBlocked("source changed during the scoped gate");
+    assertEdgeV2PublicFormsUnchanged(dependencies, frozen, prior, bootstrap);
   }
 
   const temporary = mkdtempSync(
@@ -479,12 +555,15 @@ export function runEdgeFormPagesDeploy(invocation, dependencies) {
             plan: inputs.plan,
             trust: inputs.trust,
             publicReadback,
+            publishedForms,
           })
         : buildEdgeFormPages({
             outputDirectory: assetsDirectory,
             plan: inputs.plan,
             trust: inputs.trust,
             publicReadback,
+            publishedForms,
+            readingGuide: readPublishedV1Guide(),
           });
 
     if (invocation.mode === "verify") {
@@ -534,6 +613,7 @@ export function runEdgeFormPagesDeploy(invocation, dependencies) {
       sourceCommit
     )
       throw new DeployBlocked("source changed before upload");
+    assertEdgeV2PublicFormsUnchanged(dependencies, frozen, prior, bootstrap);
     const immediatelyBefore = readEdgeHistory(dependencies);
     if (
       immediatelyBefore.absent !== before.absent ||
@@ -622,11 +702,128 @@ function readEdgeFormPageInputs(dependencies, trustSet) {
   if (typeof dependencies.readEdgeFormPageInputs === "function") {
     return dependencies.readEdgeFormPageInputs(trustSet);
   }
-  const plan = readPlan(dependencies);
-  const trust = readTrustSet(dependencies, plan, trustSet, {
+  const sourcePlan = readPlan(dependencies);
+  const trust = readTrustSet(dependencies, sourcePlan, trustSet, {
     credentialFree: true,
+    validateCurrentPackages: false,
   });
-  return { plan, trust };
+  return { plan: publishedV1PagePlan(sourcePlan, trust), trust };
+}
+
+function readEdgeFormFreeze(dependencies) {
+  return typeof dependencies.readEdgeFormFreeze === "function"
+    ? dependencies.readEdgeFormFreeze()
+    : verifyEdgeFormFreeze(root, { mode: "check" });
+}
+
+function assertEdgeV2PublicFormsUnchanged(
+  dependencies,
+  frozen,
+  prior,
+  bootstrap,
+) {
+  if (bootstrap) return;
+  const observed = readPublicEdgeV2Forms(dependencies, frozen);
+  if (JSON.stringify(observed) !== JSON.stringify(prior))
+    throw new DeployBlocked(
+      "public Form inventory or source changed before upload",
+    );
+}
+
+/** Read the complete deployed Form source set before any full-asset replacement. */
+export function readPublicEdgeV2Forms(dependencies, frozen) {
+  validateEdgeV2PublicationEntries(frozen);
+  if (typeof dependencies.readPublicEdgeV2Forms === "function") {
+    const supplied = dependencies.readPublicEdgeV2Forms(frozen);
+    return validateEdgeV2PublicationEntries(supplied);
+  }
+  const inventory = readEdgePublicAsset(
+    dependencies,
+    `/${EDGE_V2_PUBLICATION_ASSET}`,
+    131072,
+  );
+  if (!["200", "404"].includes(inventory.status))
+    throw new DeployBlocked(
+      `cannot establish public Form inventory (HTTP ${inventory.status})`,
+    );
+  const prior =
+    inventory.status === "404"
+      ? []
+      : parseEdgeV2PublicationBytes(inventory.body);
+  const frozenByUrl = new Map(frozen.map((entry) => [entry.url, entry]));
+  // Validate the entire remote inventory before letting any remote value select a URL.
+  for (const entry of prior) {
+    if (JSON.stringify(frozenByUrl.get(entry.url)) !== JSON.stringify(entry))
+      throw new DeployBlocked(
+        `public Form inventory differs from frozen source: ${entry.url}`,
+      );
+  }
+  const priorUrls = new Set(prior.map((entry) => entry.url));
+  for (const entry of prior) {
+    const route = new URL(entry.url).pathname;
+    const page = readEdgePublicAsset(dependencies, route, 8 * 1024 * 1024);
+    const source = readEdgePublicAsset(
+      dependencies,
+      `${route}source.md`,
+      1024 * 1024,
+    );
+    if (
+      page.status !== "200" ||
+      source.status !== "200" ||
+      !source.body.equals(readFileSync(path.join(root, entry.path)))
+    )
+      throw new DeployBlocked(
+        `published Form URL or normative source changed: ${entry.url}`,
+      );
+  }
+  // Without a published inventory, a surviving Form page still makes an upload unsafe.
+  for (const entry of deriveEdgeFormFreezeCandidates(root)) {
+    if (priorUrls.has(entry.url)) continue;
+    const route = new URL(entry.url).pathname;
+    const page = readEdgePublicAsset(dependencies, route, 1024 * 1024);
+    const source = readEdgePublicAsset(
+      dependencies,
+      `${route}source.md`,
+      1024 * 1024,
+    );
+    if (page.status !== "404" || source.status !== "404")
+      throw new DeployBlocked(
+        `unlisted Form URL or normative source already exists: ${entry.url}`,
+      );
+  }
+  return prior;
+}
+
+function readEdgePublicAsset(dependencies, route, maxBytes) {
+  const temporary = mkdtempSync(path.join(tmpdir(), "edge-form-public-read-"));
+  const output = path.join(temporary, "body");
+  try {
+    const status = requireSuccess(
+      dependencies,
+      "curl",
+      [
+        "--silent",
+        "--show-error",
+        "--connect-timeout",
+        "10",
+        "--max-time",
+        "30",
+        "--max-filesize",
+        String(maxBytes),
+        "--output",
+        output,
+        "--write-out",
+        "%{http_code}",
+        `${EDGE_FORM_PAGES_ORIGIN}${route}`,
+      ],
+      `cannot read public ${route}`,
+      false,
+      true,
+    );
+    return { status, body: readFileSync(output) };
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
 }
 
 function requireEdgeFormPageSourceIdentity(dependencies, commit) {
@@ -828,13 +1025,15 @@ function normalizeCsp(value) {
   return JSON.stringify([...directives].sort(([a], [b]) => a.localeCompare(b)));
 }
 
-function runEdgeFormPageGate(dependencies, trustSet) {
+function runEdgeFormPageGate(dependencies, trustSet, publishedForms) {
   dependencies.stderr(`==> ${EDGE_FORM_PAGES_GATE}\n`);
   const gate = dependencies.run("bun", [
     "run",
     "check:edge-form-pages",
     "--trust-set",
     trustSet,
+    "--published-forms",
+    Buffer.from(JSON.stringify(publishedForms)).toString("base64url"),
   ]);
   if (gate.stdout) dependencies.stderr(gate.stdout);
   if (gate.stderr) dependencies.stderr(gate.stderr);

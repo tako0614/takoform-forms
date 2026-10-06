@@ -1,10 +1,20 @@
 // Explicit browser lane: no browser download, production access or user profile.
 import { chromium } from "playwright-core";
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+} from "node:fs";
 import { createServer } from "node:http";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { buildEdgeFormSourcePreview } from "./edge-form-pages.mjs";
+import { loadEdgeV2Docs } from "./edge-v2-docs.mjs";
+import { derivePublicationPlan } from "./form-publication.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const executablePath =
@@ -18,12 +28,78 @@ if (!executablePath || !existsSync(executablePath))
   throw new Error(
     "Chrome unavailable; set TAKOFORM_BROWSER to an installed browser",
   );
-const result = spawnSync("bun", ["run", "build:edge-form-pages"], {
-  cwd: root,
-  encoding: "utf8",
-});
-if (result.status) throw new Error(`site build failed: ${result.stderr}`);
-const build = JSON.parse(result.stdout);
+const args = process.argv.slice(2);
+const sourcePreview = args.length === 1 && args[0] === "--source-preview";
+if (args.length && !sourcePreview)
+  throw new Error("usage: edge-form-pages-browser.mjs [--source-preview]");
+let previewDirectory;
+let build;
+if (sourcePreview) {
+  previewDirectory = mkdtempSync(
+    path.join(tmpdir(), "edge-form-browser-preview-"),
+  );
+  const plan = derivePublicationPlan();
+  const preview = buildEdgeFormSourcePreview({
+    outputDirectory: previewDirectory,
+    plan,
+    root,
+  });
+  if (preview.publicationStatus !== "UNPUBLISHED")
+    throw new Error("source preview did not report UNPUBLISHED");
+  if (Object.hasOwn(preview, "signedSet"))
+    throw new Error("source preview must not report a signed set");
+  const authored = loadEdgeV2Docs(root);
+  const hasV2Home = authored.some((entry) => entry.route === "/");
+  const locales = ["en", "ja"];
+  const routes = new Set([
+    "/",
+    "/ja/",
+    ...(hasV2Home ? ["/v1/", "/ja/v1/"] : []),
+    ...locales.flatMap((locale) => {
+      const prefix = locale === "ja" ? "/ja" : "";
+      return [...plan.forms, ...plan.retainedPackages].map(
+        (form) =>
+          `${prefix}/forms/${form.formRef.kind}/${form.formRef.definitionVersion}/`,
+      );
+    }),
+    ...authored.flatMap((entry) => [entry.route, `/ja${entry.route}`]),
+  ]);
+  const files = inventory(previewDirectory);
+  for (const route of routes) {
+    const page = route === "/" ? "index.html" : `${route.slice(1)}index.html`;
+    if (!files.includes(page))
+      throw new Error(`source preview route has no built file: ${route}`);
+  }
+  if (existsSync(path.join(previewDirectory, "_headers")))
+    throw new Error(
+      "source preview must not claim production CSP qualification",
+    );
+  if (existsSync(path.join(previewDirectory, "sitemap.xml")))
+    throw new Error("source preview must not publish a sitemap");
+  if (
+    readFileSync(path.join(previewDirectory, "robots.txt"), "utf8") !==
+    "User-agent: *\nDisallow: /\n"
+  )
+    throw new Error("source preview must disallow indexing");
+  build = {
+    ...preview,
+    outputDirectory: previewDirectory,
+    routes: [...routes],
+    files,
+    sourcePreview: true,
+  };
+  if (build.routeCount !== build.routes.length)
+    throw new Error(
+      "source preview route inventory differs from rendered routes",
+    );
+} else {
+  const result = spawnSync("bun", ["run", "build:edge-form-pages"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  if (result.status) throw new Error(`site build failed: ${result.stderr}`);
+  build = JSON.parse(result.stdout);
+}
 const mime = {
   ".html": "text/html",
   ".css": "text/css",
@@ -34,14 +110,28 @@ const mime = {
   ".js": "text/javascript",
   ".json": "application/json",
 };
-const headers = Object.fromEntries(
-  readFileSync(path.join(build.outputDirectory, "_headers"), "utf8")
-    .split("\n")
-    .filter((line) => line.startsWith("  "))
-    .map((line) => {
-      const colon = line.indexOf(":");
-      return [line.slice(0, colon).trim(), line.slice(colon + 1).trim()];
-    }),
+const headers = sourcePreview
+  ? {}
+  : Object.fromEntries(
+      readFileSync(path.join(build.outputDirectory, "_headers"), "utf8")
+        .split("\n")
+        .filter((line) => line.startsWith("  "))
+        .map((line) => {
+          const colon = line.indexOf(":");
+          return [line.slice(0, colon).trim(), line.slice(colon + 1).trim()];
+        }),
+    );
+if (!sourcePreview && !existsSync(path.join(build.outputDirectory, "_headers")))
+  throw new Error(
+    "production browser build is missing its deployed-header contract",
+  );
+const authoredRoutes = new Set(
+  sourcePreview
+    ? loadEdgeV2Docs(root).flatMap((entry) => [
+        entry.route,
+        `/ja${entry.route}`,
+      ])
+    : [],
 );
 const server = createServer((request, response) => {
   const route = new URL(request.url, "http://localhost").pathname;
@@ -81,13 +171,23 @@ try {
   );
   for (const width of [320, 375, 414, 768]) {
     await page.setViewportSize({ width, height: 900 });
-    const descriptions = new Set();
+    const descriptions = new Map([
+      ["en", new Set()],
+      ["ja", new Set()],
+    ]);
     for (const route of build.routes) {
       const response = await page.goto(origin + route, {
         waitUntil: "networkidle",
       });
       if (response.status() !== 200)
         throw new Error(`HTTP failure at ${route}`);
+      if (
+        sourcePreview &&
+        !(await page
+          .locator('meta[name="robots"][content="noindex,nofollow"]')
+          .count())
+      )
+        throw new Error(`${route}: source preview is not marked noindex`);
       await page.evaluate(() => document.fonts.ready);
       const sidebarRoutes = await page
         .locator('.VPSidebar a[href^="/"]')
@@ -110,6 +210,13 @@ try {
       const expectedLang = route.startsWith("/ja/") ? "ja-JP" : "en";
       if ((await page.locator("html").getAttribute("lang")) !== expectedLang)
         throw new Error(`${route}: document language drifted on hydration`);
+      if (
+        authoredRoutes.has(route) &&
+        !(await page.locator('.vp-doc [lang="ja"]').count())
+      )
+        throw new Error(
+          `${route}: authored Japanese body is missing its language marker`,
+        );
       const problems = await page.evaluate(() => {
         const failures = [];
         if (
@@ -185,7 +292,7 @@ try {
           )
             failures.push("clipped interactive element");
         }
-        for (const pre of document.querySelectorAll("pre")) {
+        for (const pre of document.querySelectorAll(".language-json pre")) {
           try {
             JSON.parse(pre.textContent);
           } catch {
@@ -199,9 +306,10 @@ try {
       const description = await page
         .locator('meta[name="description"]')
         .getAttribute("content");
-      if (!description || descriptions.has(description))
+      const locale = route.startsWith("/ja/") ? "ja" : "en";
+      if (!description || descriptions.get(locale).has(description))
         throw new Error(`${route}: missing/duplicate page description`);
-      descriptions.add(description);
+      descriptions.get(locale).add(description);
       const links = await page
         .locator('a[href^="/"]')
         .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
@@ -209,14 +317,27 @@ try {
         if (!build.routes.includes(new URL(link, origin).pathname))
           throw new Error(`${route}: missing internal route ${link}`);
     }
+    console.log(
+      `edge-form-pages-browser: ${build.routes.length} routes passed at ${width}px`,
+    );
   }
   for (const width of [375, 1024, 1280]) {
     await page.setViewportSize({ width, height: 900 });
-    for (const [route, fragment] of [
-      ["/", "#using-these-definitions"],
+    const legacyRoot = loadEdgeV2Docs(root).some((entry) => entry.route === "/")
+      ? "/v1/"
+      : "/";
+    const v2GuideRoute = build.routes.includes("/v2/") ? "/v2/" : undefined;
+    const v2GuideHtml = v2GuideRoute
+      ? readFileSync(path.join(build.outputDirectory, "v2/index.html"), "utf8")
+      : "";
+    const v2Fragment = v2GuideHtml.match(/<h2\b[^>]*id="([^"]+)"/u)?.[1];
+    const roundTrips = [
+      [legacyRoot, sourcePreview ? "#current-forms" : "#shared-model-and-api"],
       ["/forms/WorkerVersion/0.3.0/", "#example-title"],
       ["/forms/WorkerVersion/0.2.0/", "#locator-title"],
-    ]) {
+      ...(v2Fragment ? [["/v2/", `#${v2Fragment}`]] : []),
+    ];
+    for (const [route, fragment] of roundTrips) {
       await page.goto(origin + route + fragment, { waitUntil: "networkidle" });
       for (const [label, target, lang] of [
         ["日本語", `/ja${route}`, "ja-JP"],
@@ -236,7 +357,9 @@ try {
         }
         await menu.getByRole("link", { name: label, exact: true }).click();
         await page.waitForURL(
-          (url) => url.pathname === target && url.hash === fragment,
+          (url) =>
+            url.pathname === target &&
+            decodeURIComponent(url.hash) === fragment,
         );
         await page.waitForFunction(
           (value) => document.documentElement.lang === value,
@@ -257,7 +380,7 @@ try {
   await page.locator(".VPNavBarSearch button").click();
   await page.locator("#localsearch-input").fill("チャット");
   const japaneseResult = page
-    .locator('.VPLocalSearchBox a[href*="/ja/forms/ActorNamespace/0.1.0/"]')
+    .locator('.VPLocalSearchBox a[href*="/ja/forms/ActorNamespace/"]')
     .first();
   await japaneseResult.waitFor();
   await japaneseResult.click();
@@ -318,6 +441,23 @@ try {
     path: "/tmp/edge-form-docs-mobile.png",
     fullPage: true,
   });
+  await page.setViewportSize({ width: 375, height: 900 });
+  await page.goto(origin, { waitUntil: "networkidle" });
+  await page.screenshot({
+    path: "/tmp/edge-form-docs-home-mobile.png",
+    fullPage: true,
+  });
+  await page.goto(`${origin}/ja/`, { waitUntil: "networkidle" });
+  const jaGuideLink = page.locator('.vp-doc a[href="/ja/v2/"]').first();
+  if (await jaGuideLink.count()) {
+    await jaGuideLink.click();
+    await page.waitForURL(`${origin}/ja/v2/`);
+  } else if (
+    sourcePreview &&
+    loadEdgeV2Docs(root).some((entry) => entry.route === "/")
+  ) {
+    throw new Error("Japanese home page does not link to the Japanese guide");
+  }
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(origin);
   for (const colorScheme of ["dark", "light"]) {
@@ -343,10 +483,21 @@ try {
   });
   if (errors.length) throw new Error(errors.join("\n"));
   console.log(
-    `edge-form-pages-browser: ${build.routes.length * 4} responsive pages, bilingual search, language/fragment round trips, JSON, navigation and keyboard disclosure passed (${browser.version()})`,
+    `edge-form-pages-browser: ${build.routes.length * 4} responsive pages, bilingual search, language/fragment round trips, JSON, navigation and keyboard disclosure passed (${browser.version()})${sourcePreview ? "; UNPUBLISHED source preview only, not public CSP qualification" : ""}`,
   );
 } finally {
   await browser?.close();
   await new Promise((resolve) => server.close(resolve));
   rmSync(build.outputDirectory, { recursive: true, force: true });
+}
+
+function inventory(directory, prefix = "") {
+  return readdirSync(directory, { withFileTypes: true })
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .flatMap((entry) => {
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      return entry.isDirectory()
+        ? inventory(path.join(directory, entry.name), relative)
+        : [relative];
+    });
 }

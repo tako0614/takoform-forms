@@ -23,10 +23,9 @@ export default defineConfig({
       lang: "ja-JP",
       description: "Takoform Edge Formsの設定項目、利用例、パッケージ参照。",
       themeConfig: {
-        nav: [
-          { text: "Forms", link: "/ja/" },
-          { text: "Takoform", link: "https://takoform.com/" },
-        ],
+        nav: JSON.parse(
+          readFileSync(path.join(buildRoot, "nav-ja.json"), "utf8"),
+        ),
         sidebar: JSON.parse(
           readFileSync(path.join(buildRoot, "sidebar-ja.json"), "utf8"),
         ),
@@ -46,11 +45,24 @@ export default defineConfig({
   },
   srcDir: path.join(buildRoot, "docs"),
   cacheDir: path.join(buildRoot, "cache"),
-  tempDir: path.join(buildRoot, "temp"),
   // MiniSearch document IDs must not depend on concurrent rendering order.
   buildConcurrency: 1,
   cleanUrls: true,
   lastUpdated: false,
+  markdown: {
+    config(md) {
+      md.core.ruler.after("block", "edge-authored-japanese-source", (state) => {
+        if (state.env.frontmatter?.edgeSourceLanguage !== "ja") return;
+        for (const token of state.tokens) {
+          if (token.type !== "html_block") continue;
+          if (token.content.includes("<!-- edge-source-ja:start -->"))
+            token.content = '<div lang="ja">\n';
+          else if (token.content.includes("<!-- edge-source-ja:end -->"))
+            token.content = "</div>\n";
+        }
+      });
+    },
+  },
   vite: { build: { target: "esnext" } },
   head: [["link", { rel: "icon", href: "data:," }]],
   themeConfig: {
@@ -79,10 +91,7 @@ export default defineConfig({
       },
     },
     outline: { level: [2, 3] },
-    nav: [
-      { text: "Forms", link: "/" },
-      { text: "Takoform", link: "https://takoform.com/en/" },
-    ],
+    nav: JSON.parse(readFileSync(path.join(buildRoot, "nav-en.json"), "utf8")),
     sidebar: JSON.parse(
       readFileSync(path.join(buildRoot, "sidebar-en.json"), "utf8"),
     ),
