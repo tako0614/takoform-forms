@@ -226,6 +226,163 @@ describe("Edge Form immutable URL source freeze", () => {
     expect(result.pending).toEqual([]);
   });
 
+  test("accepts a first-add on the second parent of a no-ff merge and later appends", () => {
+    const { root } = createFixture();
+    const base = git(root, "rev-parse", "HEAD");
+    const candidates = deriveEdgeFormFreezeCandidates(root);
+    git(root, "switch", "-c", "freeze-feature");
+    const firstAdd = commitInitialFreeze(root, [candidates[1]]);
+    git(root, "switch", "-c", "mainline", base);
+    write(root, "unrelated.md", "Mainline work.\n");
+    git(root, "add", "unrelated.md");
+    git(root, "commit", "--quiet", "-m", "unrelated mainline work");
+    git(
+      root,
+      "merge",
+      "--quiet",
+      "--no-ff",
+      "-m",
+      "merge freeze feature",
+      "freeze-feature",
+    );
+
+    const merged = verifyEdgeFormFreeze(root, { requireFrozen: true });
+    expect(merged.status).toBe("FROZEN");
+    expect(merged.firstAddCommit).toBe(firstAdd);
+
+    write(
+      root,
+      FREEZE_PATH,
+      `${JSON.stringify(manifest([candidates[1], candidates[0]]), null, 2)}\n`,
+    );
+    git(root, "add", FREEZE_PATH);
+    git(root, "commit", "--quiet", "-m", "append after merge");
+    expect(verifyEdgeFormFreeze(root, { requireFrozen: true }).status).toBe(
+      "FROZEN",
+    );
+  });
+
+  test("rejects frozen source tampering on a branch even when merge restores it", () => {
+    const { root } = createFixture();
+    const [candidate] = deriveEdgeFormFreezeCandidates(root);
+    commitInitialFreeze(root, [candidate]);
+    git(root, "switch", "-c", "tamper");
+    write(
+      root,
+      candidate.path,
+      formSource("ModuleWorker", "0.3.0", "Branch tamper."),
+    );
+    git(root, "add", candidate.path);
+    git(root, "commit", "--quiet", "-m", "tamper frozen source");
+    git(root, "switch", "-");
+    write(root, "unrelated.md", "Mainline work.\n");
+    git(root, "add", "unrelated.md");
+    git(root, "commit", "--quiet", "-m", "unrelated mainline work");
+    git(root, "merge", "--quiet", "--no-ff", "--no-commit", "tamper");
+    write(root, candidate.path, formSource("ModuleWorker", "0.3.0"));
+    git(root, "add", candidate.path);
+    git(root, "commit", "--quiet", "-m", "restore source in merge");
+
+    const result = verifyEdgeFormFreeze(root);
+    expect(result.status).toBe("INVALID");
+    expect(result.problems.join("\n")).toContain("frozen Form source differs");
+  });
+
+  test("rejects frozen manifest tampering on a branch even when merge restores it", () => {
+    const { root } = createFixture();
+    const candidates = deriveEdgeFormFreezeCandidates(root);
+    commitInitialFreeze(root, candidates);
+    git(root, "switch", "-c", "tamper");
+    write(
+      root,
+      FREEZE_PATH,
+      `${JSON.stringify(manifest([candidates[0]]), null, 2)}\n`,
+    );
+    git(root, "add", FREEZE_PATH);
+    git(root, "commit", "--quiet", "-m", "drop frozen entry on branch");
+    git(root, "switch", "-");
+    write(root, "unrelated.md", "Mainline work.\n");
+    git(root, "add", "unrelated.md");
+    git(root, "commit", "--quiet", "-m", "unrelated mainline work");
+    git(root, "merge", "--quiet", "--no-ff", "--no-commit", "tamper");
+    write(
+      root,
+      FREEZE_PATH,
+      `${JSON.stringify(manifest(candidates), null, 2)}\n`,
+    );
+    git(root, "add", FREEZE_PATH);
+    git(root, "commit", "--quiet", "-m", "restore manifest in merge");
+
+    const result = verifyEdgeFormFreeze(root);
+    expect(result.status).toBe("INVALID");
+    expect(result.problems.join("\n")).toContain("is not append-only");
+  });
+
+  test("rejects a branch deletion and re-addition hidden by the merge result", () => {
+    const { root } = createFixture();
+    const [candidate] = deriveEdgeFormFreezeCandidates(root);
+    commitInitialFreeze(root, [candidate]);
+    git(root, "switch", "-c", "delete-and-restore");
+    git(root, "rm", "--quiet", FREEZE_PATH);
+    git(root, "commit", "--quiet", "-m", "delete manifest on branch");
+    write(
+      root,
+      FREEZE_PATH,
+      `${JSON.stringify(manifest([candidate]), null, 2)}\n`,
+    );
+    git(root, "add", FREEZE_PATH);
+    git(root, "commit", "--quiet", "-m", "re-add manifest on branch");
+    git(root, "switch", "-");
+    write(root, "unrelated.md", "Mainline work.\n");
+    git(root, "add", "unrelated.md");
+    git(root, "commit", "--quiet", "-m", "unrelated mainline work");
+    git(
+      root,
+      "merge",
+      "--quiet",
+      "--no-ff",
+      "-m",
+      "merge branch",
+      "delete-and-restore",
+    );
+
+    const result = verifyEdgeFormFreeze(root);
+    expect(result.status).toBe("INVALID");
+    expect(result.problems.join("\n")).toContain(
+      "deletion and re-addition are forbidden",
+    );
+  });
+
+  test("rejects a merge that discards an append from one parent", () => {
+    const { root } = createFixture();
+    const candidates = deriveEdgeFormFreezeCandidates(root);
+    commitInitialFreeze(root, [candidates[1]]);
+    git(root, "switch", "-c", "append-branch");
+    write(
+      root,
+      FREEZE_PATH,
+      `${JSON.stringify(manifest([candidates[1], candidates[0]]), null, 2)}\n`,
+    );
+    git(root, "add", FREEZE_PATH);
+    git(root, "commit", "--quiet", "-m", "append URL on branch");
+    git(root, "switch", "-");
+    write(root, "unrelated.md", "Mainline work.\n");
+    git(root, "add", "unrelated.md");
+    git(root, "commit", "--quiet", "-m", "unrelated mainline work");
+    git(root, "merge", "--quiet", "--no-ff", "--no-commit", "append-branch");
+    write(
+      root,
+      FREEZE_PATH,
+      `${JSON.stringify(manifest([candidates[1]]), null, 2)}\n`,
+    );
+    git(root, "add", FREEZE_PATH);
+    git(root, "commit", "--quiet", "-m", "discard append in merge");
+
+    const result = verifyEdgeFormFreeze(root);
+    expect(result.status).toBe("INVALID");
+    expect(result.problems.join("\n")).toContain("is not append-only");
+  });
+
   test("rejects a changed frozen Form source even when its manifest hash is updated", () => {
     const { root } = createFixture();
     const candidates = deriveEdgeFormFreezeCandidates(root);
