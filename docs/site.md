@@ -167,7 +167,7 @@ set/destination:
 bun run build:edge-form-pages --trust-set <source-commit> --output <empty-directory>
 
 # Offline candidate only: include all frozen authored v2 Form versions.
-bun run build:edge-form-pages --trust-set <published-v1-set> --output <empty-directory> --publish-frozen
+bun run build:edge-form-pages --trust-set <published-v1-set> --output <empty-directory> --include-frozen
 ```
 
 The portable gate is read-only and validates exact packages, deterministic HTML,

@@ -15,7 +15,7 @@
     "check:edge-form-pages": "bun scripts/edge-form-pages.mjs --check",
     "check:edge-form-pages:source": "bun scripts/edge-form-pages.mjs --check-source",
     "check:edge-form-freeze": "node --check scripts/edge-form-freeze.mjs && node scripts/edge-form-freeze.mjs --check --require-frozen",
-    "check:edge-v2-forms": "bun scripts/edge-form-pages.mjs --check --trust-set e7f8a39311dd011b8467e97e7f300cabb9a6b06c --publish-frozen",
+    "check:edge-v2-forms": "bun scripts/edge-form-pages.mjs --check --trust-set e7f8a39311dd011b8467e97e7f300cabb9a6b06c --include-frozen",
     "check:edge-form-pages:browser": "node scripts/edge-form-pages-browser.mjs",
     "check:edge-form-pages:browser:source": "node scripts/edge-form-pages-browser.mjs --source-preview",
     "generate": "bun scripts/current-form-families.mjs --write",

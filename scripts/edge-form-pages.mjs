@@ -483,13 +483,13 @@ function parseCLI(args) {
     args[1] === "--trust-set" &&
     commitPattern.test(args[2]) &&
     (args.length === 3 ||
-      (args.length === 4 && args[3] === "--publish-frozen") ||
+      (args.length === 4 && args[3] === "--include-frozen") ||
       (args.length === 5 && args[3] === "--published-forms"))
   )
     return {
       mode: "check",
       setId: args[2],
-      publishFrozen: args.length === 4,
+      includeFrozen: args.length === 4,
       publishedForms:
         args.length === 5 ? parsePublishedFormsArgument(args[4]) : [],
     };
@@ -499,17 +499,17 @@ function parseCLI(args) {
     args[0] === "--trust-set" &&
     commitPattern.test(args[1]) &&
     args[2] === "--output" &&
-    (args.length === 4 || args[4] === "--publish-frozen")
+    (args.length === 4 || args[4] === "--include-frozen")
   ) {
     return {
       mode: "build",
       setId: args[1],
       outputDirectory: path.resolve(args[3]),
-      publishFrozen: args.length === 5,
+      includeFrozen: args.length === 5,
     };
   }
   throw new Error(
-    "usage: bun scripts/edge-form-pages.mjs --check-source | --check [--trust-set <40-hex-set> [--published-forms <base64url-json>|--publish-frozen]] | --trust-set <40-hex-set> --output <directory> [--publish-frozen]",
+    "usage: bun scripts/edge-form-pages.mjs --check-source | --check [--trust-set <40-hex-set> [--published-forms <base64url-json>|--include-frozen]] | --trust-set <40-hex-set> --output <directory> [--include-frozen]",
   );
 }
 
@@ -544,7 +544,7 @@ function runCLI(args) {
     const trust =
       invocation.mode === "source-check" ? null : readInstalledTrustSet(setId);
     const plan = trust ? publishedV1PagePlan(sourcePlan, trust) : sourcePlan;
-    const freeze = invocation.publishFrozen
+    const freeze = invocation.includeFrozen
       ? verifyEdgeFormFreeze(repositoryRoot, {
           mode: "check",
           requireFrozen: true,
