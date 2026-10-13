@@ -17,13 +17,20 @@ admission model, and sockets retained outside replaceable class contexts.
 It is still unaccepted and outside every release closure; the evidence and
 unresolved published-contract boundary below remain applicable.
 
+This analysis records gaps in the earlier signed v1 contracts. Selected v1
+source successors now exist; their exact status is in
+[Actor and Workflow source selection](actor-workflow-source-candidate.md).
+For the separate URL-identified Host API v2 contracts, use the
+[Form guide](../../spec/guides/index.md). This proposal does not amend either
+published identities or frozen v2 sources.
+
 ## What is missing
 
-The current contracts define actor identity and useful execution semantics, but
+The signed v1 contracts analyzed here define actor identity and useful execution semantics, but
 not enough of the JavaScript class interface for independent Hosts to run the
 same actor bundle:
 
-| Exact current contract | Defined | Missing for execution |
+| Exact signed v1 contract | Defined | Missing for execution |
 | --- | --- | --- |
 | [ActorNamespace 0.1.0](../../forms/releases/k-mvsgozjomzxxe3ltfz2gc23pmzxxe3jomnxw2l2bmn2g64somfwwk43qmfrwk/sha256-eb174b666890ef630e82746374c8a91aec8692c64e98e82dc580a85d17307743/definition.json) | Immutable class/worker relation, per-namespace IDs, active deployment code, class export in every weighted version | Valid executable class shape, constructor arguments/types and inspection fixture |
 | [worker.actor 1.0.0](https://github.com/tako0614/takoform-forms/blob/e7f8a39311dd011b8467e97e7f300cabb9a6b06c/interfaces/candidates/v1alpha1/worker.actor/definition.json) | Serialized invocation, private SQL storage, one durable alarm, eviction, HTTP-shaped invocation | JavaScript context/storage/alarm shape, method receiver/signatures, environment, context lifetime and WebSocket execution |

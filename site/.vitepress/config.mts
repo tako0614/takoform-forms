@@ -15,13 +15,14 @@ export default defineConfig({
   lang: "en",
   title: "Edge Forms",
   description:
-    "Settings, examples and package references for Takoform Edge Forms.",
+    "Takoform Edge Form specifications for Host API v2, plus published Host API v1 package references.",
   locales: {
     root: { label: "English", lang: "en" },
     ja: {
       label: "日本語",
       lang: "ja-JP",
-      description: "Takoform Edge Formsの設定項目、利用例、パッケージ参照。",
+      description:
+        "Host API v2向けEdge Form仕様と、公開済みHost API v1パッケージの資料。",
       themeConfig: {
         nav: JSON.parse(
           readFileSync(path.join(buildRoot, "nav-ja.json"), "utf8"),

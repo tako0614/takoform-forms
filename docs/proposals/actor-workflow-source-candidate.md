@@ -1,12 +1,15 @@
 # Actor and Workflow joint source candidate
 
-Status: **unpublished, selected source-only candidate**. Phase 1 selects the
-joint composition in `cmd/current-form-source`; it does not write generated
-packages, change the published 17-Form release, or claim Host support. The
-exact public Actor and Workflow contracts remain the published bytes in the
-verified `e7f8a39311dd011b8467e97e7f300cabb9a6b06c` source. The current
-Host API remains `forms.takoform.com/v1` and Core remains
-`github.com/tako0614/takoform@v1.1.0`.
+Status: **selected, generated and unpublished v1 source candidate**.
+`cmd/current-form-source` selects the joint Actor/Workflow composition;
+`bun run generate` projects it into the selected candidate trees, and
+`bun run write:publication` materializes its content-addressed release copies.
+Those bytes are checked in, but have no successor signed set or publication.
+The earlier signed contracts remain pinned to
+`e7f8a39311dd011b8467e97e7f300cabb9a6b06c`. This candidate uses the retained
+Host API v1 and `github.com/tako0614/takoform@v1.1.0` package pipeline;
+it does not amend the separate [Host API v2 Form specifications](../../spec/guides/index.md)
+or establish Host support.
 
 `go run ./cmd/actor-workflow-candidate` prints one deterministic JSON object to
 stdout with its original prerelease development identities. It composes existing Actor, Workflow and Worker runtime candidate
