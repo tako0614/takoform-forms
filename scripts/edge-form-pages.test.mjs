@@ -53,7 +53,7 @@ describe("publisher-owned Edge Form pages", () => {
       });
       expect(build.formCount).toBe(17);
       expect(build.retainedCount).toBe(2);
-      expect(build.publishedV2FormCount).toBe(17);
+      expect(build.publishedV2FormCount).toBe(freeze.frozen.length);
       expect(build.routes).toContain("/forms/ModuleWorker/0.1.0/");
       expect(build.routes).toContain("/forms/ModuleWorker/0.3.0/");
       expect(build.routes).toContain("/ja/forms/ModuleWorker/0.3.0/");

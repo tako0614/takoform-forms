@@ -55,6 +55,15 @@ required distribution formats. The canonical Form URL itself remains the
 direct-200 HTML reading view; its presentation can change without changing the
 normative Markdown source.
 
+The SQLiteMigrationSet and SQLiteMigrationApplication 0.3.0 sources add two
+version-fixed documents, for 19 documents across the same 17 resource kinds.
+They remain source-only. Application adds the narrow `defer_foreign_keys`
+assignment exception; Set continues to own byte custody. The [inventory](../forms/README.md#sqlite-migration-030-source-successors)
+and [conformance corpus](../conformance/host-v2/sqlite-migration/README.md)
+describe this change without changing the published guides' exact 0.2.0
+links. Freezing and local tests do not establish Host support or hosted E2E
+recovery; publication and production deployment are separate actions.
+
 When a build includes the authored v2 Form pages, `/` and `/ja/` introduce
 them. The v1 overview remains at `/v1/` and `/ja/v1/`; all existing versioned
 Form routes keep
