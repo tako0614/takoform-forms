@@ -1,24 +1,28 @@
 # Conformance corpus
 
-This directory is the checked-in conformance corpus for the provider-neutral
-Form source. The active corpus is `takoform-v1/families/`: one fixture set for
-the current Edge-first versionless Form family and all 17 current Forms.
-Fixtures are data, not a provider or Host implementation.
+This directory is the checked-in conformance corpus for provider-neutral Form
+source. `takoform-v1/families/` preserves the desired-schema and composition
+fixtures for the 17 Forms in the signed published-era package roster. These
+fixtures are a fixed integrity baseline; they do not follow the newer selected
+Form definitions.
 
-This corpus describes the 17 current signed package subjects. The publisher's
-append-only release tree also retains two historical roots, which are tracked
-outside the conformance corpus in `forms/retained-packages.json`.
+The current Form, Interface, and Binding selections are rendered separately
+by `cmd/current-form-source`. `bun run check:generation` regenerates and checks
+their candidate package closures; it does not regenerate this historical
+corpus. For current package and source-history counts, see the
+[publisher inventory](../forms/README.md#v1-package-history) and
+[publishing overview](../docs/publishing.md).
 
 Container, Function, Table, PullQueue, Topic, Schedule, and Vector Forms were
 unpublished candidates. They are deferred rather than released or deprecated
 identities, so their catalogs and fixtures are intentionally absent from this
 active corpus.
 
-Each family directory contains the exact desired-schema and composition
-fixtures used by the local catalog and package validators. The fixtures are
-covered by `integrity/source-baseline.json`; `bun run check:integrity` checks
-their bytes and `bun run check:generation` verifies that the current catalogs
-reproduce the checked-in candidate packages.
+Each family directory contains data fixtures used by local catalog and
+package validation. `integrity/source-baseline.json` pins their bytes, and
+`bun run check:integrity` verifies that fixed baseline. A passing integrity or
+generation check establishes fixture and package-source consistency; neither
+is an executed Host conformance result.
 
 Generic package verification, trust, and revocation conformance are owned by
 the released public Core. Core remains publisher/family-neutral. This
@@ -28,9 +32,8 @@ network access.
 
 The corpus deliberately has no live endpoint, account, credential, provider,
 Host persistence, reconcile, activation, deployment, release, or publication
-workflow. Official and third-party consumers use the same package and
-verification semantics; official status is provenance maintained outside this
-data repository.
+workflow. All publishers and consumers use the same package and verification semantics.
+Publisher provenance does not grant a privileged verification path.
 
 Useful local checks:
 

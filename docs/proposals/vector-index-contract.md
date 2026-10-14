@@ -26,7 +26,8 @@ either identity publishable. The renderer also emits an unregistered
 `WorkerDeployment@0.3.0-dev.1` whose version relation pins the exact candidate
 WorkerVersion Definition. The existing published Deployment continues to pin
 the existing WorkerVersion; neither reference is widened or reinterpreted.
-No candidate artifact is registered or offered by a production Host.
+This renderer does not register a candidate artifact or establish production
+Host support.
 
 `go run ./cmd/vector-index-candidate` prints the Core-validated development
 artifacts `{form, interface, binding, workerVersion, workerDeployment}` and performs no catalog

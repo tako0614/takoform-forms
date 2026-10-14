@@ -17,8 +17,9 @@ Formは資源の意味を定めますが、HCLのresource名、引数名、impor
 
 導入コマンド、接続設定、各resourceのHCL、importとアップグレードは
 [Providerのドキュメント](https://registry.terraform.io/providers/tako0614/takoform/latest/docs)を使います。
-**この仕様整備では、同Providerのv2対応は実装・検証していません。**
-新しいForm URLを既存の引数に渡すだけで動くとは案内しません。
+このサイトにHost API v2向けForm仕様があることだけでは、このProviderの対応は確認できません。
+使うProvider releaseの資料で、Host APIの版と正確なForm URLへの対応を確認してください。
+新しいForm URLを既存の引数に渡すだけで対応できるとは限りません。
 
 ## 対応版を確認する
 

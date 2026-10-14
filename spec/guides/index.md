@@ -1,6 +1,6 @@
 ---
 title: Edge Formsを使う
-description: Worker、データ保存、イベント処理に必要なFormを選び、対応するHostで使うための案内。
+description: Host API v2向けFormを目的と組み合わせから選び、Host対応を確認するガイド。
 ---
 
 # Edge Formsを使う
@@ -44,9 +44,10 @@ Workflowは一つの実行の進み具合を保存し、中断後に続けます
 
 ## 仕様と利用できる状態
 
-ここにある版固定URL向けの本文はHost API v2に対応するForm仕様です。現在はリポジトリ内の仕様本文で、
-これらのURLへの正式公開・版の固定手順は未実施です。HostやProviderの対応済み一覧ではありません。
-利用するHostの`support`で同じURLへの対応を確認し、Offeringを持つHostでは容量・料金・制限も確認します。
+ここにあるForm本文はHost API v2向けの仕様です。各版の日本語原文は、canonical URLと本文のSHA-256で
+同一性を固定しています。本文が固定されていても、そのURLから取得できることやHost・Providerの対応は示しません。
+利用前に公開ページで正確なForm URLと仕様を確認し、Hostの`support`で同じURLへの対応を確かめてください。
+Offeringがある場合は容量・料金・制限も確認します。
 
 ContainerやVectorIndexの既存提案は、この17種類に含めていません。別の検討を、URLや実装が存在するだけで
 利用できるFormとして紹介しません。各Formの版は独立しており、この一覧全体のリリース版はありません。

@@ -1,85 +1,62 @@
 # Signed publisher evidence
 
-This directory owns public publisher inputs and immutable signed evidence for
-the 17 current Edge Form Packages. It does not grant Host support or
-admission. The signed set
-`cdd30b711e2c6857b1b4d247b1471f5676904933` is cryptographically verified but
-is explicitly abandoned as `evidence-only`: three package identities changed
-before publication. The exact old ObjectBucket, WorkerDeployment, and
-WorkerVersion roots are listed in
-[`abandoned-prepublication.json`](abandoned-prepublication.json) and remain
-in `forms/releases` for audit/readback only. Together with the two retained
-roots, the local release tree has 22 roots; only 19 current/retained roots
-receive package tags.
+This directory stores the publisher's trust inputs and immutable signed-set
+evidence for Edge Form Packages. A signed set proves publisher provenance for
+its exact package subjects; it does not grant Host support, admission,
+installation, activation, or deployment. For the package publication overview,
+see [publishing](../../docs/publishing.md).
 
-The abandoned record is a one-time singleton format. A second abandoned set
-requires a new format and an explicit architecture decision; do not append
-another set to this manifest. The abandoned set tag and its three old package
-tags must remain absent locally and remotely, and deployment rejects the set.
+## Checked-in evidence
 
-`publisher-policy.json` pins the exact GitHub Actions OIDC issuer, repository,
-workflow, and `refs/heads/main` identity accepted for this publisher.
-`trusted-root.json` is the exact public Sigstore trusted root passed to released
-Takoform Core v1.1.0. Neither file contains a credential or private key.
-Its bytes are identical to
-`takoform@v1.1.0/trust/testdata/trusted-root.json` (SHA-256
-`6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66`).
-This repository pins those bytes as its publisher choice; Core does not supply
-an ambient or privileged root.
+The checkout contains two set directories. Set
+`e7f8a39311dd011b8467e97e7f300cabb9a6b06c` carries the sequence-zero genesis
+checkpoint. Set `cdd30b711e2c6857b1b4d247b1471f5676904933` is cryptographically
+verified but explicitly abandoned as `evidence-only`: three package identities
+changed before publication. Its old ObjectBucket, WorkerDeployment, and
+WorkerVersion roots remain available for audit/readback, but their abandoned
+set tag and package tags must remain absent. These are checked-in facts; this
+file does not assert the current state of remote refs.
 
-`bun run prepare:trust -- --output <empty-external-directory>` writes the exact
-RFC 8785 package-index subjects and the Core API v1 revocation genesis for the
-first set. For sequence 1 and later, the manual workflow runs
-`prepare-advancement` with a public predecessor set ID and new statement
-version. That command accepts no caller checkpoint pin or evidence directory:
-it clones public `main` without credentials, verifies the exact public set and
-tag prefixes, replays the bounded signed checkpoint history, and copies the
-retained statements and signed checkpoints into the new request. The workflow
-adds one new checkpoint Sigstore v0.3 message-signature bundle and 17 current
-package bundles. There is no separate statement bundle: the signed canonical
-checkpoint entry binds the exact canonical statement digest and identity. The
-workflow uploads a short-lived candidate and does not publish, tag, or write
-this repository.
+`forms/trust/abandoned-prepublication.json` records the one-time abandoned
+set. Do not append another abandoned set to that singleton format without an
+architecture decision. The selected active roster is derived from the pinned
+current-family index and candidate set; see the [package inventory](../README.md#v1-package-history) for source-tree
+counts.
 
-After external signing, an operator runs:
+## Trust inputs and workflow
+
+`publisher-policy.json` pins the accepted GitHub Actions OIDC issuer,
+repository, workflow, and `refs/heads/main` identity. `trusted-root.json` is
+the exact public Sigstore root passed to released Takoform Core v1.1.0. This
+repository chooses those bytes explicitly; Core supplies no ambient publisher
+root. Neither file contains a credential or private key.
+
+For the first signing request, `bun run prepare:trust -- --output
+<empty-external-directory>` derives the canonical package-index subjects and
+genesis checkpoint. A real revocation advancement uses the
+[revocation runbook](../../docs/revocation-advancement.md). A no-revocation
+successor uses the [continuation path](../../docs/publisher-continuation.md).
+Both preparation paths derive predecessors from fresh, credential-free public
+evidence; callers cannot supply a checkpoint pin or serialized verification
+report as authority.
+
+After signing, verify and install the candidate from a clean checkout of its
+exact source commit:
 
 ```console
 bun run verify:trust -- --evidence <candidate> --expected-source-commit <commit>
 bun run install:trust -- --evidence <candidate> --expected-source-commit <commit>
 ```
 
-Install first reruns Core verification for all 17 exact package subjects and
-the complete signed checkpoint chain from genesis, checks every package is not
-revoked, requires one identical current publisher/root/source provenance, and
-only then creates
-`sets/<source-commit>/`. An existing set is never replaced. Serialized reports
-are not accepted as verification capability or stored in a set.
+Verification checks every exact package subject and the complete signed
+checkpoint chain using released Core v1.1.0. Installation creates
+`forms/trust/sets/<source-commit>/` with create-only writes. An existing set
+is never replaced. If an interrupted local install leaves an incomplete
+untracked directory, use the guarded
+[`recover:trust` procedure](../../docs/revocation-advancement.md#recover-an-interrupted-local-install);
+otherwise discard the checkout and install in a fresh clone.
 
-The installer atomically claims the set directory before writing its members
-and opens every file create-only. A process failure can therefore leave an
-incomplete set that fails `bun run check:trust`; it cannot silently replace or
-complete an existing identity. Prefer discarding the checkout and installing
-again in a fresh clean clone. The only in-place recovery is
-`bun run recover:trust -- --set-id <source-commit>`: it removes the exact
-directory only after proving it is entirely untracked, absent from all
-reachable local commits, absent from a credential-free public set tag, absent
-from a fresh public `main` and all reachable public history, and the repository
-is otherwise clean. It repeats the public and local proofs immediately before
-removal. A tracked, committed,
-complete, tagged, or public set is never removed; repair is a new signed source
-commit and set. See the
-[operator runbook](../../docs/revocation-advancement.md#recover-an-interrupted-local-install).
-
-The deploy surface requires one installed non-abandoned set and performs the
-same credential-free verification after public readback. It verifies the 17
-current signed package subjects, the two retained release roots, and the three
-untagged abandoned evidence-only roots (22 immutable roots locally; 19
-publishable package tags). The package tags remain
-the Core-derived content identities and may retain their older immutable Git
-commit when the tagged package bytes exactly match the signed source.
-`forms/sets/<source-commit>` identifies the signed publisher evidence closure.
-Every checkpoint records the complete ordered publisher-set history. Deploy
-requires that exact public set-tag prefix, pairs each sequence 1+ checkpoint
-set with its revocation tag, and rejects fork, rollback, update, deletion, or
-an unexpected set. Repair creates a new source commit and set rather than
-changing an existing identity.
+Publication and anonymous readback are handled by `bun run deploy`; see the
+[publication overview](../../docs/publishing.md) for its exact obligations.
+Published package paths and tags are immutable. Repair forward with a new
+source commit and a new set.

@@ -1,4 +1,22 @@
-# Edge Form documentation
+# Edge Form site maintenance
+
+The reader entrypoints are the [Form guide](../spec/guides/index.md) and
+[Form inventory](../forms/README.md). This document explains how their source
+becomes the reference site at **edge.forms.takoform.com**, and how maintainers
+verify and publish it.
+
+## Build modes
+
+| Mode | V1 package pages | Host API v2 Form pages |
+| --- | --- | --- |
+| Source preview (`check:edge-form-pages:source`) | Selected unsigned source plus retained history, explicitly marked unpublished | All authored source documents, without public availability claims |
+| Default signed offline build | Exact installed signed roster plus explicitly retained versions | None unless a published Form inventory is supplied |
+| Frozen candidate (`--include-frozen`) | Exact installed signed roster plus explicitly retained versions | All hash-verified frozen documents, eligible for publication |
+| Routine site update (`edge-form-pages`) | Exact installed signed roster plus explicitly retained versions | Only the Forms already in the public inventory |
+
+A local build checks rendering and source identity. Anonymous readback establishes
+which exact pages and source assets the public site serves. Host support and
+resource readiness must be checked separately with the Host.
 
 ## Human-authored Form specifications
 
@@ -23,13 +41,13 @@ Before publishing a Form URL, review its complete normative body, exact links,
 examples and all referenced Form versions. Check direct-200 URL behavior and
 anonymous body readback on the actual site separately from local builds. Record
 the exact source commit and retain the published bytes; any later semantic
-change needs a new Form URL. The local documentation work does not perform
+change needs a new Form URL. A local build does not perform
 that publication or establish Host runtime conformance.
 
 `spec/forms.freeze.json` is a publisher-local, append-only first-add anchor for
 the exact Japanese Markdown bytes at each version-fixed URL. Its check requires
 complete Git history. A frozen entry is only eligible for publication; it does
-not claim the URL is already public. The published site also serves those exact
+not claim the URL is already public. The publication build emits those exact
 bytes at the derived `source.md` path beside each Form page. This companion
 asset and the site's `_edge-forms-publication.json` inventory are readback
 evidence for this publisher, not Takoform API endpoints, Host discovery, or
@@ -37,8 +55,9 @@ required distribution formats. The canonical Form URL itself remains the
 direct-200 HTML reading view; its presentation can change without changing the
 normative Markdown source.
 
-With authored sources present, `/` and `/ja/` introduce the new Forms. The v1
-overview remains at `/v1/` and `/ja/v1/`; all existing versioned Form routes keep
+When a build includes the authored v2 Form pages, `/` and `/ja/` introduce
+them. The v1 overview remains at `/v1/` and `/ja/v1/`; all existing versioned
+Form routes keep
 their original definitions. `/v2/` is also a direct entry into the new guide.
 
 ## Retained v1 package pages
@@ -46,11 +65,14 @@ their original definitions. `/v2/` is also a direct entry into the new guide.
 The human-facing reference lives at **edge.forms.takoform.com**. It is owned
 by this publisher, not the neutral Takoform API/Core site. The v1 section contains
 an index and the current and retained version pages derived from its selected
-package set. The selected source may contain newer, unpublished Form versions. Package publication,
-Host support, admission and actual hosting are separate concerns.
+package set. The selected source may contain newer, unpublished Form versions.
+Package publication, Host support, admission and actual hosting are separate
+concerns.
 
-English keeps the existing root routes; Japanese pages are under `/ja/`. The
-language menu links to the corresponding page and preserves its heading fragment.
+V1 versioned Form routes remain at `/forms/<slug>/<definitionVersion>/` and
+`/ja/forms/<slug>/<definitionVersion>/`. The overview moves to `/v1/` and
+`/ja/v1/` when v2 is included. The language menu links to the corresponding
+page and preserves its heading fragment.
 Each locale has the complete published sidebar. Guides and navigation are translated;
 contract descriptions and field descriptions are marked as original English.
 Schema, example and package-reference bytes do not change with language.
@@ -70,13 +92,13 @@ Start with the job, then choose the contract:
   SQLiteMigrationApplication applies its unapplied suffix to a database. Deleting
   the application does not roll the schema back.
 
-Each page has use guidance, the exact contract description, required/optional
-fields and constraints, a canonical desired-state fixture, the complete nested
+Each v1 package page has use guidance, the exact contract description,
+required/optional fields and constraints, a canonical desired-state fixture, the complete nested
 schema, lifecycle capabilities, Interface references and package identity.
 The four-field FormRef identifies the contract; the package digest identifies the
 full package. Neither is a Host deployment ID.
 
-The public index provides a task chooser, a Queue/Workflow/Actor comparison and
+The v1 index provides a task chooser, a Queue/Workflow/Actor comparison and
 HTTP/queue/migration composition paths. Individual pages explain a concrete use
 case and the purpose of each related Form: required input, serving prerequisite,
 consumer, optional connection or alternative. These are publisher-authored
@@ -104,6 +126,8 @@ real prerequisite resources; the publisher does not invent these.
 - `site/reading-guide.json` supplies non-normative reading guidance. Each entry
   is pinned to a definition version so a new version requires explicit review.
   Its English and Japanese text share that version pin; both are required.
+  The unsigned preview uses the selected guide; the signed build reads the
+  earlier guide from its pinned published Git source.
   Purpose, use case, constraints and relationship explanations must be present
   in both languages. Related kinds must resolve to current pages without duplicate
   or self references. New wording must not assign runtime policy to an artifact
@@ -133,7 +157,7 @@ no-transform` prevents proxy-injected analytics from changing verified HTML.
 
 ## Build and verify
 
-The portable `bun run check` uses `check:edge-form-pages:source`: it Core-verifies
+The portable `bun run check` includes `check:edge-form-pages:source`: it Core-verifies
 the exact selected package closure, checks the version-pinned reading guide,
 renders real VitePress pages, and runs a Wrangler dry-run in a disposable
 directory. This source check is explicitly **UNPUBLISHED**: it consumes no
@@ -145,7 +169,8 @@ historical reading guide is read byte-exact from pinned Git history. The normal
 build includes only previously published v2 Form URLs; frozen but not yet
 published Forms cannot appear through the routine site-update surface. The
 explicit publication build below selects all frozen entries and preserves all
-19 previously published v1 versioned routes. It requires no new v1 package
+19 signed/explicitly-retained v1 versioned routes. `bun run check` also runs
+`check:edge-v2-forms` over that candidate. It requires no new v1 package
 signature for v2 prose.
 
 ```console
@@ -159,7 +184,7 @@ The source browser lane builds one temporary preview, checks the rendered routes
 and removes it on completion. It is explicitly **UNPUBLISHED** and does not
 qualify production CSP headers or public availability.
 
-By default, the signed build prints a fresh temporary v1-only output
+By default, the signed offline build prints a fresh temporary v1-only output
 directory; it never deletes a caller-selected nonempty directory. For a specific
 set/destination:
 
