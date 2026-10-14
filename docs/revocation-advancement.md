@@ -26,8 +26,9 @@ SemVer `statementVersion`, and one exact `(FormRef, packageDigest)`. It blocks
 new create/update and activation while preserving observe/delete and
 evacuation. Build the canonical cumulative checkpoint with released Core
 v1.1.0: derive the entry with `RevocationCheckpointEntryForStatement`, retain
-all prior entries, increment the sequence, set `previousCheckpointDigest` to
-the verified prior pin, then require
+all prior entries, increment the sequence, set `checkpointVersion` to the new
+statement's `statementVersion`, set `previousCheckpointDigest` to the verified
+prior pin, then require
 `VerifyRevocationCheckpointExtension(priorPin, checkpointBytes)` to pass.
 
 Do not edit or reorder prior files. Review and commit the pair through
