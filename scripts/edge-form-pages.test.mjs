@@ -642,6 +642,7 @@ describe("publisher-owned Edge Form pages", () => {
   }, 60000);
 
   test("rejects a signed set that differs from the installed package closure", () => {
+    // Plan preparation verifies Core-signed history before testing refusal.
     const plan = derivePublicationPlan();
     const trust = signedTrustFor(plan);
     trust.packages[0] = {
@@ -658,7 +659,7 @@ describe("publisher-owned Edge Form pages", () => {
     } finally {
       rmSync(output, { recursive: true, force: true });
     }
-  });
+  }, 60000);
 });
 
 function signedTrustFor(plan) {
