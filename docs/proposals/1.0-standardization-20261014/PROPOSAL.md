@@ -207,6 +207,18 @@ interface ObjectBucketBinding {
 - multipartはpart番号とETag、5MiB以上のnon-final part、昇順・重複なし・最大10000 partに加え、**non-final partのbyte長を全て同一にする**。最後のpartだけ短くてよい。この制約をCloudflare、Docker、Linuxの全経路で同じS3 subsetとして適用する。不等長の再構成を1.0で要求しない。[R2の制約](https://developers.cloudflare.com/r2/objects/upload-objects/)、[S3 UploadPart](https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPart.html)を参照する。未知長対応や非等長part対応を将来足す場合は新しいexact Form URLで行い、旧1.0の制約を上書きしない。
 - cursorは不透明でquery・owner・bucketに束縛する。native cursor、physical prefix、credentialはpublicに出さない。ページはsnapshotを保証しない。strong read-after-writeと、複数pageに跨るsnapshot保証は別である。
 
+**D05のエラー仕様（Vの2026-10-15 01:2x JST追記を反映）**:
+
+| 条件 | runtimeの例外 | 副作用と検出時点 |
+| --- | --- | --- |
+| put／uploadPartにReadableStreamを渡しContent-Lengthが無い | **TypeError**、name:TypeError、code:TAKOFORM_LENGTH_REQUIRED、status:411 | streamをlockせず、1 byteも読まずにreject。object／partを作らない。callerは長さを明示して呼び直せるが、Hostは勝手に再送しない |
+| 宣言Content-Lengthと実byte数が違う | **RangeError**、name:RangeError、code:TAKOFORM_CONTENT_LENGTH_MISMATCH、status:400 | object／partをcommitせず、中途dataを破棄。既存の確定object／partを成功扱いで置き換えない |
+| complete対象でnon-final partが等長でない | **RangeError**、name:RangeError、code:TAKOFORM_PART_SIZE_MISMATCH、status:400 | 遅くともcompleteで組立前に拒否。uploadPart時の早期検出は非最終partだと確定できる場合だけとし、有効な短いfinal partを誤拒否しない |
+
+3経路で例外のclass／name／code／statusを同じにする。isolateを跨ぐinstanceofは引き続き非保証。Blob／BufferSource／stringは長さ既知なので「長さ未指定」の対象外だが、明示headerとの不一致検査は必要である。上記codeはこの意味に固定し、将来の別exact URLで未知長入力を追加しても別の意味に再利用しない。
+
+ここでのstatusは**runtime例外のpropertyで、Host API v2のHTTP応答の追加ではない**。独立したHost固有data-plane HTTPを設ける場合に411相当を使うことと、共通管理APIのstatusを変更することを区別する。本案は新たなcontrol／upload経路を追加せず、管理要求の失敗は既存v2の規則に従う。
+
 **Asset設定の具体形**:
 
 ```json
@@ -464,6 +476,7 @@ Qで変更が必要な代表箇所は `v2-worker-edge-kv-wrapper.ts`、`v2-objec
 | D03 **10/21** | BLOB=Uint8Array、safe numberの範囲据置き、**full 64-bit整数／bigintは1.0不採用**。query rollback-onlyを維持。broker受理後SQLはabortしてもcommitされ得る | 内部Base64 wireと既存authorizerを保ち、precision lossや取消＝rollbackという誤解を防ぐ。§4.2–4.3 |
 | D04 **10/21** | **get／headはResponse、put／completeはObjectWriteResult、deleteはvoid**。条件不成立は固定code precondition_failedで統一。metadata2048 bytes案を採用 | 文字列・Blob等の標準型利用と、全mutationをHTTP Responseへ包むことは別。余分な変換を避け、書込失敗をnull／例外の二系統にしない。§4.1–4.3、§8.3 |
 | D05 **10/21** | **non-final partは等長、最後は短くてよい。streamはContent-Length必須**。未知長staging・非等長part再構成を1.0必須から削除 | 共通のS3 subsetとして3経路で同じ制約を実装できる。永続一時領域・再分割・quota／費用・孤児回収という新しい必須lifecycleを増やさない。§4.3–4.4、§9.1 |
+| D05・レビュー追記 | 長さ未指定はTypeError／TAKOFORM_LENGTH_REQUIRED／status411、実長不一致はRangeError／TAKOFORM_CONTENT_LENGTH_MISMATCH／400、非最終part等長違反はRangeError／TAKOFORM_PART_SIZE_MISMATCH／400。読取り前拒否・未commitを明記 | Web標準の例外classを保ち、callerが無効果の入力拒否と不明な実行結果を区別できる。statusはruntime情報に限定し、管理wireへ持ち込まない。§4.3 |
 | D06 **10/21** | KV get統合／Blob、ttlSecondsの**最小60秒**、items／nextCursor、eventualを最低保証。1.0 putにstreamを含めない | 既知長の値とTTLの共通profileに限定できる。Linux側が短いTTLを実装できても同じ意味を保つ。§4.1–4.3 |
 | D07 **10/21** | text/javascript採用、**fallbackはnull／index.htmlだけ、asset Rangeは任意**。Content-Type／Length／ETag／If-None-Match／HEADは必須 | 任意fallback pathのnative emulationとRange新規必須化を避ける。Range任意でもobject-bucketの必須Rangeや標準HTTPの意味は弱めない。§4.3 |
 | D07・Cron **10/21** | scheduledAt:Date＋triggerUid＋occurrenceId。記録済み一致の配送義務をhostedも永続ledgerで守る。occurrenceIdはtrigger UIDとUTC分境界を区別できる形式で安定生成 | native cron直接発火だけに依存せず、元matchの再起動回復と再配送を実装する。具体的なDB・DO alarmはHost選択。§4.1、§7.3 |
@@ -480,6 +493,7 @@ Qで変更が必要な代表箇所は `v2-worker-edge-kv-wrapper.ts`、`v2-objec
 | 外部利用者は事実上いない見込みなのでlaunch時に即retainedにする（V §4／D14） | **利用者ゼロの推測から即停止する点には同意しない**。一律90日案は撤回し、停止日は棚卸し後のCTO判断 | Provider未掲載でも直接HTTP利用、内部利用、pending／unknown Operation、dataはあり得る。新規受付停止と既存accepted intentの回復・DELETEを分ける |
 | WorkerBundle1.0の閉集合へapplication/jsonも追加する（V §2.2） | **今回の1.0には足さない**。text/javascript／application/wasm／text/plain／application/octet-streamの4種 | 本体でJSON moduleを同じloader・export・import規則で検証した証拠を今回確認していない。旧仕様からの必須変更でもなく、Tier 1確定の対象を増やす。必要なら別exact URLで追加 |
 | waitUntil共通上限を例として30秒にする（V §2.1） | **約30秒という見積りをそのまま規範値にしない**。有限の共通上限は10/21までに実装者と決める | handler種別、接続継続中／応答後、WfP dispatch・alarmの寿命を区別した実証が必要。client切断検知のbest-effortと、Hostが所有する期限・退役の強制取消は別 |
+| D05追記の「HTTP経由のcontrol APIでは411を返す」 | **Host API v2への適用には同意しない**。runtime TypeErrorのstatus411は採用し、独立data-plane HTTPへの投影だけを別扱いにする | Host API v2を据え置く方針と、実行時Bindingに管理HTTP経路を足さない境界に反する。JSON管理要求にはそもそもReadableStream bodyを載せない。共通error envelope・statusの変更は本taskの対象外 |
 
 #### 9.2.3 CTO判断待ちとして残す事項
 
