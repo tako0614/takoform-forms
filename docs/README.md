@@ -64,6 +64,7 @@ Host API v2 specifications are linked above; v1 proposals do not amend them.
 
 | Note | Status |
 | --- | --- |
+| [Form / Binding 1.0 standardization](proposals/1.0-standardization-20261014/PROPOSAL.md) | Non-normative proposal with Takoserver review responses; launch version awaits CTO decision. |
 | [Actor and Workflow selection](proposals/actor-workflow-source-candidate.md) | The selected unpublished v1 successor closure; generated candidates and release copies exist. |
 | [Workflow execution](proposals/workflow-execution-contract.md) | Semantic source used by that selected closure; independent Host execution remains unqualified here. |
 | [Actor execution](proposals/actor-execution-contract.md) | Concrete proposal with a facade mapping adopted only in selected source; remaining semantics need independent qualification. |
