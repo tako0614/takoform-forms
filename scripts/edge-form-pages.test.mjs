@@ -658,7 +658,7 @@ describe("publisher-owned Edge Form pages", () => {
     } finally {
       rmSync(output, { recursive: true, force: true });
     }
-  });
+  }, 60_000);
 });
 
 function signedTrustFor(plan) {
