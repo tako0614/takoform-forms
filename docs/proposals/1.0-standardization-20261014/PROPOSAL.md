@@ -1,21 +1,22 @@
 # Takoform Form／Binding 1.0 標準化変更案
 
-作成日: 2026-10-14 UTC。レビュー反映: 2026-10-15 JSTのTakoserverレビューと、その後のCTO決定。状態: **ローンチは1.0、必須はTier 1のみ、10/21に契約を確定する方針がCTO決定済み。文書は変更案であり、規範仕様の固定・実装完了・公開・Host対応を示すものではない。Web標準との衝突・独自拡張は§9.3のCTO報告用一覧へ分離した。**
+作成日: 2026-10-14 UTC。レビュー反映: 2026-10-15 JSTのTakoserverレビューと、その後の決定。状態: **最新のShouta方針を最優先で反映。ローンチ必須はTier 1に加えContainerとActor（WebSocket upgradeを含む）。各Formは完成まで0.xで反復し、仕様が妥当と判断できたものをCTO確認後に1.0へ昇格する。takoserverは1.0のみサポートする。** 文書は変更案であり、実装完了・昇格承認・公開・Host対応の証拠ではない。Web標準との衝突・独自拡張は§9.3のCTO報告用一覧に分離する。
 
 ## 1. 結論と今回の境界
 
-既存Edgeの17 Formと復活するContainerを安定版へ揃えるShouta方針を設計目標とし、既存7 Bindingの内容も整える。ContainerをWorkerから利用するBindingを加えると、設計対象は **18 Form／8 Binding** になる。**CTO決定によりローンチは1.0、必須はTier 1の12 Form／4 Bindingだけとし、10/21に確定する。** 全18 Form／8 Bindingの完成をローンチ条件にはしない。これは集合の呼び方であり、全体を束ねる新しいAPI版やpackageの版ではない。
+既存Edgeの17 Formと復活するContainerを安定版へ揃えるShouta方針を設計目標とし、既存7 Bindingの内容も整える。ContainerをWorkerから利用するBindingを加えると、設計対象は **18 Form／8 Binding** になる。**ローンチは安定版で行い、Tier 1の12 Form／4 Bindingに、Container・ActorNamespaceとcontainer／actor Bindingを加えた14 Form／6 Binding、およびActorのWebSocket upgradeを必須とする。** hosted CustomDomainは従来どおり必須外。Queue／Workflow等の全対象完成を追加の条件にはしない。集合を束ねる新しいHost API版やpackageの版は作らない。
 
-CTOが決定した次の制約を本案へ適用する。決定の詳細とレビューへの回答は§9.2、Web標準との衝突候補は§9.3に分ける。
+**今回通知されたShouta方針が、直前のCTO決定の該当部分とキュー済みの指示に優先する。** 現在有効な方針を以下へ統合し、置換した旧決定を§9.2で明記する。Web標準との衝突候補は§9.3に分ける。
 
 1. **Host APIは `forms.takoform.com/v2` のまま。** HTTP経路、Resource／Operation envelope、UID、generation、再送、privateInputs、Support／Offeringの意味を変えない。
 2. 実行時はWeb標準の型を使う。公開する名前・設定にCloudflare専用の語彙や型を要求せず、Cloudflare、Docker、Linuxの利用者から同じ入力・出力・失敗・永続化の意味が見えるようにする。
-3. **ローンチは1.0、必須は第1段階（Tier 1）のみ。2026-10-21に確定**する。Worker系、SQLite系、ObjectBucket、EdgeKV、StaticAssetBundle、Cron、およびsqlite／edge-kv／object-bucket／service Bindingを対象にする。
-4. 第2段階はQueue、CustomDomain、Container、Actor、Workflowと対応Bindingの設計を進める。**Container・ActorのWebSocket upgrade・hosted CustomDomainはローンチ必須外。11/04を中間判断日とし、未完なら未対応と明示してローンチする。** 第2段階全体の実装完了を11/04やローンチの条件へ読み替えない。
+3. **ContainerとActor（WebSocket upgradeを含む）をローンチ必須へ戻す。** 第1段階のWorker系、SQLite系、ObjectBucket、EdgeKV、StaticAssetBundle、Cron、およびsqlite／edge-kv／object-bucket／service Bindingは引き続き先行し、10/21を設計レビューの目標とする。日付だけを理由に未完成のFormを1.0へ昇格しない。
+4. 11/04は第2段階の中間判断日とする。**Container・Actor／upgradeが未完ならローンチの未充足条件として扱い、未対応のまま必須を満たしたことにしない。** hosted CustomDomainは必須外のまま、未完なら未対応として公開する。Queue／Workflowは後続設計を続ける。
 5. D04の型付き結果、D05のnon-final part等長・streamのContent-Length必須、D07のasset Range任意とfallbackのnull／index.html限定は承認済み。ただしWeb標準型の意味と衝突する実装・API拡張まで一括承認されたとは扱わず、§9.3で個別に報告する。
-6. 新規契約は1.0案をそのまま用い、準備用0.xの新規公開を挟まない。**WorkerVersion 1.0.0はTier 1として10/21に確定し、containerBindingsは1.1.0**へ追加する。
-7. **0.x／1.0の90日並行は行わない。ローンチ後0.xは新規CREATE／UPDATEを停止し、既存の読取・復旧・削除だけを維持する。既存hosted 0.xリソースがあれば、ローンチ前に移行方法を決める。** 利用者ゼロを推測してdataを捨てない。
-8. **Formごとの複数版登録機構をローンチの前提として実装する。** exact URL別に旧ABIの回復と新1.0の受付を分け、1.0を0.xのparserへ向けない。§7.2の登録・参照・回復試験を通す。
+6. **1.0は完成した0.xからの昇格とする。各Formは完成まで0.xで反復し、0.xの追加公開を可能にする。1.0昇格前にCTOへ確認する。** 公開済み0.xのbytesを上書きせず、修正は新しい0.x版へ進める。Container Draft PR takoform-forms#17はそのまま進めてよい。WorkerVersionの初回安定版へ必要なBindingを含める構成は§7.2の提案として詰め、旧1.1.0送りを完成条件より優先しない。
+7. **takoserverは1.0のみサポートする。** 0.xを読取・復旧・削除用として新takoserverへ残す旧案も置き換える。既存hosted 0.xがあれば、旧環境での効果確定・移送・退役方法を先に決め、新takoserverへ未処理0.xを持ち込まない。0.x／1.0の90日並行サポートは設けない。
+8. Formごとの複数版登録機構とexact URLの参照検査は維持し、**登録機構の能力とtakoserverが対応する版の許可方針を分ける。** 新takoserverの提供対象はCTO確認を経た1.0のみで、0.xをcomplete／retainedのどちらにもサポート登録しない。
+9. **Provider 5.0.0の公開前にもCTOへ確認する。** Formの1.0昇格確認とProvider公開確認は別々に記録する。今回の文書commit・pushやDraft PR継続の許可を公開承認とみなさない。本番deploy・公開releaseは今回行わない。
 
 本案の推奨は、既に中立なForm kind名と管理モデルを極力保ち、**実行値の型、asset設定、ストレージの結果形、HTTPの扱い、Actorのupgrade契約**を直すこと。`Worker`、`Binding`、`Namespace`、`cron`、`queue`、`bucket`自体はCloudflare専用語ではない。ただし現在のmodule default exportやscheduled／queue handlerの呼出し規約までWHATWGの標準であるとは説明しない。
 
@@ -31,7 +32,7 @@ checkoutが古い、またはdirtyなrepoがあるため、現在の作業ディ
 | --- | --- | --- |
 | T | `takoform` checkout HEAD `7b2343fc8e349e428179407fef064de5b7bf44f7`、v2はlocal origin/main `d9daf8e7ed22bd335484d7553de9abbb802df790` の `spec/host-api/v2/{README,http,forms,migration}.md` | 共通API、exact Form URL、不変UID、Support、秘密、互換性境界。 |
 | F | `takoform-forms` checkout HEAD `c8800721866046e86492edd4012380e8e7caabca` の17 Form JSON／7 Binding JSON／関連Interface、v2は `8b976cb617f84698bc3c79cbcf705c1a330a2316` の `spec/forms/` 全17本文とfreeze／guides | 旧packageと現行v2本文を別々に比較。以下の「現行」は原則v2本文。 |
-| FC | Container案に対応するForms commit `55811b390dbae8bd0c67a65e471d68d3ffb72006` の `Container/0.1.0`、`WorkerVersion/0.6.0`、`WorkerDeployment/0.5.0` | 既存17 Formとは別の未公開案。中間0.x公開は本案では不要。 |
+| FC | Container案に対応するForms commit `55811b390dbae8bd0c67a65e471d68d3ffb72006` の `Container/0.1.0`、`WorkerVersion/0.6.0`、`WorkerDeployment/0.5.0` | 既存17 Formとは別の未公開案。最新方針では0.xで反復し、完成・CTO確認後に安定版へ昇格する材料。 |
 | P | `terraform-provider-takoform` checkout HEAD `81ef75cfc50e0ab9b598f536507d29e596f6603c`、実装比較はTASK-0098の統合commit `97ba18102b550d48319a71575568e36ebeeca7bb` | `internal/edgev2`、`internal/provider/v2_*`、intent journal／private input文書、保存された旧spec・Form custody。 |
 | S | `takoserver` checkout HEAD `6b261a9edbe6e2cfd98d5e22e82c6e55c655ef7a`、v2実装比較はlocal origin/main `82917e2058c5eabe1cde94ee170875d3eb9213e5` | `src/takoform-v2/`、self-host投影、runtime／data service、Container runtime、関連docs。 |
 | Q | `takoserver-private` local origin/main `7e03ae5e50711593f7883c09a23b089b38010cd5` の関連sourceのみ | REPORTが指すWfPのnormal map、KV key codec、ObjectBucket namespace、Worker wrapper。credentialやproduction stateは読まない。 |
@@ -47,8 +48,8 @@ checkoutが古い、またはdirtyなrepoがあるため、現在の作業ディ
 | 集合 | 実体 | 1.0作業での扱い |
 | --- | --- | --- |
 | 旧v1 package | R／c880 checkoutで調べた旧集合は17 Form JSONが概ね0.1.0、WorkerVersion 0.3.0、Deployment 0.2.0。Bindingには既に1.0.0、object-bucketには1.1.0がある。 | 既存identity、bytes、tag、署名、参照を保持。新たな意味で再採番・上書きしない。 |
-| 現行v2 Form | URLごとの人間向け規範。§4／§5の現行欄に個別の0.x版を示す。BindingはForm本文内の契約。 | 新しい `/forms/<Kind>/1.0.0/` へ内容を整える。既存0.xのURLや本文は保持。 |
-| 未公開Container案 | Container 0.1.0とWorkerVersion 0.6.0／Deployment 0.5.0の候補。 | 設計材料として利用し、必要な内容を1.0へ直接入れる。候補を先に公開する必要はない。 |
+| 現行v2 Form | URLごとの人間向け規範。§4／§5の現行欄に個別の0.x版を示す。BindingはForm本文内の契約。 | 新しい0.x版で仕様を反復し、問題ないと判断できた版をCTO確認後に `/forms/<Kind>/1.0.0/` へ昇格。既存0.xのURLや本文は保持。 |
+| 未公開Container案 | Container 0.1.0とWorkerVersion 0.6.0／Deployment 0.5.0の候補。 | Container Draft PR #17を継続し、0.xで完成まで反復する。既存候補のmerge・公開・1.0昇格は別の行為。 |
 
 v2のBindingを「全て1.0」にするとは、**1.0 Formの版固定Binding章を完成する**という意味にする。旧 `bindings.takoform.com/v1alpha2` の `module-worker.*@1.0.0` を書き換える意味にはしない。Binding用CRUD、v2 package、共通Binding版系列は追加しない。識別は対象Formのexact URL＋その本文のBinding章と、消費側WorkerVersionのexact URLを組にする。
 
@@ -85,19 +86,19 @@ Rは全17／7の実環境適合を証明していない。Qの通常mapではMod
 - UTF-8 byte数、Unicode scalar数、整数、秒、ミリ秒をそれぞれ明記する。TTL／retry設定は `...Seconds`、runtimeの時刻はDateまたは名前に単位を持つ値、管理観測時刻は既存RFC 3339とする。
 - `supported:true`はexact Form全体の必須動作を満たす場合だけ。Offeringは容量・料金・配置を示せるが、未実装のABIや有効な設定値を実装済みに見せるための逃げ道にはしない。privateInputsだけは共通v2の明示された任意能力に従う。
 
-## 4. 第1段階 — 10/21までに先に確定する差分
+## 4. 第1段階 — 10/21の先行レビューで固める差分
 
-この節を第2段階より先にレビュー・確定する。kind名は既存17種を原則維持する。`ModuleWorker`は「TakoformのES module実行サービス」と定義し、ブラウザーのWHATWG `new Worker()`やCloudflare製品名と同一視しない。
+この節を第2段階より先にレビューし、0.xで仕様を固める。1.0昇格は完成判断とCTO確認後とする。kind名は既存17種を原則維持する。`ModuleWorker`は「TakoformのES module実行サービス」と定義し、ブラウザーのWHATWG `new Worker()`やCloudflare製品名と同一視しない。
 
 ### 4.1 Form別差分表（12種）
 
-参照はFの `spec/forms/<Kind>/<現行版>/index.md`。すべて新しい `<Kind>/1.0.0/` を提案する。表で維持する項目も新URLに明記する。
+参照はFの `spec/forms/<Kind>/<現行版>/index.md`。表は完成時の `<Kind>/1.0.0/` の目標差分であり、まず0.xで反復する。各Formの仕様が問題ないと判断できた時点でCTOへ確認し、初めて昇格へ進む。表で維持する項目も新URLに明記する。
 
 | Form／現行v2 | 現行 | 1.0案：語彙・型・APIの差分 | takoserverへの影響 | 移行時の注意 |
 | --- | --- | --- | --- | --- |
 | **ModuleWorker 0.3.0** | spec `{}`。default exportにfetch／scheduled／queue。`fetch(Request,env,ctx)`、ctx.waitUntil。最低globalは一部Web API。 | 空specと3 handler名を維持。`InvocationContext.signal:AbortSignal`を追加し、waitUntilはTakoform固有の寿命管理と明記。HTTPはRequest→Response、本文は標準stream。Blob等の共通globalと標準エラーを明文化。native module-worker ABIの直出しを止める。 | export検査、prelude、generated wrapper、全handlerへのcontext作成、退役・abort。module解決規則と循環ES moduleは現行を保つ。 | アプリがctxの追加propertyに依存せず動く場合は少修正。独自Error.nameのcatchは書き換え。Worker UIDは新規。 |
 | **WorkerBundle 0.2.0** | 不変 `artifact:{url,sha256}`、manifestのentrypoint／files、媒体型・閉じたmodule graph。 | 入力とimmutable custodyを維持。通常JS moduleのmedia typeは `text/javascript` を採用する案。`application/javascript+module` は旧manifestの表現として残す。text／bytes／wasmはTakoformの明示的loader規則で、Web module全般の標準とは呼ばない。 | artifact validation、module media type map、inspector、runtime adapter。bytesのdigestは変換後ではなく取得原文で確認。新しいmanifestを生成・再hash。 | コードbytesが同じでもmedia typeを変えたmanifestは別digest。旧bundleを新URLで勝手に同一視しない。 |
-| **WorkerVersion 0.5.0** | worker／bundle／handlers、vars、requiredSensitiveVars、7 Binding配列。assetsにrunWorkerFirst／notFoundHandling。 | `vars→values`、`requiredSensitiveVars→secretNames`、`kvBindings→edgeKvBindings`、`bucketBindings→objectBucketBindings`。**1.0.0はTier 1のedgeKv／sqlite／objectBucket／service配列だけで10/21に確定**。containerBindingsとqueueProducer／actor／workflow配列は1.1.0へ明示追加する。assetsはorderとfallbackへ置換し、fallbackはnullまたはindex.html。snapshotは不変。 | exact URLごとのparser／正規化／ABI／reference policyを複数版registryへ登録。configured private inputs、実行投影、static-only判定、Provider codecも版ごとに選択。 | 正規化specだけでなく元request intentを保持。秘密値変更は新Version。未定義配列の予約・旧名alias・1.0 parserへの1.1 field受入は行わない。 |
+| **WorkerVersion 0.5.0** | worker／bundle／handlers、vars、requiredSensitiveVars、7 Binding配列。assetsにrunWorkerFirst／notFoundHandling。 | `vars→values`、`requiredSensitiveVars→secretNames`、`kvBindings→edgeKvBindings`、`bucketBindings→objectBucketBindings`。**0.xでTier 1の4配列にactorBindings／containerBindingsを統合してから初回1.0.0へ昇格する案**を推奨し、昇格前にCTO確認。旧containerBindingsの1.1.0送りとの版構成は§7.2・§9.2で再整理する。assetsはorder／fallback、fallbackはnull／index.html。snapshot不変。 | exact URLごとのparser／正規化／ABI／reference policyと、1.0のみを許可する方針を分離。configured private inputs、実行投影、static-only判定、Provider codecを版ごとに選択。 | 正規化specだけでなく元request intentを保持。秘密値変更は新Version。未定義配列の予約・旧名aliasを作らない。昇格後の本文へfieldを後付けしない。 |
 | **WorkerDeployment 0.4.0** | worker＋versions、1〜8版、weight合計10000、single-active、invocation固定、旧contextは15分で退役。 | 語彙とshapeを維持。全参照先を1.0へ固定。HTTP・scheduled・queue・Actor・Workflowのイベント選択を共通に説明し、AbortSignal／stream取消と物理退役の関係を明文化。 | 全required class／Bindingのgraph validation、旧新Form URLを跨ぐsingle-active、drain／owner fence。 | 旧WorkerのDeploymentへ1.0 Versionを混ぜない。旧新Worker間の入口切替が必要。weight変更はコード互換・データrollbackの保証ではない。 |
 | **WorkerEndpoint 0.3.0** | worker参照だけ。受理時に固定hostname／url、TLSとactive routeを観測。 | shape／hostname安定性／TLSを維持し、Worker1.0へ固定。外部HTTPもservice Bindingも同じasset規則。vendor subdomain・zone・route IDは入力にしない。 | endpoint backend、frontend publication、TLS／route readbackと退役。 | 新UIDなら新割当URLになり得る。既存アドレスを移せるとは約束せず、アプリ設定・DNSを明示変更する。 |
 | **SQLiteDatabase 0.2.0** | 空spec。execute／rollback-only query／transaction。BLOBがruntimeでも `{encoding:"base64",data}`。 | 空spec／SQLの3操作／rollback-only／migration分離を維持。型名を `SqlValue` にしBLOBをUint8Arrayへ。安全な有限number範囲は今回維持し、64-bit INTEGER全域を黙ってnumberへ丸めない。AbortSignalを各呼出しのoptionsで受ける。 | selfhost-v2-sqlite-worker-projection、data service codec、Node authorizer transport、結果byte budgetの検査。内部Base64をruntime境界で変換する。 | DB内容の変更とJS型の変更を分ける。Base64変換コードとcatchを修正。新DBへschema・data・migration履歴を検証付きで移す。 |
@@ -115,7 +116,7 @@ Rは全17／7の実環境適合を証明していない。Qの通常mapではMod
 | Binding | 現行v2のsurface／旧Binding版 | 1.0案 | takoserverへの影響と移行 |
 | --- | --- | --- | --- |
 | **sqlite** | SQLiteDatabase0.2.0本文。旧module-worker.sqlite1.0.0。execute／query／transaction、Base64 BLOB、snake-case Error.name。 | 同じ3操作でUint8Array BLOB、`{signal}`、固定code。queryは引き続きrollback-onlyで、SELECT判定への置換はしない。 | SQL parser／authorizer・all-or-noneは維持し、facadeとbrokerの符号化層を変更。bool／bigint／Node Bufferを黙って変換しない。旧catchとBLOB入力を修正。 |
-| **edge-kv** | EdgeKVNamespace0.2.0本文。旧module-worker.edge-kv1.0.0。getとgetWithMetadata、ArrayBuffer、expirationTtlSeconds、listComplete。 | get→KvEntryまたはnull、entry.valueはBlob。putはstring／Blob／BufferSource、**stream入力なし**。ttlSecondsは最小60、list→items／nextCursor、signal対応。 | 新ABIでnative cacheTtlを露出しない。public cursorをnamespace／principal／queryへ束縛。旧APIは旧URL内だけで保持。 |
+| **edge-kv** | EdgeKVNamespace0.2.0本文。旧module-worker.edge-kv1.0.0。getとgetWithMetadata、ArrayBuffer、expirationTtlSeconds、listComplete。 | get→KvEntryまたはnull、entry.valueはBlob。putはstring／Blob／BufferSource、**stream入力なし**。ttlSecondsは最小60、list→items／nextCursor、signal対応。 | 新ABIでnative cacheTtlを露出しない。public cursorをnamespace／principal／queryへ束縛。旧URLの仕様は履歴として保持し、新takoserverでは提供しない。 |
 | **object-bucket** | ObjectBucket0.2.0本文。旧module-worker.object-bucket1.1.0。9操作、head/getは独自objectまたはnull。 | 9操作を維持。**head／getはResponse、put／completeはObjectWriteResult、deleteはvoid**。range／条件／metadataはHeaders。stream入力はContent-Length必須、non-final partは等長。 | 読取status、ETag quoting、range、書込precondition_failed、byte数とpart条件を検査。R2Object／httpMetadata／onlyIfは公開しない。 |
 | **service** | ModuleWorker0.3.0本文。旧module-worker.service1.0.0。fetch(Request)／fetch(string,init)。 | `fetch(input:Request\|URL\|string,init?:RequestInit):Promise<Response>`。RequestInitで構築、signal・stream・headerを標準型で扱う。固定UID宛の配送・redirect非追従はglobal fetchとの仕様差として§9.3 WS-02へ分離し、RequestInit各項目の扱いを10/21までに決める。 | brokerのrequest取消、双方向backpressure、header重複、callee target更新、同一UID routingを検証。native Fetcher／RPCメソッド／request.cfを露出しない。標準型を使うことだけでglobal fetch完全互換とは主張しない。 |
 
@@ -248,18 +249,18 @@ orderとfallbackはassets指定時に必須とする。**fallbackはnullまた�
 
 ## 5. 第2段階 — 11/04の中間判断へ向けた差分
 
-第1段階は10/21に独立して確定する。WorkerVersion 1.0.0にはTier 2 Bindingを入れず、containerBindingsとqueueProducer／actor／workflow配列はWorkerVersion 1.1.0へ追加する。ModuleWorkerの基礎handler ABIはTier 1で固定し、Actor／Workflow固有class ABIは各Formが所有する。第2段階の確定を理由に既存1.0 URLを変更しない。複数版の参照とDeploymentは§7.2のregistryで明示的に扱う。
+第1段階は10/21の設計レビューを先行する。各Formは完成まで0.xで反復し、WorkerVersionもローンチに必要なactor／container Bindingを含む構成を昇格前に詰める。ModuleWorkerの基礎handler ABIに加え、Actor class／upgradeの接続をローンチまでに完成させる。Workflow固有class ABIは後続の設計とし、確定済みの1.0 URLを後から変更しない。複数版の登録能力と、takoserverの1.0のみ対応は§7.2で分ける。
 
-**CTO決定によりContainer・Actor WebSocket upgrade・hosted CustomDomainはローンチ必須外であり、11/04は中間判断日である。未完なら、利用案内とHostのsupport表示で未対応と明示する。** 以下は目標契約の差分であり、実装済み・公開予定日の確約ではない。Queue／Workflow等もTier 1ローンチの必須条件に繰り上げない。exact Formが必須とする動作を欠く場合は、そのForm全体をsupported:trueにしない。ActorのHTTPのみを先に提供するなら、upgradeを必須にしない契約を固定前に明記するか、別exact URLを設ける。
+**最新のShouta方針によりContainerとActor（WebSocket upgradeを含む）はローンチ必須へ戻す。** 11/04の中間判断で未完なら、完成・検証・1.0昇格の残作業をローンチ条件として追う。ActorのHTTPだけで完了とせず、upgradeまで受入証拠を揃える。hosted CustomDomainは必須外のまま、未完なら未対応として公開する。Queue／Workflow等は後続対象であり、全18 Form／8 Bindingの完成を追加条件にはしない。以下は完成時の目標差分で、0.xでの反復・CTO確認を経て昇格する。
 
 ### 5.1 Form別差分表（既存5種＋Container）
 
 | Form／現行 | 現行 | 1.0案：語彙・型・APIの差分 | takoserverへの影響 | 移行時の注意 |
 | --- | --- | --- | --- | --- |
-| **AtLeastOnceQueue 0.2.0** | deliveryDelaySeconds／messageRetentionSeconds、send／sendBatch、opaque bytes最大127000、unordered／at-least-once。 | Form名と設定を維持。本文入力はBufferedBytes、受信はBlob。**1.0ではstream入力なし**。messageのid／attemptsを保持し、timestampMillis→enqueuedAt:Date。 | producer facade、永続受理、wrapper、byte長検査、Host receipt。最大127000 bytesとsendBatch全件原子性を守る。producer消費側はWorkerVersion 1.1.0。 | 既存の未消費messageとinflightをdrainするか、ID・時刻・残存TTLを含む移送を別に計画。native queueの直接copyを一般手順にしない。 |
+| **AtLeastOnceQueue 0.2.0** | deliveryDelaySeconds／messageRetentionSeconds、send／sendBatch、opaque bytes最大127000、unordered／at-least-once。 | Form名と設定を維持。本文入力はBufferedBytes、受信はBlob。**1.0ではstream入力なし**。messageのid／attemptsを保持し、timestampMillis→enqueuedAt:Date。 | producer facade、永続受理、wrapper、byte長検査、Host receipt。最大127000 bytesとsendBatch全件原子性を守る。producerの消費側版は後続の0.x設計で決め、昇格前にCTOへ確認する。 | 既存の未消費messageとinflightをdrainするか、ID・時刻・残存TTLを含む移送を別に計画。native queueの直接copyを一般手順にしない。 |
 | **QueueConsumer 0.3.0** | queue／worker／maxBatchSize／maxBatchTimeoutSeconds／maxConcurrency／maxRetries／retryDelaySeconds／deadLetterQueue。batch methodsでack／retry。 | 同じ設定とbatch settlementを維持。Cloudflare MessageBatchではなくTakoformのQueueDeliveryと説明。messageはBlob／Date。context.signalを追加。通常returnで残りack、throwで残りretry、DLQ循環拒否を保つ。 | 配送lease／settlement／worker graph／停止境界。queueのsendBatch原子性とDLQ効果のunknownを全backendで確認。 | Consumer二重接続不可。旧Consumer停止・未settled再配信可能性の確認後に新側へ切替。新旧IDの対応が必要なら明示移送toolの責任。 |
 | **WorkerCustomDomain 0.3.0** | hostname／worker。所有確認後にTLS／route。正規化名を占有。 | shapeを維持。1.0 Worker宛。hostnameはURLのhostname型に沿う文字列表現・IDNA／DNSの制約を明記。zone ID／account ID／SaaS custom-hostname ID／workers.devを入力にしない。 | 新v2backendの通常mount、ドメインcontrol proof、Host全体の外部hostname競合、TLS、route退役。Qのgateway aliasと実custom domainを混同しない。 | 同じhostnameを旧新Attachmentへ同時に占有させない。所有確認とroute切替をHostが明示できなければ停止時間ありのdetach→attach。DNS zone全体を削除しない。 |
-| **Container（未公開0.1.0案）** | image／httpPort／healthPath／workloadRevision、environment、requiredSensitiveVars空のみ、outboundInternet。private fetch、OCI linux/amd64、健康確認→切替→30秒drain。 | kindはContainer、Bindingはcontainerを推奨。digest固定OCI、port／health／revision／非秘密environmentとprivate HTTPを維持。`CLOUDFLARE_`を公開予約名から除き、共通 `TAKOFORM_` のみ予約。初期版が秘密非対応なら常に空しか取れないrequiredSensitiveVars欄を削除し、private input名なしと明記する。outboundInternetのfalse／true両方を意味どおり実装する。 | v2 lifecycle adapter、Host-owned image取得／保持、WfP broker、Docker／Linux isolation、egress enforcement、readiness、cutover／drain／unknown回復。既存legacy runtimeの接続だけで完了しない。 | 中間0.1.0公開は不要。仮に未公開候補を実運用しているならoperatorが別途管理し、公開1.0のUIDとして採用しない。mutable tag解決・native process APIを持ち込まない。 |
+| **Container（未公開0.1.0案）** | image／httpPort／healthPath／workloadRevision、environment、requiredSensitiveVars空のみ、outboundInternet。private fetch、OCI linux/amd64、健康確認→切替→30秒drain。 | kindはContainer、Bindingはcontainerを推奨。digest固定OCI、port／health／revision／非秘密environmentとprivate HTTPを維持。`CLOUDFLARE_`を公開予約名から除き、共通 `TAKOFORM_` のみ予約。初期版が秘密非対応なら常に空しか取れないrequiredSensitiveVars欄を削除し、private input名なしと明記する。outboundInternetのfalse／true両方を意味どおり実装する。 | **ローンチ必須**。v2 lifecycle adapter、Host-owned image取得／保持、WfP broker、Docker／Linux isolation、egress enforcement、readiness、cutover／drain／unknown回復。既存legacy runtimeの接続だけで完了しない。 | Draft PR #17を継続し、0.xで完成まで反復・追加公開できる。1.0昇格前にCTO確認。既存候補のUIDを1.0へ再解釈せず、mutable tag解決・native process APIも持ち込まない。 |
 | **ActorNamespace 0.3.0** | worker／className、idFromName／newUniqueId／get／stub.fetch、private SQL／alarm／socket。Host製Response.status101と特殊constructor alias。 | shapeとsingle-writerを維持。callerは`getByName(name)`／`get(id)`／`createId()`へ整え、実体化は初回配送。fetchは標準型、storage BLOBはSqlValueへ。alarmはset(Date)／get():Dateまたはnull。**101を標準Responseに見せる拡張はやめる**。upgrade結果を明示的なTakoform型として別に定義する案（§5.3）。 | deterministic ID互換、Actor SQL codec、alarm projection、全class検査、ActorResponse／upgrade handoff／socket broker／native wrapperの変更。最も大きいruntime変更。 | namespace／actor IDはdata identity。新UIDへの移行でIDだけcopyして旧dataへ届くと仮定しない。store／alarm／socket attachmentを計画し、socketは再接続。 |
 | **DurableWorkflow 0.3.0** | worker／className、create／get／status／sendEvent／terminate、step.do／sleep／waitForEvent、memoized replay。 | Form名・shape・主要methodを維持。Cloudflare WorkflowEntrypoint継承不要を明示。runtime payloadはJSON documentのまま、保存する値へStream／Request／Blob／CryptoKeyを許可しない。context.signalと標準errorの境界を整理し、期限・retryは明示単位のまま。 | class inspection、workflow data encoder、Host error brand、durable history／replay、sleep／wake、physical terminate。JSON限定は保持し、structuredCloneが使えるという理由で永続型を広げない。 | 実行中instanceは旧コード・旧ABIで完了させるのが既定。step name／output形の互換なしに新runtimeでreplayしない。新規instanceを新Workflowへ向ける。 |
 
@@ -267,10 +268,10 @@ orderとfallbackはassets指定時に必須とする。**fallbackはnullまた�
 
 | Binding | 現行 | 1.0案 | takoserverへの影響と移行 |
 | --- | --- | --- | --- |
-| **queue-producer** | 旧1.0.0。send／sendBatch、string／ArrayBuffer／view、結果はmessage ID。 | method／結果を維持。Blobとsignalを追加し、stream入力は含めない。WorkerVersion 1.1.0のqueueProducerBindingsから利用。 | unknown sendを新しい送信として自動再実行しない。sendBatch全件原子性を保持。文字列→UTF-8、byte view範囲のcopyを検査。 |
+| **queue-producer** | 旧1.0.0。send／sendBatch、string／ArrayBuffer／view、結果はmessage ID。 | method／結果を維持。Blobとsignalを追加し、stream入力は含めない。queueProducerBindingsの消費側版は後続設計とし、完成前に番号だけを固定しない。 | unknown sendを新しい送信として自動再実行しない。sendBatch全件原子性を保持。文字列→UTF-8、byte view範囲のcopyを検査。 |
 | **actor** | 旧1.0.0。idFromName／newUniqueId／get、stub.fetch。 | `getByName(name)`→stub、`createId()`→opaque ID、`get(id)`→stub。stubはreadonly idと標準型fetch。idはparseしない。 | 名→IDの安定変換をnamespace内で固定。renameだけでもpublic ABI変更なので新URLに限定。callerへstorageやalarm権限を渡さない。 |
 | **workflow** | 旧1.0.0。create／getとinstance.status／sendEvent／terminate。 | method名・7 statusを維持し、操作optionsのsignalと固定codeを揃える。取消した待機とWorkflow instanceのterminateを分ける。 | 中断したcallerだけを理由にdurable instanceを停止しない。旧historyは旧ownerに残し、new instanceのtargetだけを切替。 |
-| **container（追加）** | K／FCの案はenv.APP.fetch(Request)のみ。container-httpという別名案あり。 | module-worker.containerを作業名とし、Container1.0本文のworker-binding章で定義。**消費側はWorkerVersion 1.1.0のcontainerBindings**。serviceと同じ標準型で、process管理APIを出さない。 | targetUID／callerVersionへのscope、health済みgeneration、header／stream／取消、権限取消、30秒drain。WorkerVersion 1.0.0に予約field・aliasを追加しない。 |
+| **container（追加）** | K／FCの案はenv.APP.fetch(Request)のみ。container-httpという別名案あり。 | module-worker.containerを作業名とし、Container1.0本文のworker-binding章で定義。**WorkerVersionの0.x候補へcontainerBindingsを統合し、初回1.0.0へ昇格する構成案**をCTO確認へ出す。serviceと同じ標準型で、process管理APIを出さない。 | targetUID／callerVersionへのscope、health済みgeneration、header／stream／取消、権限取消、30秒drain。ローンチ時に実利用できる消費側まで必須。未定義fieldの予約や公開済み版への後付けはしない。 |
 
 ### 5.3 ActorのWebSocketは独立して決める
 
@@ -280,13 +281,13 @@ orderとfallbackはassets指定時に必須とする。**fallbackはnullまた�
 
 推奨案は、通常のfetchは標準Response、upgradeを返す場合だけ `ActorUpgrade` というTakoformの明示型を使い、handlerの戻り値を `Response | ActorUpgrade` と書くこと。`ActorUpgrade` はHost発行の一回限り能力で、別invocationへの転送・直列化・service Binding経由の生成を認めない。socketのmessage／close eventの値はWebSocket語彙に揃え、永続attachment／alarm／Host所有socketの操作は独自APIと明記する。Response subclassや `Response.webSocket` をportable globalへ足さない。
 
-**Actor WebSocket upgradeをローンチ必須から外す判断はCTO決定済み。** 11/04の中間判断で未完なら未対応として公開する。`ActorUpgrade`の型・能力・転送制限や別exact URLでの将来追加は、その後の設計判断として残す。標準Responseへ101を通す拡張をこの承認の範囲に含めない（§9.3 WS-01）。第1段階のHTTP／stream設計は通常Responseで先に確定する。
+**Actor WebSocket upgradeはローンチ必須。** `ActorUpgrade`の型・能力・転送制限・socket寿命・再接続を0.xで詰め、Web標準Responseと両立する完成契約を1.0昇格前にCTOへ確認する（§9.3 WS-01）。11/04は進捗の中間判断であり、未完のupgradeを後回しにしてローンチ条件を満たしたことにはしない。通常のHTTP／streamは標準Responseのまま設計を先行する。
 
 ### 5.4 Container案から引き継ぐもの・修正するもの
 
 - OCI imageはregistry/repositoryとlowercase sha256 digestで固定し、tagだけ、latest解決、image URLを入力にしない。初期portable workloadはlinux/amd64、単一manifestとする。multi-platform indexやARMを1.0で受けるなら、全backendの選択・digest検証を先に閉じる。
 - imageのENTRYPOINT／CMD、port、health path、author-declared workloadRevision、非秘密environmentを維持する。runtime filesystem／memory／instance IDはephemeral。volume、Docker socket、native IP、DO class／namespace、instance sizeはportable設定にしない。
-- Container初期版をsecret-freeにするか、秘密注入を含めるかは後続の設計判断。推奨する最小案は前者で、秘密名の空欄を機能のように残さない。後者ならWorker同様のgeneration-bound custody、補給、lost ACK、rotation、新規実行への適用をContainerの対応開始前に仕様化する。11/04中間判断で未完ならContainerは未対応とし、この判断をTier 1ローンチの条件にしない。
+- Container初期版をsecret-freeにするか、秘密注入を含めるかは0.xで詰め、昇格前にCTOへ確認する。推奨する最小案は前者で、秘密名の空欄を機能のように残さない。後者ならWorker同様のgeneration-bound custody、補給、lost ACK、rotation、新規実行への適用を完成させる。Container自体はローンチ必須であり、11/04で未完でも必須から外さない。
 - outboundInternet:falseは実際にdeny、trueは実際にallowの権限を与える。同意なくtrueへ変えない。Sの現legacy adapterはtrueも拒否するため、現在の実装だけではこの入力全体に適合したとは言えない。
 - healthの2xx確認前に新generationへ切り替えず、不健康更新は旧servingを保つ。callごとのgeneration固定、30秒drain、取消と物理退役、unknown時の同UID回復を維持する。
 - Kのbody100MiB、header64件／16KiB、path＋query8192文字、HTTP method集合／upgradeなしを共通profileとして維持する。Content-Length不一致や途中stream errorをresponse head後の別statusへ差し替えない。複数Set-Cookie、hop-by-hop header、Authorizationのapplication上の扱いをservice Bindingと整合させる。
@@ -326,104 +327,113 @@ orderとfallbackはassets指定時に必須とする。**fallbackはnullまた�
 
 ### 7.1 日付と出口
 
-| 期間／期限 | 成果物と順序 | 完了条件 | 主担当案 |
+10/21はTier 1を先に固める設計レビューの目標、11/04は第2段階の中間判断とする。**日程到来だけで1.0へ昇格しない。各Formを完成まで0.xで反復し、仕様が問題ないという判断とCTO確認を昇格の条件にする。** Container／Actorの必須化に伴う見積りは担当者が再提示し、この文書で新しいローンチ日を捏造しない。
+
+| 期間／時点 | 成果物と順序 | 完了条件 | 主担当案 |
 | --- | --- | --- | --- |
-| 10/14–10/16 | 第1段階12 Form／4 Bindingの差分、標準型、エラー、上限とテスト例を先にレビュー | §9の10/21必須論点に責任者がつく。既存0.xと新1.0を混同しない対照表 | CTO＋Forms＋Takoserver、ProviderはHCL/state影響を確認 |
-| 10/17–**10/21** | **ローンチ必須のTier 1とWorkerVersion 1.0.0を確定**。複数版registryの設計と§9.3の標準差異をレビュー | SQL BLOB／safe number、Object読取Response・書込型付き結果、等長part・既知長stream、KV TTL、asset任意Range・2値fallback、cron／serviceの受入例が一意。標準との衝突候補に個別の処置がある | Formsが意味を所有、Hostが3利用経路で実装可能性を確認。標準差異はCTOへ報告 |
-| 10/22–10/28 | Tier 1の実装・適合を優先し、第2段階の残る差分を具体化 | Queue／Domain／Container／Actor／Workflowの未完箇所と後続計画を記録。Tier 2完了をTier 1の条件にしない | CTO＋Takoserver、Forms／Provider |
-| 10/29–**11/04 中間判断** | Container・Actor WebSocket upgrade・hosted CustomDomainの到達点を判定。WorkerVersion 1.1.0と対応Deploymentは後続案として整理 | 指定3機能は未完なら未対応として公開する方針を確定表示。対応予定をsupported:trueへ置き換えない。10/21の1.0.0本文は変更しない | FormsとCTO、Host／Providerが対応状況を確認 |
-| 確定後、ローンチ前 | Tier 1の実装・適合・公開・実利用資格確認。**複数版registryを実装・試験し、既存hosted 0.xがあれば移行方法を先に決定** | §7.2・§8.1の前提を満たす。仕様確定日をruntime完了日・GA日へ読み替えない | 各repo owner／operator。実施日は担当者が見積もる |
-| **1.0ローンチ後** | **0.xの新規CREATE／UPDATE停止。読取・復旧・削除のみ** | 新規受付の90日並行なし。旧accepted intentの回復と保存dataを保持し、未完のTier 2は未対応と明示 | Host owner／operator |
+| 10/14–10/16 | 第1段階12 Form／4 Bindingの差分、標準型、エラー、上限とテスト例を先にレビュー | 現行0.x・次の0.x候補・昇格後の1.0目標を対照化。Container／Actor必須への接続も列挙 | CTO＋Forms＋Takoserver、ProviderはHCL/state影響を確認 |
+| 10/17–**10/21 先行レビュー目標** | Tier 1の設計、WorkerVersionの必須Binding構成、registry方針、§9.3の標準差異を詰める | D04／D05／D07、KV TTL、SQL値域、cron／serviceの受入例が一意。未完成なら0.xの次版で反復し、日付だけで昇格しない | Forms＋Host。標準差異と版構成をCTOへ報告 |
+| 10/22–10/28 | Tier 1の検証と並行し、**Container・Actor／WebSocket upgradeを必須作業として進める** | Container Draft PR #17継続。OCI／egress／health／drain、Actorの型・socket／再接続・消費側Bindingを0.xで完成へ近づける | Forms＋Takoserver／private、Provider |
+| **11/04 中間判断** | 必須機能の完成度と見積り、hosted CustomDomain等の到達点を確認 | Container・Actor／upgradeの未完はローンチ未充足として追跡。hosted CustomDomainは必須外で未完なら未対応として公開 | CTO＋各owner |
+| **各Formの1.0昇格前** | 完成した0.xの仕様・差分・適合証拠と昇格先exact URLをCTOへ提示 | **CTO確認結果を記録してから1.0昇格・公開へ進む**。不足があれば0.xで反復。公開済みidentityは上書きしない | Forms owner＋CTO |
+| **Provider 5.0.0公開前** | 1.0 mapping、state／import、必須Form・Binding coverageと移行証拠を提示 | **Form昇格とは別にCTO確認**。版番号・mappingと公開対象commitを記録 | Provider owner＋CTO |
+| ローンチ前 | **Tier 1＋Container＋Actor／WebSocket upgrade**の実装・適合・昇格・実利用資格確認 | 必須graphの全exact契約に証拠がある。takoserverは1.0のみ対応。既存hosted 0.xは§8で効果確定・移送・退役方法を決定し、新Hostへ残さない | 各repo owner／operator |
 
-**WorkerVersion 1.0.0は10/21にTier 1の契約として確定し、11/04まで待たせない。** 1.0.0はedgeKvBindings／sqliteBindings／objectBucketBindings／serviceBindingsだけを受け、queueProducerBindings／actorBindings／workflowBindings／containerBindingsは1.1.0で追加する。未実装・未定義の予約fieldは作らない。既存0.xの配列やABIは旧URLに残す。ModuleWorkerのfetch／scheduled／queueという基礎handler名、queue eventの型・settlementは10/21までに固定し、Tier 2の供給・接続Formの確定やsupport広告とは分ける。Actor／Workflow固有のclass・data・upgradeは後段Form側の契約であり、Tier 1の必須能力にしない。
+#### 0.xから1.0へ昇格する条件
 
-WorkerDeployment 1.0.0はWorkerVersion 1.0.0だけを列挙可能とする。1.1.0 Versionを使うために既存Deployment 1.0.0の許容範囲を後から広げず、対応する新exact URL（本案ではWorkerDeployment 1.1.0）を用意する。**ローンチ版は1.0に確定済み**だが、仕様確定、immutable source固定、公開、実Host利用開始は別の行為である。準備用0.xを新規公開しない。WorkerVersion／Deployment 1.1.0の公開・Host対応はローンチ前提にしない。
+1. 各Formの0.x候補に語彙・型・失敗・上限・永続化・全参照先を定義し、完成まで版を進める。必要な0.x追加公開は可能であり、旧版の本文・package・tagを上書きしない。
+2. source・spec・正負fixture・実backend受入が同じ候補を検証していること、§9.3の標準差異に処置があることをownerが確認する。Container／ActorではBindingを通じた実利用とWebSocket upgradeを含める。
+3. **Formごとに1.0昇格前のCTO確認**を受ける。確認対象の0.x版・commit／digest、差分、未解決事項、1.0のexact URLと依存先、確認結果を記録する。今回の方針通知は個別候補への昇格承認ではない。
+4. 確認済み候補から1.0の新identityを作り、版とexact参照の置換に伴う差分を再検証する。昇格は契約の成熟度の判断であり、既存Resourceのform／UIDやProvider stateの上書きではない。
+5. Form公開、Provider 5.0.0公開、takoserverのsupport・activationはそれぞれ別の行為。Provider 5.0.0公開前のCTO確認も独立して記録する。この文書更新ではいずれも実行しない。
 
 ### 7.2 repoを跨ぐ実装順
 
 この調査ではtask ledgerを作らない。着手時にはcross-repo／persisted state／authority変更を含むtask ledgerをownerが作り、次の対象repo・順序・既存資源の扱いを宣言する。
 
-1. **takoform-forms**: 新1.0本文、Binding章、任意schema、正負fixture、標準型、現行との差分・移行文書を整える。未公開のContainer0.x候補は必要な意味だけを1.0へ取り込む。既存freeze・published bytesを更新しない。
-2. **takoserver**: **複数版registryとreference policyを先に実装**し、共通v2 engineのwireを保ったままexact1.0ごとのvalidator／backend、adapter・broker・normal entryを接続する。現行の各定数1版だけの構成に文字列を追加するだけでは足りない。旧URLを同じparserへ黙って向けず、retained処理と分ける。persisted data migrationやruntime authority変更には別の検証・復旧手順を付ける。
-3. **takoserver-private**: WfP wrapper／image owner／mixed topology／native capacityを整える。public repoはportable contractとpublic portまで、private repoは具体的Cloudflare backendとoperator構成を所有する。
-4. **terraform-provider-takoform**: exact1.0 codec、明示的なHCL mapping、state拒否／import、既存intent journalの連続性を実装する。Formの意味や共通v2をProvider都合で変えない。Form1.0とProviderのrelease番号を揃える必要はない。
-5. **takoform**: 共通Host API v2の変更は不要。必要ならinformativeな移行案内・標準型の参照だけをownerが検討する。Form catalog・Host固有adapter・署名packageを共通v2の参加条件に持ち込まない。
-6. 各ownerが最終candidateで `bun run check`。focused fixture、portable gate、real backend試験、正式公開readback、実利用qualificationをそれぞれ記録する。新規1.0 URLをcreate-onlyで公開し、bytes／source commit／digestをreadbackする。Hostのsupport広告は全required behaviorの確認後に行う。
+1. **takoform-forms**: 0.xの本文・Binding章・fixtureで反復し、完成・CTO確認後に各Formを1.0へ昇格する。**[Container Draft PR #17](https://github.com/tako0614/takoform-forms/pull/17)はそのまま継続してよい**。これは当該PRのmerge・公開・昇格や、その未読の最新差分を承認したという意味ではない。既存freeze・published bytesは更新しない。
+2. **takoserver**: 複数版registryの能力と対応版の許可方針を分け、**提供するFormは1.0のみ**とする。共通v2 engineのwireを保ってvalidator／backend／adapter・broker・normal entryを接続する。0.xを互換read／recovery／delete用entryとして新Hostへ残す案は取り消す。既存0.xの整理は旧環境の移行作業として先に解決する。
+3. **takoserver-private**: WfP wrapper／image owner／mixed topology／native capacityを必須graphに合わせる。public repoはportable contractとpublic port、private repoは具体的Cloudflare backendとoperator構成を所有する。0.x候補の検証は隔離した試験環境で行い、提供Hostのsupportへ混ぜない。
+4. **terraform-provider-takoform**: exact1.0 codec、必須14 Form／6 Bindingのmapping・coverage、state拒否／import、元intentの連続性を実装する。**Provider 5.0.0公開前にCTO確認**。旧0.xをlatest解決やstate文字列変更だけで1.0へ読み替えない。
+5. **takoform**: Host API v2の変更は不要。必要ならinformativeな昇格・移行案内だけをownerが検討する。Form catalog・Host固有adapter・署名packageを共通v2の参加条件に持ち込まない。
+6. 各ownerが最終candidateで `bun run check`。focused fixture、portable gate、real backend、CTO確認、正式公開readback、実利用qualificationを別々に記録する。公開は新identityへcreate-onlyで行い、bytes／source commit／digestをreadbackする。Hostは対応対象の全required behaviorの確認後にsupportを広告する。
 
-Form公開はHost activationではなく、Provider releaseもForm公開ではない。全製品同時の架空GA gateを新設しない。Shouta方針として対象全契約を1.0へ揃えることと、各ownerの公開・稼働の証拠を分ける。
+#### WorkerVersionの初回安定版と必須Binding
+
+**本案の推奨は、未昇格のWorkerVersion 0.xへedgeKvBindings／sqliteBindings／objectBucketBindings／serviceBindingsに加えactorBindings／containerBindingsを統合し、完成した構成を初回1.0.0へ昇格すること。** 対応WorkerDeploymentも同じgraphで0.x検証を行い、昇格先のexact参照表を固定する。ModuleWorker側のActor class／upgrade ABIもローンチまでに閉じる。未定義配列の予約は行わない。
+
+直前の「containerBindingsを1.1.0へ送る」版構成は、Container必須・takoserverは1.0のみという最新方針との整合確認が必要であり、**現在の確定構成としては扱わない**。上記の初回1.0統合は文書上の提案で、採番の最終判断は昇格前のCTO確認へ出す。すでに1.0が固定済みと判明した場合はそのidentityを改変せず、別の版構成とローンチ依存をCTOと決め直す。1.1の対応を今回勝手に許可しない。Queue／Workflowの配列・消費側の版番号は後続設計とし、未完成fieldをローンチ用1.0へ予約しない。
 
 #### exact URLごとの複数版登録と参照の仕組み
 
-**Formごとの複数版登録はCTO決定によるローンチの前提であり、任意の後続改善ではない。** Hostがコードで所有するregistryは、**完全なForm URL文字列**をkeyとし、そのURL専用のparser／正規化、backend factory、runtime projection、参照許可表、complete／retainedの区分を持つ。設計は10/21のTier 1確定と合わせ、実装・回復試験は1.0受付開始と0.x新規受付停止の前に完了させる。新しい公開API、Form取得・実行機構、SemVer negotiationは追加しない。以下の1.1 entryは後続追加の設計であり、未実装の1.1をローンチ時に登録・広告する義務はない。
+Formごとの複数版を扱える登録機構は維持するが、**登録できる構造と、提供Hostがサポートする版は別である**。Hostがコードで所有するregistryは完全なForm URLをkeyとし、専用parser／正規化、backend factory、runtime projection、参照表、対応許可を結び付ける。新takoserverの初回提供対象は昇格・CTO確認を経たexact1.0.0のみとする。0.xや将来版へSemVerから互換性を推測しない。新しい公開APIやForm取得・実行機構は追加しない。
 
-| 登録key（同じpublisher originの/forms以下） | parser／projection | 許容する参照の基本案 |
+| 対象 | 登録・対応方針 | 参照・回復の扱い |
 | --- | --- | --- |
-| WorkerVersion/0.5.0/ 等の既存0.x | 元のclosed shapeと旧ABIを維持 | 元の0.x参照表のまま。ローンチ後は新規CREATE／UPDATEを止め、読取／元intentのreplay・回復／DELETEに必要な登録を保持 |
-| WorkerVersion/1.0.0/ | Tier 1専用。4 Binding、values／secretNames、2値fallback | ModuleWorker／Bundle／storage／asset等は確定したexact1.0表。container／queueProducer／actor／workflow配列は未知fieldとして拒否 |
-| WorkerVersion/1.1.0/ | 1.0のTier 1面を保ち、Tier 2の4配列を追加 | Container／Queue／Actor／Workflowのexact1.0 URLを明示列挙。0.x targetへ自動fallbackしない |
-| WorkerDeployment/1.0.0/ | 1.0の選択・drain規則 | 同じWorker UIDに属するWorkerVersion/1.0.0/だけ |
-| WorkerDeployment/1.1.0/（対応案） | 基礎実行ABIを保った新しい許容Version表 | WorkerVersion/1.0.0/、1.1.0/をexact列挙。混在は同一Worker・基礎ABI・attachment／class条件を全件確認できる場合だけ |
+| 開発・公開履歴の0.x | Formsの開発履歴と隔離試験で扱い、新takoserverのcomplete／retained supportへ登録しない | 新Hostは0.x要求を受け付けず、1.0へredirect・自動変換しない。既存資源の効果確定・回復・移送は旧環境で先に扱う |
+| 初回1.0.0の各Form | そのFormの完成候補とCTO確認に対応するparser／backend／runtimeをexact登録 | WorkerVersionの6必須BindingとWorkerDeploymentの参照表を完成仕様へ固定。新Hostでは受理した1.0 Operationを元identityで回復 |
+| 将来の別安定版 | registry構造は同じkindの別exact URLを区別できるが、追加のHost対応は別判断 | 互換性・許可参照・保存identityを版ごとに検証。登録機構の試験だけで将来版をsupported:trueにしない |
 
-1. 新規受付ではrequestのexact URLから一つのentryを選ぶ。未登録／retainedは規則どおり拒否し、類似名・`1.x`というprefix・最大version・redirectから補完しない。Supportと新規受付は同じcomplete entryから生成する。
-2. WorkerVersionの各fieldについて、**消費側Form URL、Binding種別、target Form URL、runtime ABI**の許可組を定義する。単なるkind一致や「1.1は1.0以上」という比較で参照を通さない。対象のowner／Space／UID／権限検査も従来どおり必要。
-3. accepted ResourceのForm URLと保存済みbackend identity／target／execution keyに従ってreplay・継続・再起動回復を行う。後からregistryの新しいentryやwrapperへ付け替えない。必要な旧entryが欠けた場合は新規副作用を拒否して欠落を明示し、別backendへ再createしない。実DBへの追加保持が必要かは既存保存fieldを確認して設計する。
-4. WfPは既存wrapper世代を書き換えず新ABI用の世代を追加し、self-hostも同じ選択規則にする。registry入替は新規受付の可否と既存accepted operationの実行能力を分け、旧entryを使うactive data／context／operationが残る間は必要なdecoder／authorityを保持する。
-5. Deploymentのsingle-activeとhostname／参照／data所有の排他は、registry entryを跨いでもWorker UID等の**論理Resourceの同一性**で検査する。版ごとに別のactive slotを作らない。ModuleWorker1.0の基礎ABIを変える必要が判明した場合は別Form URLで扱い、既存1.0の意味を拡張して1.1を通さない。
-6. WorkerVersion1.0.0から1.1.0へは新UIDを作る。既存Deployment1.0.0のformをPUTで1.1.0へ変えない。Deploymentの置換ではsingle-activeを守り、停止時間のない切替が可能だと未検証のまま約束しない。
+1. 新規受付はexact URLと対応許可を両方検査する。0.xはread／recovery／deleteを含む互換サポートを新takoserverで提供せず、未対応として既存v2の規則で拒否する。0.xの元intentを1.0 requestに付け替えない。
+2. 消費側Form URL、Binding種別、target Form URL、runtime ABI、owner／Space／UID／権限の許可組を定義する。kind一致やversionの大小比較で参照を通さない。
+3. 新takoserverが受理した1.0 Resource／Operationは元のForm URL、backend identity／target／execution keyで継続・再起動回復する。registry更新後も新entryやwrapperへ付け替えず、欠落時に別backendへ再createしない。
+4. 新ABI用wrapperを新世代として作り、旧環境の0.x wrapper／data／authorityとは分離する。既存0.xがある場合は移送・退役の完了を確認して切り替える。0.xデータを新Hostの起動時に消去する実装にはしない。
+5. single-activeやhostname／参照／data所有の排他は、登録版によらず論理UIDで検査する。異なるForm URLへの移行は新UIDとし、PUTでformを変更しない。
 
-ローンチ前の受入には、同一Form kindの**0.x retained／1.0 complete同時登録**とexact URLルーティング、0.xの新規CREATE／UPDATE拒否・読取／元intent回復／DELETE許可、cross-version不許可参照、wrong parser拒否、正規化と元intentの分離、旧operationのOS再起動回復、registry更新後の元wrapper保持、版を跨ぐsingle-activeを必須とする。1.1 complete追加時にも同じ試験を行う。将来版fixtureの試験を1.1実対応の証拠にせず、登録だけで未実装entryをcomplete広告しない。
+受入では、1.0の正しいparserと参照選択、0.xの全互換操作拒否、wrong parser拒否、1.0元intentのOS再起動回復、wrapper世代保持、版を跨ぐ排他を確認する。複数版構造は非提供fixtureで別URLを登録して検証できるが、それを0.xや1.1の実対応の証拠にはしない。既存0.xの回復試験は旧環境・移行手順で行い、新Hostのsupportへ混ぜない。
 
-レビューVの工数はTier 1縮小案32–53人日、旧全量45–74人日という仮説で、確約ではない。3経路の実backend受入・既存mount不足は別に残る。**新規ローンチのqualification対象はTier 1のexact1.0へ確定済み**。#353の0.x harnessは1.0 fixtureへ移し、ABIに依存しないauthority／回復試験は再利用する。0.xについては既存資源の読取・復旧・削除と移行に必要な検証を保持し、旧ABIのPASSを1.0へ付け替えない。担当者がlaneの具体的な振替日と実backend受入順を決める。今回の文書更新ではlaneを実際に停止・変更しない。
+レビューVのTier 1縮小案32–53人日等は、Container／Actorを必須に戻す前の仮説であり、現行スコープの見積りとして流用しない。Takoserver担当が必須graphと実backend受入を再見積りする。新Hostのqualificationは昇格後の1.0が対象で、0.x候補の適合試験と昇格時のexact参照検証は別に保持する。今回の文書更新でlaneの停止・変更は行わない。
 
 ### 7.3 必要な受入matrix
 
-ローンチ必須の受入はTier 1と複数版登録・0.x回復／移行の前提に限る。下表のQueue／Actor／Workflow／Container／hosted CustomDomainは後続対応時の検証対象であり、その全件PASSをTier 1ローンチへ要求しない。Container・Actor WebSocket upgrade・hosted CustomDomainは11/04中間判断で未完なら未対応と明示する。
+**ローンチ必須の受入はTier 1＋Container＋Actor／WebSocket upgradeと、昇格・registry・既存0.x移行の前提を含む。** Queue／Workflow／hosted CustomDomainは後続対応時の検証対象である。Container・Actorが未完なら未充足として追跡し、hosted CustomDomainだけは必須外・未完時未対応とする。
 
 | 横断検査 | 最小ケース |
 | --- | --- |
 | API v2据置き | discovery／support exact URL、直接CRUD、expected generation、元request＋keyのlost ACK、同persistent storeでOS process再起動、unknown効果、元秘密補給。旧URLの意味が不変。 |
-| 複数版登録／0.x移行 | 同一kindの0.x retained／1.0 complete共存、wrong parser・不許可参照拒否、0.xの新規CREATE／UPDATE拒否・読取／元intent回復／DELETE許可、元backend／wrapperの再起動回復。既存hosted資源があればローンチ前に移行方法を決定 |
+| 昇格／複数版登録／0.x移行 | 完成0.x候補とCTO昇格確認の一致、1.0のみのsupport／受付、0.xの互換read／recovery／deleteも提供しないこと、wrong parser・不許可参照拒否、1.0元backend／wrapperの再起動回復。既存0.xは旧環境で効果確定・移送・退役方法を確認。Provider 5.0.0公開前確認は別に記録 |
 | Web型 | Request／Response実物、Blob／BufferSourceのbyte offset、二重消費、clone、Headers重複とSet-Cookie、locked／disturbed stream、cancel／backpressure、abort前後、head後stream error。 |
 | Worker＋asset＋service | static-only／code＋asset、二つの探索順、fallback／危険path、GET／HEAD／POST、targetだけ更新、weighted切替、実stream途中のdrain／退役。 |
 | SQL＋migration | BLOB往復、数値範囲、RETURNING付きwriteのrollback-only query、全statement結果検査前commit禁止、authorizer、既適用prefix拒否、file＋ledger原子性、途中失敗／再起動／suffix repair。 |
 | KV／bucket | KV TTL59秒拒否／60秒受理、metadata・cursor／UTF-8境界、既知長body、Content-Length欠落／不一致／超過拒否、等長non-final partと短いfinal part、非等長拒否、conditional race、読取Responseと書込型付き結果、途中取消、tenant prefixとcleanup。 |
 | Cron／Queue | 手動HTTPなしの自動発火、同じoccurrence再配送、旧新schedule境界、OS再起動、message重複／ack lost／retry／DLQ／batch原子性。 |
-| Actor／Workflow／Container | 同ID逐次／stream終了、eviction・alarm・socket再接続、history replay／step互換／wake／physical terminate、OCI digest／health前切替拒否／egress両値／drain／再起動／delete while bound。 |
+| **必須Actor／Container** | 同ID逐次／stream終了、eviction・alarm、**WebSocket upgrade・message／close・再接続・退役**、OCI digest／health前切替拒否／egress両値／drain／再起動／delete while bound。実Bindingから到達できること |
+| 後続Workflow | history replay／step互換／wake／physical terminate。旧historyの移送と旧環境の終了条件を別途確認 |
 | 実利用経路 | Cloudflareの実backend、Dockerの利用入口、Linuxの利用入口で同じcases。backendごとの不足・部分profileを明示。mock3種を3環境適合と数えない。 |
 
 Rの主な不足である通常profileのmixed composition、hosted MigrationApplication／CustomDomain、full asset serving、全Binding、実clock、real backendのcleanupをこのmatrixへ取り込む。sourceや過去local PASSだけでcurrent全型PASSに更新しない。
 
 ## 8. 互換性と0.x利用者の移行
 
-### 8.1 保持する互換性
+### 8.1 昇格する仕様と移行するリソースを分ける
 
-- 既存0.x URL、旧v1 FormRef／package／tag／schema／releaseを上書き・redirect同一視・削除しない。旧URLの意味は固定し、新1.0の別名にしない。
-- 同じHost API v2を使い続ける。1.0のFormのために `/v3`、新wire、Binding CRUD、package v2、SDK強制を追加しない。
-- ResourceのFormはそのUIDの間不変。**PUTで0.x→1.0に変えない。** 新1.0 Resourceは別UIDとなる。dataのHost内部コピー／移譲を提供する場合も、共通APIにない自動upgradeと説明しない。
-- **ローンチ後の0.xは新規CREATE／UPDATEを停止し、既存Resourceの読取・復旧・削除のみを同じengine・元backend identityで維持する。** retainedFormsと旧版registryで新規受付を閉じ、元のaccepted-request replay、同じintentの回復に必要なprivate input再補給、参照安全なDELETEを保つ。新しいintentを「復旧」と呼んでUPDATEとして通さない。通常PUTが必要なrepair・参照のdetach・切替は、停止前の実行またはHost所有の明示的移行手順として先に解決する。
-- **0.x／1.0の90日並行は行わない。** 新規受付停止は「ローンチ後」というCTO決定に従い、Host ownerがローンチ切替手順へ組み込む。既存data／history・accepted operationの保持期限とは別であり、90日後の自動削除も導入しない。必要な旧decoder／authority、長寿命Workflowの履歴と回復、参照安全なDELETEを保つ。
+- **1.0は0.xからの昇格である。** 0.xの各版で仕様を反復し、問題ないと判断できた完成候補をCTO確認後に1.0へ進める。0.xの追加公開を可能とする。公開済み0.x URL、旧v1 package／tag／schema／releaseのbytesは上書きせず、修正は新しい版へ進める。
+- 同じHost API v2を使い続ける。Formの昇格のために `/v3`、新wire、Binding CRUD、package v2、SDK強制は追加しない。
+- **仕様の昇格は既存Resourceのin-place upgradeではない。** FormはUIDの間不変なのでPUTで0.xから1.0へ変えない。新1.0 Resourceは別UIDとし、data・参照・入口は明示移送する。0.xと1.0の本文が同じ意味に成熟しても同じidentityとはみなさない。
+- **新takoserverは1.0のみサポートし、0.xの新規操作だけでなく互換read／recovery／deleteも提供しない。** 直前の0.x retained案はこの方針へ置換する。複数版registryは能力として維持するが、提供対象の許可方針で0.xを外す。
+- 0.x候補の開発・追加公開と、takoserverによる提供は別である。候補は隔離した検証環境で確認し、新Hostが0.xも提供するとは広告しない。**0.x／1.0の90日並行サポートは行わない**。
 
-**既存hosted 0.xリソースがあれば、ローンチ前に移行方法を決定することが前提となる。** Provider未掲載を根拠に利用者ゼロとみなさず、直接HTTP利用・内部利用を含めHost ownerが棚卸しする。少なくとも次を記録し、該当なしの場合もその確認根拠を残す。
+**既存hosted 0.xがあれば、新takoserverへの切替前に移行方法を決定し、未処理の旧intent・data・参照をどう解決するか証拠を揃える。** Provider未掲載から利用者ゼロを推測しない。元intentの回復・data取出し・削除が必要なら、旧環境を隔離して行うかHost owner所有の移行手順で扱い、新takoserverの0.x互換機能として実装しない。単にregistryから0.xを外して既存dataを見失う切替は禁止する。
 
-| ローンチ前に決める項目 | 必要な内容・証拠 |
+| 切替前に決める項目 | 必要な内容・証拠 |
 | --- | --- |
-| 対象と回復 | exact URL／UID／backend identity、active graph、pending／unknown Operationと元intent、private inputの供給元。新規受付を止めても元intentの回復とDELETEが実行できること |
-| 移送・入口 | Formごとのdata／TTL／history移送、書込停止境界、Endpoint／Domain／Cron／依存参照の切替、ownerと実行順。新1.0は別UIDで作る |
-| 停止後にできない作業 | 新規UPDATEを要するrepair・detach・cutoverを特定し、停止前に済ませるか、共通v2を変えないHost所有の移行方法を先に定める。旧版の新規受付再開を標準手順にしない |
-| Tier 2の既存利用 | 移行先機能が未対応なら未実装1.0へ移したことにしない。旧accepted intentの保持・回復・削除と、停止・外部移送等の利用者が実行できる扱いを個別に決定する |
-| 検証と失敗時 | new／old UID対応、data整合、秘密再補給、停止時間、保持期間と責任者、戻し方またはforward repair。未決定のまま既存dataを削除・再作成しない |
+| 対象・元効果 | exact URL／UID／backend identity、active graph、pending／unknown Operationと元intent、private inputの供給元。旧環境で効果を確定・回復する手順と、その環境を終了できる条件 |
+| 昇格と移送 | 移行先Formの完成0.x候補・1.0昇格確認、data／TTL／history移送、書込停止境界、Endpoint／Domain／Cron／依存参照の切替、ownerと実行順。新1.0は別UID |
+| 旧版固有の作業 | repair・detach・cutover・参照安全なDELETEを旧環境で済ませる順序。新Hostの0.x read／recovery／deleteに依存しない。元requestを1.0へ改ざんして再送しない |
+| 未対応の後続機能 | Queue／Workflow／hosted CustomDomain等の移行先がなければ、停止・外部移送・旧環境の移行用保管などの扱いを先に決める。Container／Actorは必須なので未対応のままローンチしない |
+| 検証・失敗時 | new／old UID対応、data整合、秘密再補給、停止時間、保持期間と責任者、戻し方またはforward repair。旧環境へ戻す場合も新Hostの0.x対応を再開する手順と混同しない |
 
-この前提が未解決なら、ownerがローンチ前にCTOへ報告して移行方法を確定する。1.0ローンチ方針を0.xローンチや90日並行へ自動的に戻す判断にはしない。
+未解決の既存0.xがあればownerが切替前にCTOへ報告し、移行・退役の扱いを確定する。0.xだけを1.0という文字列へ置換することや、今回の方針からdata削除の承認を導くことはしない。
 
 ### 8.2 通常のv2 0.xからの手順
 
-1. **ローンチ前の棚卸し・移行方法決定**: old exact URL／UID／generation／Operation、backend identity、private inputの供給元、全参照、Endpoint／Domain／Cron、SQL migration履歴、未処理Queue、Actor／Workflow dataを記録する。§8.1の前提を満たしてから新規受付を止める。pending／unknownの効果を確定する前に同名のnew createを重ねない。
+1. **ローンチ前の棚卸し・移行方法決定**: old exact URL／UID／generation／Operation、backend identity、private inputの供給元、全参照、Endpoint／Domain／Cron、SQL migration履歴、未処理Queue、Actor／Workflow dataを記録する。§8.1に従い旧環境で効果を確定し、新takoserver切替前に移送・退役条件を満たす。pending／unknownの効果を確定する前に同名のnew createを重ねない。
 2. **事前確認**: 移行先Hostのexact1.0 Support／Offeringとクライアント対応を確認。未対応のTier 2への移行を強行せず、個別の保持・停止・移送方法を使う。新Resourceは同Spaceで別名を使うか別Spaceへ置く。同SpaceのResource名はFormを跨いで一意なので、同名共存を前提にしない。
 3. **アプリ変換**: 旧値→新値の明示変換を行い、新しいbundle／asset manifestとdigestを作る。互換helperはアプリ側の任意ライブラリとして提供できるが、Hostの1.0 runtimeへ旧メソッドaliasを注入しない。
 4. **保存data**: 移送先の1.0 storage Resourceを先に作成する。SQLは整合snapshotとschema／ledgerを検証。KVはvalue／metadata／残TTL、bucketはkey／body／metadata／validatorに関する差を検証してcopyする。移行元をread-onlyまたはwrite pauseにする境界、必要なら追いかけcopyを定義する。durable dataに完全なrollbackがない場合、旧側への再copy／forward repairを明記する。Hostが検証付きrestoreを提供しない場合は、新DBへのmigration適用＋利用者dataの移送を選び、ledgerを直接捏造しない。
 5. **新graph作成**: 作成・検証した1.0 storageと新bundle／WorkerのUIDを用いてVersion／Deployment／Endpoint／schedule等を作る。秘密はprivate入力経路から再供給し、old stateやlogから抽出しない。source bytesの再利用にもowner認可とdigest照合を行う。
-6. **動作確認と入口切替**: 新EndpointのHTTPS、SQL／KV／bucket、service、asset、cron等を確認。CustomDomainは旧占有のまま勝手に新UIDへ移せない。Hostが所有する明示切替手順がなければ、停止を伴うdetach／attachを計画する。Endpoint割当URLは変わる可能性をアプリ側へ通知する。
-7. **旧側退役**: 旧Cron／Consumer／入口の新規配送を止め、inflightと不明効果を処理する。参照順にDeployment→Version→storage等を削除する。Actor／Workflow dataは明示DELETEまで残し、migration ApplicationのDELETEでdownしない。
+6. **動作確認と入口切替**: 新EndpointのHTTPS、SQL／KV／bucket、service、asset、cronに加え、必須Container・Actor／WebSocket upgradeを確認。CustomDomainは旧占有のまま勝手に新UIDへ移せない。Hostが所有する明示切替手順がなければ、停止を伴うdetach／attachを計画する。Endpoint割当URLは変わる可能性をアプリ側へ通知する。
+7. **旧側退役**: 旧環境でCron／Consumer／入口の新規配送を止め、inflightと不明効果を処理する。新takoserverの0.x互換操作は使わない。参照順にDeployment→Version→storage等を削除する。Actor／Workflow dataは明示DELETEまで残し、migration ApplicationのDELETEでdownしない。
 8. **完了証拠**: new exact URL／UIDとold UIDの対応、データ件数・digest／query結果、旧route／owner不在、残存保持と戻し方をoperator側に記録する。秘密やproduction記録をpublic repoへcommitしない。
 
 ### 8.3 型・設定の移行対応
@@ -438,7 +448,7 @@ Rの主な不足である通常profileのmixed composition、hosted MigrationApp
 | KV get／getWithMetadata、expirationTtlSeconds | getのentry.valueからarrayBuffer／text／stream、ttlSeconds | getが返したentry全体をbytesとして扱わない。 |
 | bucket.getのnull／独自object、ifMatch／range option | Response.status／body／headers、If-Match／Range | opaque ETagをchecksumとして再生成しない。multipart uploadIdは持ち越さない。 |
 | bucket.put／completeの旧結果、delete | put／completeはObjectWriteResult、deleteはvoid、条件不成立はprecondition_failed | put／completeをResponseとしてstatusで読む新案は採らない。streamはContent-Length必須、partはnon-final等長。 |
-| Tier 1のWorkerVersion1.0.0→container等を使う1.1.0 | 新exact URL・新Version UIDと対応Deploymentを作成 | PUTでformを変えず、1.0.0へcontainerBindingsや未定義配列を足さない。 |
+| WorkerVersionの0.x→必須Bindingを含む初回安定版 | 0.xでactor／containerを含む構成を完成させ、CTO確認後に昇格先exact URL・新UIDと対応Deploymentを作成 | 旧1.1.0送りを確定扱いせず、版構成を§7.2で確認。公開済み1.0へのfield後付け・PUTでのform変更をしない。 |
 | scheduledTime | scheduledAt.getTime() | occurrence重複抑止のnamespaceを別triggerへ流用しない。 |
 | Actor idFromName／newUniqueId | getByName／createId | old namespaceのIDとdataの所有権を新namespaceへ推論しない。 |
 | catch(error.name===snake_case) | 標準例外と独自codeを分けてcatch | nameだけをcopyしてHost由来の権威あるerrorに見せない。 |
@@ -448,7 +458,7 @@ Rの主な不足である通常profileのmixed composition、hosted MigrationApp
 TASK-0098は既存v1 client／stateからの自動fallbackを採らず、fresh v2、exact URL、UID import、durable intent journal、apply-time秘密供給を選んでいる。これを1.0移行のために壊さない。
 
 - Pの13型のv2 mappingは現行0.x URLをcompile時に列挙する。1.0採用はProvider自身のreleaseで行い、単なるendpoint変更やlatest URL解決にしない。13型以外のStaticAssetBundle／CustomDomain／Actor／Workflowと追加Containerをどうtyped公開するかはProvider ownerの対象拡張になる。
-- 推奨は既存stateを無言で再解釈せず、1.0用の明示mappingとnew resource addressを用意し、旧Provider／stateを保持しながら移行できる形にすること。同じtype名を使うならForm identityの変更を検出してHost要求前に拒否し、別majorまたは明示schemaで切る。type名・Provider release majorは§9で決定する。
+- 推奨は既存stateを無言で再解釈せず、1.0用の明示mappingとnew resource addressを用意し、旧Provider／stateを保持しながら移行できる形にすること。同じtype名を使うならForm identityの変更を検出してHost要求前に拒否し、別majorまたは明示schemaで切る。Providerの公開対象は5.0.0とし、type名・mapping・state対応を§9で詰め、公開前にCTOへ確認する。
 - stateのUIDやform文字列を `state mv`／`replace-provider` だけで1.0化しない。importは既に存在するnew1.0 UIDを検証して関連付ける操作で、backend所有権やdataを移す操作ではない。
 - intent journalは初回send前にexact Host／Form／request／key／時刻／replay windowを保存する。変換済みの1.0 requestは新しい意図であり、旧0.xの不明結果に対するretryへすり替えない。元key・元requestを後から正規化して書き換えない。
 - privateInputsの値／単純hashをplan／state／journalへ保存しない。ACK後state保存前のprocess終了はGET照合、ACK不明は停止して元intentを保つ。1.0の型変換を再送の根拠にしない。
@@ -467,7 +477,7 @@ Sのself-host文書は使用済みv1.0.0 data rootのin-place upgradeを拒否�
 
 | 接点 | 変更案・残す境界 |
 | --- | --- |
-| `src/takoform-v2/forms/worker-specs.ts`、`worker-references.ts`、各Form parser、`application.ts`／config | **ローンチ前提の複数版registry**へ変更。exact URLごとにparser／backend／runtime／参照表とcomplete／retainedを持ち、ローンチ後0.xの新規CREATE／UPDATEを拒否し読取／元intent回復／DELETEを保つ。WorkerVersion1.0／1.1、Deployment1.0／1.1は別entry、1.1は後続対応時に追加。元0.x parser・replay fingerprintとengine／routes／wireのv2契約は保つ。 |
+| `src/takoform-v2/forms/worker-specs.ts`、`worker-references.ts`、各Form parser、`application.ts`／config | exact URLの複数版registryと提供版の許可方針を分離。**新takoserverは1.0のみ対応し、0.xをcomplete／retainedへサポート登録しない**。WorkerVersionのactor／container構成とDeployment参照表は0.xで完成後に昇格。受理した1.0の元intent回復とengine／routes／wireのv2契約は保つ。旧0.xの整理は別環境の移行作業。 |
 | `worker-code-eligibility.ts`、`worker-code-runtime.ts`、`worker-bundle-runtime.ts`、`worker-material-validation.ts` | new manifest media type、全参照ABI、Blob等のglobal、class/export検査。コード検査の副作用禁止とartifact custodyを維持する。 |
 | `worker-static-runtime.ts`、`worker-static-publication.ts`、`workerd-runtime.ts` | order／fallbackをnative設定へ変換。percent decode／path安全性、HEAD／HTTP header、static-only判定、公開入口とserviceの一致を確認する。native設定名はadapter内に残せる。 |
 | `providers/selfhost-worker-wrapper.ts`、`selfhost-worker-prelude.ts`、`selfhost-v2-sqlite-worker-projection.ts` | JSのBLOB／Blob／context／error facadeを変更し、旧projectionとnew projectionをexact契約で選択。generated sourceは元sourceから作る。全native Bindingをそのままenvへ漏らさない。 |
@@ -480,30 +490,33 @@ Sのself-host文書は使用済みv1.0.0 data rootのin-place upgradeを拒否�
 | `actor-class-execution.ts`、`actor-upgrade-handoff.ts`、`actor-forward-runtime.ts`、namespace graph | public ActorResponse subclassを廃し独自upgrade resultへ。single-writer／child退役／旧owner fenceを保持。ID変換とstore／alarmはschema／data移行の影響を別検討。 |
 | `workflow-*`、`selfhost-v2-workflow-composition.ts` | contextとエラー境界を整える。memoized履歴やowner brandを新旧runtimeで混ぜない。sleep／waiting公開前の物理停止、terminate／deleteの順序を維持する。 |
 | `providers/selfhost-container-{lifecycle,runtime}.ts`／docker-http-revision、QのContainer broker | 既存Provider-private runtimeをv2 Resource/Operation authorityへ明示接続。legacy incarnation／rootと新UIDの所有対応を証明し、image／egress／health／stream／drainを完成する。 |
-| Endpoint／CustomDomain、normal entry composition、Q `entry-cloudflare-v2-host.ts` | 正しい1.0 backendが揃ったmapだけをadvertise。retainedへの配置と新規利用可能性を分ける。mixed profileの未接続をSupportで隠さない。 |
+| Endpoint／CustomDomain、normal entry composition、Q `entry-cloudflare-v2-host.ts` | 正しい1.0 backendが揃ったmapだけをadvertise。新Hostへ0.x retained対応を混ぜず、必須Container／Actor graphも接続する。hosted CustomDomainの未完は必須外として明示し、mixed profileの未接続をSupportで隠さない。 |
 
 Qで変更が必要な代表箇所は `v2-worker-edge-kv-wrapper.ts`、`v2-object-bucket-r2-data-executor.ts`、`v2-object-bucket-namespace.ts`、`v2-sqlite-node-authorizer-service.ts`、`v2-wfp-canonical-*`、`v2-worker-*-binding-*` とその生成wrapper／receiptである。public契約をprivate accountの事情で書き換えず、実装不能な必須項目を先にCTOへ返す。
 
-### 9.2 決定事項 — CTO決定とTakoserverレビューへの回答
+### 9.2 決定事項 — 最新Shouta方針、CTO決定とTakoserverレビューへの回答
 
-入力はV（REVIEW-takoserver.md）と、その後のユーザーからのCTO決定通知である。**ローンチ版・必須範囲・0.xの扱いは確定事項**へ更新した。レビュー由来の技術案、不同意点、残る実装・標準差異の判断を分ける。方針決定は規範本文の公開・Host実装完了・今回の本番実行許可を意味しない。
+入力はV（REVIEW-takoserver.md）、直前のCTO決定、およびそれを一部上書きする最新のユーザー通知のShouta方針である。**最新通知を優先し、Container・Actor必須化、0.x反復からの昇格、takoserverは1.0のみ、2種類のCTO確認を現行方針とする。** 技術案・不同意点・残る設計判断は分ける。この決定は個別Formの昇格確認やProvider公開確認を済ませた証拠ではない。
 
-#### 9.2.0 CTO決定済み — ローンチ方針
+#### 9.2.0 最新通知で確定した方針と置換範囲
 
-| 決定 | 確定内容 | 実装・確認への反映 |
+| 決定 | 現在有効な内容 | 置換した旧決定／実装・確認への反映 |
 | --- | --- | --- |
-| **D00 ローンチ版／10/21** | **1.0でローンチする。必須はTier 1のみ、10/21に確定** | 第1段階12 Form／4 Bindingを先に仕上げる。0.xでのローンチや全Tier 2完成待ちを選択肢として残さない。仕様確定と実装・公開・稼働の証拠は別 |
-| **D04／D05／D07** | 型付き書込結果、non-final part等長、streamのContent-Length必須、asset Range任意、fallbackはnull／index.htmlに限定することを承認 | §4へ反映。**fetch／Request／Response／Streams／AbortSignalの意味との衝突は承認に含めず、§9.3のCTO報告用一覧で別扱い**にする |
-| **D09／D10／D12、11/04中間判断** | **Container・Actor WebSocket upgrade・hosted CustomDomainはローンチ必須外。未完なら未対応として公開** | §5・§7へ反映。未実装の必須動作を含むexact Formはsupported:trueにせず、機能・環境別の未対応表示を利用案内にも残す |
-| **WorkerVersion** | **1.0.0はTier 1として10/21に確定。containerBindingsは1.1.0** | 1.0.0のclosed shapeに予約fieldを作らない。queueProducer／actor／workflow配列も1.1.0へ置く設計案と、その理由は下記に分けて残す |
-| **D14 0.x移行** | **90日並行なし。ローンチ後0.xは新規作成・更新を停止し、読取・復旧・削除のみ。既存hosted 0.xがあれば先に移行方法を決める** | §8の棚卸し・data／参照／秘密／pending intent・停止後できないrepairをローンチ前に整理。利用者ゼロを前提にしない |
-| **複数版登録の前提** | **Formごとに複数版を持てるregistryを導入する** | §7.2。exact URLごとのparser／backend／runtime／参照表と、旧版回復の保存identityを保持。0.x retained＋1.0 completeの同時登録・拒否／回復試験をローンチ前に完了 |
+| **D00／D10／D12 ローンチ必須** | **Tier 1に加えContainerとActor（WebSocket upgradeを含む）を必須とする** | 直前およびキュー済みCTO決定3番のContainer・Actor必須外を置換。14 Form／6 Bindingとupgradeのgraphを完成させる。11/04で未完でも必須を外さない |
+| **各Formの1.0昇格** | **完成まで0.xで反復し、仕様として問題ないと判断できたら1.0へ昇格。昇格前にCTOへ確認** | 「0.x追加公開なし」「1.0を直接公開」の方針を取り消す。0.xの次版は追加公開可能。10/21は先行レビュー目標で、自動昇格日ではない |
+| **takoserverの対応版** | **1.0のみサポートする** | 「ローンチ後0.xは新規停止・読取／復旧／削除のみ保持」を置換。新Hostには0.xの互換対応を残さず、既存0.xは切替前に旧環境での移行・効果確定・退役方法を決める |
+| **Provider 5.0.0** | **公開前にCTOへ確認する** | Formの昇格確認とは独立した確認。mapping／state／import／必須coverageと公開対象を提示し、結果を記録 |
+| **D09 hosted CustomDomain** | **ローンチ必須外を維持。11/04中間判断で未完なら未対応として公開** | 最新通知で変更されていない部分は維持。Container／Actorの扱いと混同しない |
+| **D04／D05／D07** | 型付き結果、等長non-final part、streamのContent-Length必須、asset Range任意、fallback null／index.html限定の承認を維持 | Web標準との衝突・独自拡張は引き続き§9.3の別一覧でCTOへ報告 |
+| **複数版registry** | 構造として複数版を区別し、takoserverの提供版は1.0に限定 | §7.2。旧0.xを提供登録しない。WorkerVersionの初回安定版へactor／containerを統合する案と旧1.1.0送りとの整合は、昇格前のCTO確認で決める |
+| **Container Draft PR #17** | **そのまま進めてよい** | 0.xでの完成を進める許可として記録。この文書更新でPRのコード・状態を変更せず、merge・昇格・公開承認へ読み替えない |
+| **今回の実行範囲** | PROPOSALと索引の更新、check、commit・pushのみ | 本番deploy・公開release、個別Formの昇格、Provider 5.0.0公開はいずれも行わない |
 
 #### 9.2.1 反映した点と理由
 
 | ID／期限 | PROPOSALで採用した内容 | 理由と反映先 |
 | --- | --- | --- |
-| D01・WV **10/21** | kind・設定の改名を維持し、**WorkerVersion1.0.0をTier 1だけで確定**。containerBindingsは**1.1.0**へ。queueProducer／actor／workflow配列も1.1.0で明示追加 | 10/21の確定をTier 2待ちにしない。旧1.0の意味を後から変えず、未定義fieldを予約しない。§4.1／§5／§7.1–7.2 |
+| D01・WV **10/21先行レビュー** | 語彙・設定を0.xで反復し、初回安定版の必須6 Binding構成を詰める。完成後、CTO確認を経て1.0へ昇格する案 | Container／Actor必須化と1.0のみ対応に整合させる。旧containerBindingsの1.1.0送りをそのまま完成条件にはしない。§4.1／§7.2 |
 | D02 **10/21** | Web標準型、標準DOMException／abort reason。独自errorはname＋codeで判定し、isolate越しのinstanceofは非保証。client切断検知／callee abort通知だけbest-effort | runtime境界での実装可能性と、アプリが観測できる取消・unknown効果を分ける。Host deadline／退役・自身のbody取消は維持。§3.2 |
 | D03 **10/21** | BLOB=Uint8Array、safe numberの範囲据置き、**full 64-bit整数／bigintは1.0不採用**。query rollback-onlyを維持。broker受理後SQLはabortしてもcommitされ得る | 内部Base64 wireと既存authorizerを保ち、precision lossや取消＝rollbackという誤解を防ぐ。§4.2–4.3 |
 | D04 **10/21、CTO承認済み** | **get／headはResponse、put／completeはObjectWriteResult、deleteはvoid**。条件不成立は固定code precondition_failedで統一。metadata2048 bytes案を採用 | ストレージ独自APIとして採用し、global fetchやservice fetchのPromise<Response>を変更しない。書込失敗をnull／例外の二系統にしない。§4.1–4.3、§8.3、§9.3 |
@@ -512,17 +525,17 @@ Qで変更が必要な代表箇所は `v2-worker-edge-kv-wrapper.ts`、`v2-objec
 | D06 **10/21** | KV get統合／Blob、ttlSecondsの**最小60秒**、items／nextCursor、eventualを最低保証。1.0 putにstreamを含めない | 既知長の値とTTLの共通profileに限定できる。Linux側が短いTTLを実装できても同じ意味を保つ。§4.1–4.3 |
 | D07 **10/21、CTO承認済み** | text/javascript採用、**fallbackはnull／index.htmlだけ、asset Rangeは任意**。Content-Type／Length／ETag／If-None-Match／HEADは必須 | 任意fallback pathのnative emulationとRange新規必須化を避ける。標準ResponseとHTTPの意味は保つ。§4.3、§9.3 |
 | D07・Cron **10/21** | scheduledAt:Date＋triggerUid＋occurrenceId。記録済み一致の配送義務をhostedも永続ledgerで守る。occurrenceIdはtrigger UIDとUTC分境界を区別できる形式で安定生成 | native cron直接発火だけに依存せず、元matchの再起動回復と再配送を実装する。具体的なDB・DO alarmはHost選択。§4.1、§7.3 |
-| 複数版registry **設計10/21／実装はローンチ前** | exact URL→parser／backend／runtime／reference policy／complete・retainedを明示登録。旧accepted operationは元entryと保存identityで回復 | CTO決定の前提条件。現行の1版定数を置換するだけでは旧資源を安全に保持できず、URLのprefixやSemVerから互換性を推論しない。§7.2、§9.1 |
-| D08 **後続・11/04中間確認** | QueueはBlob／Date／signal、sendBatch全件原子的を維持。stream producer入力を外す | bodyの無制限materializeを避け、native queueの弱い保証へ置換しない。Tier 1ローンチ必須にはしない。§5.1–5.2 |
-| D10・D11 **11/04中間判断** | Container／container、secret-free初期案、linux/amd64、TAKOFORM_予約、egress両値、Linux=systemd／Bun＋Docker Engine | 後続契約の設計案。Containerはローンチ必須外で、未完なら未対応として公開する。秘密注入を含む初期scopeは対応開始前に決める。§5.4 |
-| D13・D14 **CTO方針確定** | 旧historyは旧ABIで回復、新UIDへ明示移行。**90日並行なし、ローンチ後0.xは読取・復旧・削除のみ** | 既存intent／data／回復能力を守り、既存hosted資源があれば移行方法を先に決定する。§8 |
+| 複数版registry **ローンチ前** | exact URLごとにparser／backend／runtime／参照表を分け、提供版の許可方針で1.0のみに限定 | 新Hostの0.x retained共存案は取り消す。受理した1.0は元identityで回復し、旧0.xの整理は移行前の別環境で扱う。§7.2、§8 |
+| D08 **後続・11/04中間確認** | QueueはBlob／Date／signal、sendBatch全件原子的を維持。stream producer入力を外す | bodyの無制限materializeを避け、native queueの弱い保証へ置換しない。ローンチ必須にはしない。§5.1–5.2 |
+| D10・D11 **11/04中間判断／ローンチ必須** | Container／container、secret-free初期案、linux/amd64、TAKOFORM_予約、egress両値、Linux=systemd／Bun＋Docker Engine | 0.xで完成まで反復し、CTO確認後に1.0へ昇格。Containerを未対応のままローンチ条件から外さない。秘密注入を含む初期scopeは昇格前に決める。§5.4 |
+| D13・D14 **最新方針へ置換** | takoserverは1.0のみ。既存0.xのhistory／元intent／dataは旧環境で効果確定・回復・移送・退役を扱う | 90日並行は設けず、新Hostへ0.x互換read／recovery／deleteを追加しない。仕様の昇格と新UIDへの移行を分ける。§8 |
 
 #### 9.2.2 同意できない点・採用しない案と理由
 
 | レビューの提案／解釈 | 本案の判断 | 理由・代案 |
 | --- | --- | --- |
-| WorkerVersion1.0に既存queue／actor／workflow配列を置く、または将来配列を予約する（V §2.3） | **この形では採用しない**。1.0.0はTier 1の4 Bindingだけ、残る4配列は1.1.0へ | 後続段階で型・target・ABIを決めるfieldを10/21のclosed contractへ入れると未定義か意味変更になる。0.x target固定なら1.0対象のBinding契約とは別で、利用者に混在規則を増やす。追加版と明示参照表で解く |
-| 外部利用者は事実上いない見込みなので移行調査なしでretainedにできるという前提（V §4／D14） | **利用者ゼロの推測と移行調査省略には同意しない**。停止方針自体はCTO決定どおり、90日並行なし・ローンチ後は読取／復旧／削除のみへ確定 | Provider未掲載でも直接HTTP利用、内部利用、pending／unknown Operation、dataはあり得る。既存hosted資源の有無を調べ、存在すれば移行方法をローンチ前に決める。停止方針を再びCTO待ちには戻さない |
+| 未完成の配列・ABIを初回1.0へ予約し、後で意味を決める案（V §2.3に関連） | **未定義fieldの予約には同意しない**。ただし旧案の「全Tier 2配列を1.1へ送る」も現在の確定構成として扱わない | actor／containerはローンチ必須なので0.xで完成させ、初回1.0へ統合する案をCTOへ確認する。Queue／Workflowは後続設計。公開済み版への後付けはしない |
+| 利用者ゼロを推測して移行調査を省略する前提（V §4／D14） | **移行調査省略には同意しない**。新takoserverが1.0のみ対応する方針自体は採用する | 直接HTTP・内部利用・pending／unknown Operation・dataを棚卸しし、あれば旧環境での移行・退役方法を決める。0.x互換対応を新Hostへ残す理由にはしない |
 | WorkerBundle1.0の閉集合へapplication/jsonも追加する（V §2.2） | **今回の1.0には足さない**。text/javascript／application/wasm／text/plain／application/octet-streamの4種 | 本体でJSON moduleを同じloader・export・import規則で検証した証拠を今回確認していない。旧仕様からの必須変更でもなく、Tier 1確定の対象を増やす。必要なら別exact URLで追加 |
 | waitUntil共通上限を例として30秒にする（V §2.1） | **約30秒という見積りをそのまま規範値にしない**。有限の共通上限は10/21までに実装者と決める | handler種別、接続継続中／応答後、WfP dispatch・alarmの寿命を区別した実証が必要。client切断検知のbest-effortと、Hostが所有する期限・退役の強制取消は別 |
 | D05追記の「HTTP経由のcontrol APIでは411を返す」 | **Host API v2への適用には同意しない**。runtime TypeErrorのstatus411は採用し、独立data-plane HTTPへの投影だけを別扱いにする | Host API v2を据え置く方針と、実行時Bindingに管理HTTP経路を足さない境界に反する。JSON管理要求にはそもそもReadableStream bodyを載せない。共通error envelope・statusの変更は本taskの対象外 |
@@ -531,25 +544,27 @@ Qで変更が必要な代表箇所は `v2-worker-edge-kv-wrapper.ts`、`v2-objec
 
 | ID／期限 | 残る内容 | 必要な材料／担当 |
 | --- | --- | --- |
-| D16 **ローンチ前** | Tier 1 exact1.0 harnessへの振替日と実backend受入順。0.xは既存資源の読取／復旧／削除・移行に必要な試験を維持 | Takoserver／operator。対象版は確定済みで、残るのは実施計画。旧ABIのPASSを1.0の証拠へ付け替えない |
-| D14 **ローンチ前** | 既存hosted 0.xの有無、存在時の移行方法、停止前に必要なrepair・参照切替、旧data／history・回復能力の保持期間と責任者 | Host owner。§8.1の移行方法を決定してから切替。停止時期・90日並行の有無を未決定として扱わない |
+| 各Form **1.0昇格前** | 完成した0.x候補、仕様妥当性、標準差異、参照graph、昇格先exact URLをCTOへ確認 | Forms owner＋CTO。今回の方針を個別候補への昇格承認とせず、確認結果・candidate identityを記録する |
+| WorkerVersion **昇格前** | Container／Actor必須・takoserverは1.0のみという方針と、旧containerBindings 1.1.0案の採番を整合させる | 初回1.0.0へ必須6配列を統合する案を推奨するが、最終採番はCTO確認事項。既存1.0が固定済みなら改変せず再判断 |
+| D16 **ローンチ前** | Tier 1＋Container＋Actor／upgradeの実backend受入。0.x候補の完成試験と、昇格後のexact1.0 qualificationを分ける | Takoserver／operator。新Hostでは0.xサポートを広告しない。旧資源の回復・移行は旧環境で検証 |
+| D14 **切替前** | 既存hosted 0.xの有無、元intentの効果確定、移送・repair・参照切替・旧環境の退役条件 | Host owner。新takoserverへ0.x read／recovery／deleteを残さずに移行できる証拠。保持期間・責任者・失敗時の修復を明示 |
 | D09 **11/04中間判断** | hosted CustomDomainの実装到達点、v2 mount／DNS・TLS切替とroute退役の証拠 | Host。ローンチ必須外は決定済み。未完なら未対応として公開し、native SaaSとmanaged aliasを混同しない |
-| D10・D12 **11/04中間判断** | Container／Actor WebSocket upgradeの到達点、後続契約のexact URLとscope | Forms＋Host＋CTO。必須外・未完時未対応は決定済み。ActorUpgrade案は§9.3で標準Responseから分離して検討 |
-| D02 **10/21** | waitUntilの共通有限上限、WinterTC参照版、主要WPT subset | Forms＋Host。fetch／streams／encoding／URL／abortの比較とWfP経路での証拠 |
+| D10・D12 **11/04中間判断／昇格前** | 必須Container／Actor WebSocket upgradeの到達点、完成までの残作業・見積り、ActorUpgradeと標準Responseの分離 | Forms＋Host＋CTO。未完はローンチ未充足。0.xで完成させ、個別Formの昇格前にCTO確認 |
+| D02 **10/21レビュー／昇格前** | waitUntilの共通有限上限、WinterTC参照版、主要WPT subset | Forms＋Host。fetch／streams／encoding／URL／abortの比較とWfP経路での証拠 |
 | D02／D04／D05等 **Tier 1は10/21** | §9.3のWeb標準衝突・独自拡張に対する処置。承認済み制約から標準globalへの変更を導かない | CTO報告用の別一覧。Forms＋Hostが仕様差と実装差の証拠を出し、衝突項目を未処置のまま標準適合と表示しない |
-| D15 **Tier 1はローンチ前、後続は11/04中間確認** | Providerの1.0 mapping・配布版・type名／state、1.1とTier 2の後続計画 | Provider owner＋CTO。intent journalのexact URL保存、new UID import、旧state拒否を維持。18型全対応をTier 1の必須条件にしない |
+| D15 **Provider 5.0.0公開前** | 必須14 Form／6 Bindingのmapping・coverage、type名、state／import／intent、公開candidateをCTOへ確認 | Provider owner＋CTO。Form昇格確認と別に公開前確認を記録。旧0.x stateを新Hostで無言再解釈しない |
 
 これらは文書上の判断整理であり、今回CTOやTakoserver担当へメッセージ送信・作業停止指示を出したものではない。Host実装、production deploy、公開releaseのauthorityをこの欄から作らない。
 
 ### 9.3 Web標準型との衝突・独自拡張 — CTO報告用の別一覧
 
-**D04／D05／D07と2値fallbackの承認は、標準globalや標準型の挙動を変更する承認ではない。** 下表をCTO報告用に分ける。実際の衝突、標準APIとの差異、Takoform独自APIの制約を区別し、Cloudflareの実装都合を標準の意味として公表しない。Tier 1の未解決項目は10/21の契約確定前にForms／Takoserverが処置案と検証方法を揃え、CTOへ報告する。Actor upgradeは11/04の中間判断対象である。
+**D04／D05／D07と2値fallbackの承認は、標準globalや標準型の挙動を変更する承認ではない。** 下表をCTO報告用に分ける。実際の衝突、標準APIとの差異、Takoform独自APIの制約を区別し、Cloudflareの実装都合を標準の意味として公表しない。Tier 1の未解決項目は10/21の先行レビューで処置案と検証方法を揃え、各Formの昇格前にForms／TakoserverからCTOへ報告する。Actor upgradeはローンチ必須で、11/04の中間判断で完成までの残作業を確認する。昇格前に標準Responseとの境界をCTOへ確認する。
 
 #### 9.3.1 衝突・差異の報告事項
 
 | ID／対象 | 標準との差・衝突条件 | 本案の処置／CTOへ残す論点 | takoserverへの影響・必要な証拠 |
 | --- | --- | --- | --- |
-| **WS-01 Actor／Response、D12** | 現行のlogical101を返す特殊constructor／Response subclassは、標準Response constructorのstatus制約と衝突する。標準のサーバーupgrade型もない | **通常HTTPは標準Responseを維持し、101拡張を採用しない。** Actor WebSocket upgradeは必須外・未完なら未対応。将来のActorUpgrade独自結果と版分離は別途設計し、標準Responseだと称さない | ActorResponse shim、constructor／clone置換、socket brokerを新ABIから分離。通常Response constructorが101を拒否し、Response.webSocket等を生やさないことを確認。根拠: [Response初期化](https://fetch.spec.whatwg.org/#initialize-a-response)、[WebSockets](https://websockets.spec.whatwg.org/) |
+| **WS-01 Actor／Response、D12** | 現行のlogical101を返す特殊constructor／Response subclassは、標準Response constructorのstatus制約と衝突する。標準のサーバーupgrade型もない | **通常HTTPは標準Responseを維持し、101拡張を採用しない。** Actor WebSocket upgradeは必須。ActorUpgrade独自結果と能力境界を0.xで完成させ、1.0昇格前にCTO確認。標準Responseだと称さない | ActorResponse shim、constructor／clone置換、socket brokerを新ABIから分離。通常Response constructorが101を拒否し、Response.webSocket等を生やさないことを確認。根拠: [Response初期化](https://fetch.spec.whatwg.org/#initialize-a-response)、[WebSockets](https://websockets.spec.whatwg.org/) |
 | **WS-02 service.fetch／fetch、Tier 1** | UID固定配送・redirect非追従はTakoformの配送規則であり、URL authorityへ送るglobal fetchや既定redirect followと同一ではない。RequestInitを受けるだけで全fetch semantics一致とは言えない | **標準Request／Response型は維持し、配送規則の差を独立した仕様差としてCTOへ報告。** RequestInit.redirect／credentials／mode等の扱い、非対応値の拒否か別API名が必要かを10/21までに決める。未決のまま標準fetch完全互換と書かない | brokerのUID認可・URL保持・redirectの3xx／Location返却、signal／body／headerを確認。global fetchの実装をBindingの都合で差し替えない。根拠: [Fetch redirect](https://fetch.spec.whatwg.org/#concept-request-redirect-mode) |
 | **WS-03 ObjectBucket stream／Request／Streams、D05** | streamの既知長・Content-Length必須はストレージBindingの入力制約。これをglobal fetch／RequestやReadableStream自体へ広げると標準型の意味を変えてしまう | **D05はBinding内に限定。** headersは標準HeadersInitのまま操作ごとの許可集合を検査し、streamへ独自length propertyを要求しない。標準のRequest／Headersのguardやconstructorを緩和して対応しない。この境界をCTO報告に明記 | ObjectBucket facadeで消費前に長さを検査。未知長拒否時にlock・readゼロを確認し、通常のstream／fetchへ制約が漏れないこと、bodyUsed／locking／backpressure／cancelが標準どおりであることを検証。根拠: [BodyInit](https://fetch.spec.whatwg.org/#bodyinit-unions)、[ReadableStream](https://streams.spec.whatwg.org/#rs-class) |
 | **WS-04 D05の例外class／code／status** | TypeError／RangeErrorは標準classだがTAKOFORM_* codeとstatusは独自追加情報。標準Fetchが同じ例外情報やHTTP411を必ず返すという説明は誤り | **標準class・prototypeを保つ独自例外情報として分離。** global fetch／DOMExceptionの意味を変更しない。Host API v2 controlへのHTTP411追加には不同意を維持（§9.2.2）。標準例外への追加propertyの仕様化・transportをCTO報告対象にする | facade／brokerでclass・name・code・statusの往復を定義し、cross-isolateのinstanceofを保証しない。runtime error.statusと管理HTTP responseを混同しない。管理wireの回帰試験 |
@@ -571,11 +586,11 @@ CTO報告では§9.2.0の承認済み方針と本節の標準差異を別の欄�
 
 ## 10. 今回の検証範囲
 
-初版で実施したのは指定文書・定義・Git object・関連v2実装の読み取り、標準の一次資料参照、用語検索、件数・参照・提案内整合の確認である。初版ではコード修正・build・runtime test・product gateを実行していない。レビューVを反映した版に、今回のCTO決定を適用し、ローンチ条件・差分表・決定事項・版別registry・移行手順・標準差異の別一覧を更新した。Git共有用文書には保存先repoのcomplete gateを用い、実行結果とcommit・push先は最終引継ぎに記す。これは新契約の実backend適合を証明する試験ではない。
+初版で実施したのは指定文書・定義・Git object・関連v2実装の読み取り、標準の一次資料参照、用語検索、件数・参照・提案内整合の確認である。初版ではコード修正・build・runtime test・product gateを実行していない。レビューVと直前のCTO決定を反映した版に、今回の最優先Shouta方針を適用し、ローンチ条件・差分表・決定事項・版別registry・移行手順・標準差異の別一覧を更新した。Git共有用文書には保存先repoのcomplete gateを用い、実行結果とcommit・push先は最終引継ぎに記す。これは新契約の実backend適合を証明する試験ではない。
 
 本文の提案を現行動作と区別し、全17 Form＋7 BindingとContainer＋追加Bindingを表に含めた。付録Aの検索scope・語彙・行番号を併記し、検索で拾えない意味上の持込みは§6.2で補った。参照時点以降の別branchやlive状態の変化は未確認である。
 
-初版の文書検査では、freezeの17種との照合、Containerを含む18 Form／8 Bindingの行、JSON例、ローカル参照先4件、表の列数、code fenceを確認した。初版作成前後で5 repoの既存statusとtracked diffのhashが一致した。CTO決定反映版では表・API署名・確定事項／不同意／未解決事項の整合、古いローンチ判断待ちの記述が残らないこと、指定先とGit共有用コピーの一致を確認する。参照はportableなrepo:pathのまま保持する。今回も既存dirty work、product code、規範spec、freeze、packageは変更しない。本番deploy・公開releaseは実施しない。
+初版の文書検査では、freezeの17種との照合、Containerを含む18 Form／8 Bindingの行、JSON例、ローカル参照先4件、表の列数、code fenceを確認した。初版作成前後で5 repoの既存statusとtracked diffのhashが一致した。最新Shouta方針の反映版では表・API署名・確定事項／不同意／未解決事項の整合を検査する。Container／Actor必須外・0.x追加公開禁止・新Hostの0.x互換保持という旧決定が現行方針として残らないこと、指定先とGit共有用コピーの一致を確認する。参照はportableなrepo:pathのまま保持する。今回も既存dirty work、product code、規範spec、freeze、packageは変更しない。本番deploy・公開releaseは実施しない。
 
 ## 付録A. 用語の全検索ヒット位置
 

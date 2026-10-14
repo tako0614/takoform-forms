@@ -64,7 +64,7 @@ Host API v2 specifications are linked above; v1 proposals do not amend them.
 
 | Note | Status |
 | --- | --- |
-| [Form / Binding 1.0 standardization](proposals/1.0-standardization-20261014/PROPOSAL.md) | Non-normative proposal with CTO decision: 1.0 launch, only Tier 1 required, contracts to be finalized on 10/21; Web API differences are listed separately. |
+| [Form / Binding 1.0 standardization](proposals/1.0-standardization-20261014/PROPOSAL.md) | Non-normative proposal: Container and Actor including WebSocket upgrade required at launch; iterate in 0.x and confirm with CTO before Form promotion or Provider 5.0.0 publication. Takoserver supports only 1.0. |
 | [Actor and Workflow selection](proposals/actor-workflow-source-candidate.md) | The selected unpublished v1 successor closure; generated candidates and release copies exist. |
 | [Workflow execution](proposals/workflow-execution-contract.md) | Semantic source used by that selected closure; independent Host execution remains unqualified here. |
 | [Actor execution](proposals/actor-execution-contract.md) | Concrete proposal with a facade mapping adopted only in selected source; remaining semantics need independent qualification. |
