@@ -7,7 +7,7 @@ use the tables below to inspect its exact source. Repository setup is in the
 
 ## Host API v2 specifications
 
-These 17 Japanese normative documents are anchored in
+These 19 Japanese normative documents cover 17 resource kinds and are anchored in
 [`spec/forms.freeze.json`](../spec/forms.freeze.json). Frozen source is
 eligible for version-fixed URL publication; it does not prove public
 availability, Provider compatibility or Host support. The trailing slash in
@@ -33,6 +33,25 @@ identity. V1 packages below are not aliases for these URLs.
 | WorkerDeployment | `0.4.0` | [Specification](../spec/forms/WorkerDeployment/0.4.0/index.md) |
 | WorkerEndpoint | `0.3.0` | [Specification](../spec/forms/WorkerEndpoint/0.3.0/index.md) |
 | WorkerVersion | `0.5.0` | [Specification](../spec/forms/WorkerVersion/0.5.0/index.md) |
+
+### SQLite migration 0.3.0 source successors
+
+The following new identities are source-only; this change does not publish
+their URLs or establish Host support. The 0.2.0 specifications above retain
+their original bytes and behavior.
+
+| Kind | Version | Normative source |
+| --- | --- | --- |
+| SQLiteMigrationApplication | `0.3.0` | [Specification](../spec/forms/SQLiteMigrationApplication/0.3.0/index.md) |
+| SQLiteMigrationSet | `0.3.0` | [Specification](../spec/forms/SQLiteMigrationSet/0.3.0/index.md) |
+
+Application 0.3.0 permits only `PRAGMA defer_foreign_keys = ON|OFF|TRUE|FALSE|1|0`
+among PRAGMAs, with ASCII case-insensitive spelling and an optional final
+semicolon. Other PRAGMAs, `foreign_keys` and read-only forms remain denied.
+Set 0.3.0 retains bytes and references that execution contract; it does not
+validate or execute SQL. See the [source conformance corpus](../conformance/host-v2/sqlite-migration/README.md)
+for accepted and rejected inputs and the limits of local verification. Host
+adoption and hosted E2E recovery require separate implementation evidence.
 
 ## Independent version tracks
 

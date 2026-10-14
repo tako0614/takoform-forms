@@ -26,9 +26,15 @@ is an executed Host conformance result.
 
 Generic package verification, trust, and revocation conformance are owned by
 the released public Core. Core remains publisher/family-neutral. This
-repository keeps only the Edge-specific publisher corpus above; its checks
+repository keeps the Edge-specific publisher corpus; its checks
 consume Core's embedded schemas and validators without a sibling checkout or
 network access.
+
+The source-only [Host API v2 SQLite migration PRAGMA corpus](host-v2/sqlite-migration/README.md)
+covers the SQLiteMigrationApplication and SQLiteMigrationSet 0.3.0 successors.
+It checks a narrow single-statement reference predicate and observes accepted
+inputs using in-memory SQLite. These are local source tests, not executed
+Host admission or hosted E2E evidence. The historical v1 corpus remains fixed.
 
 The corpus deliberately has no live endpoint, account, credential, provider,
 Host persistence, reconcile, activation, deployment, release, or publication

@@ -32,6 +32,9 @@ before using a contract.
   successor signed roster without a new revocation.
 - [Conformance corpus](../conformance/README.md): historical fixtures, selected
   candidate checks and executable-input evidence boundaries.
+- [SQLite migration PRAGMA corpus](../conformance/host-v2/sqlite-migration/README.md):
+  source-only 0.3.0 admission cases and in-memory SQLite observations; Host
+  implementation and hosted E2E recovery remain unverified here.
 
 ## Source and generated files
 
