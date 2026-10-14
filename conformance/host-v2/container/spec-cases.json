@@ -1,0 +1,472 @@
+[
+  {
+    "name": "minimal",
+    "valid": true,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1"
+    }
+  },
+  {
+    "name": "explicit-defaults",
+    "valid": true,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1",
+      "environment": {},
+      "requiredSensitiveVars": [],
+      "outboundInternet": false
+    }
+  },
+  {
+    "name": "enabled-internet",
+    "valid": true,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1",
+      "outboundInternet": true
+    }
+  },
+  {
+    "name": "registry-port-and-tag",
+    "valid": true,
+    "spec": {
+      "image": "registry.example:65535/app:v1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1"
+    }
+  },
+  {
+    "name": "unicode-environment",
+    "valid": true,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1",
+      "environment": {
+        "APP_MODE": "日本語"
+      }
+    }
+  },
+  {
+    "name": "root-health",
+    "valid": true,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/",
+      "workloadRevision": "revision-1"
+    }
+  },
+  {
+    "name": "missing-image",
+    "valid": false,
+    "spec": {
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1"
+    }
+  },
+  {
+    "name": "missing-httpPort",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "healthPath": "/health",
+      "workloadRevision": "revision-1"
+    }
+  },
+  {
+    "name": "missing-healthPath",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "workloadRevision": "revision-1"
+    }
+  },
+  {
+    "name": "missing-workloadRevision",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health"
+    }
+  },
+  {
+    "name": "tag-only",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app:latest",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1"
+    }
+  },
+  {
+    "name": "upper-digest",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1"
+    }
+  },
+  {
+    "name": "native-docker-url",
+    "valid": false,
+    "spec": {
+      "image": "http://docker.internal/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1"
+    }
+  },
+  {
+    "name": "registry-port-overflow",
+    "valid": false,
+    "spec": {
+      "image": "registry.example:65536/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1"
+    }
+  },
+  {
+    "name": "registry-userinfo",
+    "valid": false,
+    "spec": {
+      "image": "user:password@registry.example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1"
+    }
+  },
+  {
+    "name": "empty-health-segment",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "//health",
+      "workloadRevision": "revision-1"
+    }
+  },
+  {
+    "name": "health-traversal",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/%2e%2e/health",
+      "workloadRevision": "revision-1"
+    }
+  },
+  {
+    "name": "health-encoded-slash",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/ok%2fno",
+      "workloadRevision": "revision-1"
+    }
+  },
+  {
+    "name": "health-invalid-utf8",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/%ff",
+      "workloadRevision": "revision-1"
+    }
+  },
+  {
+    "name": "health-fragment",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health#x",
+      "workloadRevision": "revision-1"
+    }
+  },
+  {
+    "name": "invalid-port",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 0,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1"
+    }
+  },
+  {
+    "name": "fraction-port",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080.5,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1"
+    }
+  },
+  {
+    "name": "bad-revision",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "../revision"
+    }
+  },
+  {
+    "name": "too-long-revision",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  {
+    "name": "environment-secret-map",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1",
+      "environment": {
+        "TOKEN": {
+          "value": "private"
+        }
+      }
+    }
+  },
+  {
+    "name": "environment-null",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1",
+      "environment": null
+    }
+  },
+  {
+    "name": "environment-value-null",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1",
+      "environment": {
+        "MODE": null
+      }
+    }
+  },
+  {
+    "name": "environment-nul",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1",
+      "environment": {
+        "MODE": "a\u0000b"
+      }
+    }
+  },
+  {
+    "name": "environment-native-name",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1",
+      "environment": {
+        "CLOUDFLARE_APPLICATION_ID": "foo"
+      }
+    }
+  },
+  {
+    "name": "secret-declaration",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1",
+      "requiredSensitiveVars": [
+        "TOKEN"
+      ]
+    }
+  },
+  {
+    "name": "secret-object",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1",
+      "requiredSensitiveVars": {
+        "TOKEN": "value"
+      }
+    }
+  },
+  {
+    "name": "null-secret-array",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1",
+      "requiredSensitiveVars": null
+    }
+  },
+  {
+    "name": "implicit-internet",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1",
+      "outboundInternet": 1
+    }
+  },
+  {
+    "name": "unexpected-provider-id",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1",
+      "containerId": "native"
+    }
+  },
+  {
+    "name": "too-many-environment",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1",
+      "environment": {
+        "VAR_0": "x",
+        "VAR_1": "x",
+        "VAR_2": "x",
+        "VAR_3": "x",
+        "VAR_4": "x",
+        "VAR_5": "x",
+        "VAR_6": "x",
+        "VAR_7": "x",
+        "VAR_8": "x",
+        "VAR_9": "x",
+        "VAR_10": "x",
+        "VAR_11": "x",
+        "VAR_12": "x",
+        "VAR_13": "x",
+        "VAR_14": "x",
+        "VAR_15": "x",
+        "VAR_16": "x",
+        "VAR_17": "x",
+        "VAR_18": "x",
+        "VAR_19": "x",
+        "VAR_20": "x",
+        "VAR_21": "x",
+        "VAR_22": "x",
+        "VAR_23": "x",
+        "VAR_24": "x",
+        "VAR_25": "x",
+        "VAR_26": "x",
+        "VAR_27": "x",
+        "VAR_28": "x",
+        "VAR_29": "x",
+        "VAR_30": "x",
+        "VAR_31": "x",
+        "VAR_32": "x",
+        "VAR_33": "x",
+        "VAR_34": "x",
+        "VAR_35": "x",
+        "VAR_36": "x",
+        "VAR_37": "x",
+        "VAR_38": "x",
+        "VAR_39": "x",
+        "VAR_40": "x",
+        "VAR_41": "x",
+        "VAR_42": "x",
+        "VAR_43": "x",
+        "VAR_44": "x",
+        "VAR_45": "x",
+        "VAR_46": "x",
+        "VAR_47": "x",
+        "VAR_48": "x",
+        "VAR_49": "x",
+        "VAR_50": "x",
+        "VAR_51": "x",
+        "VAR_52": "x",
+        "VAR_53": "x",
+        "VAR_54": "x",
+        "VAR_55": "x",
+        "VAR_56": "x",
+        "VAR_57": "x",
+        "VAR_58": "x",
+        "VAR_59": "x",
+        "VAR_60": "x",
+        "VAR_61": "x",
+        "VAR_62": "x",
+        "VAR_63": "x",
+        "VAR_64": "x"
+      }
+    }
+  },
+  {
+    "name": "environment-value-too-long",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1",
+      "environment": {
+        "APP": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    }
+  },
+  {
+    "name": "secret-private-input",
+    "valid": false,
+    "spec": {
+      "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "httpPort": 8080,
+      "healthPath": "/health",
+      "workloadRevision": "revision-1"
+    },
+    "privateInputs": {
+      "TOKEN": "test-only-value"
+    }
+  }
+]

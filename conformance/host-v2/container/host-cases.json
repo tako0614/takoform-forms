@@ -1,0 +1,223 @@
+{
+  "form": "https://edge.forms.takoform.com/forms/Container/0.1.0/",
+  "binding": "module-worker.container",
+  "profiles": [
+    "cloudflare-containers",
+    "docker",
+    "linux-systemd-docker"
+  ],
+  "cases": [
+    {
+      "id": "healthy-create",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "verify and retain exact linux/amd64 manifest and layers",
+        "GET httpPort/healthPath returns 2xx before serving",
+        "observed ready and serving generation refer to measured execution"
+      ]
+    },
+    {
+      "id": "same-spec-update",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "new key creates new Operation/generation",
+        "omitted defaults normalize identically",
+        "no hidden replay-key replacement"
+      ]
+    },
+    {
+      "id": "failed-update",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "new desired generation persists",
+        "unhealthy candidate never serves",
+        "healthy old generation remains selected",
+        "explicit same UID PUT or DELETE repairs owned partial state"
+      ]
+    },
+    {
+      "id": "healthy-cutover",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "new calls select new serving generation",
+        "old calls remain fixed",
+        "abort calls beyond 30000ms and confirm physical retirement"
+      ]
+    },
+    {
+      "id": "lost-create-ack",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "retain original UID/Operation/key/generation before target effect",
+        "replay returns original Operation",
+        "no second native identity"
+      ]
+    },
+    {
+      "id": "process-restart-unknown",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "kill and restart real Host OS process using retained state",
+        "unknown effect remains reconciling until same native identity readback",
+        "no secret or native credential in observed/output/error"
+      ]
+    },
+    {
+      "id": "delete-bound",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "live unweighted and pending WorkerVersion references block deletion before effects",
+        "name reuse with different target UID does not retarget binding"
+      ]
+    },
+    {
+      "id": "delete-cleanup",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "close new calls",
+        "cancel active I/O",
+        "confirm owned native process/network cleanup before success",
+        "retain shared image while other Resources reference it",
+        "no cascade to Worker or independent data"
+      ]
+    },
+    {
+      "id": "cross-tenant-authority",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "reject foreign Host/Space/exact Form URL and unauthorized UID before effects",
+        "revoked grant cancels remaining invocation",
+        "caller never receives native DO namespace or Docker socket"
+      ]
+    },
+    {
+      "id": "deployment-version-fence",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "WorkerDeployment0.4.0 and0.5.0 cannot be active together",
+        "new Deployment accepts exact WorkerVersion0.5.0/0.6.0 only",
+        "Container30s drain is not extended to Worker15min drain"
+      ]
+    },
+    {
+      "id": "image-integrity-and-retention",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "refuse mutable tags, invalid digest bytes, manifest index and non-amd64 platform",
+        "authorize registry acquisition separately from knowing URL",
+        "retain serving/recovery image bytes across source outage"
+      ]
+    },
+    {
+      "id": "cold-start",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "scale-to-zero does not destroy management record",
+        "start/running is not Ready",
+        "health must pass before request dispatch",
+        "no alternate-image fallback"
+      ]
+    },
+    {
+      "id": "disabled-egress",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "omission means false",
+        "container cannot reach Internet or another tenant/Host management socket",
+        "both Docker and Linux configurations enforce the same boundary"
+      ]
+    },
+    {
+      "id": "enabled-egress",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "explicit true permits Internet subject to Host policy",
+        "does not expose native management or another tenant",
+        "existing true refusal cannot be counted as full conformance"
+      ]
+    },
+    {
+      "id": "http-boundaries",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "known and unknown 100MiB body limits",
+        "64 entry/16384byte header limits and Set-Cookie",
+        "Content-Length duplicate/mismatch and bodyless responses",
+        "early-response upload cancellation and post-head errors",
+        "backpressure, physical stream cancellation and no transparent retry"
+      ]
+    },
+    {
+      "id": "cloudflare-image-capacity",
+      "requiredProfiles": [
+        "cloudflare-containers"
+      ],
+      "assertions": [
+        "native durable_object catalog has at most100 named entries per application",
+        "capacity includes staged, serving and draining/recovery entries",
+        "no overwrite or premature release of old image slots",
+        "image-map update alone never counts as instance cutover"
+      ]
+    }
+  ]
+}

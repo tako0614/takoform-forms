@@ -1,5 +1,10 @@
 # Conformance corpus
 
+The [Container Host API v2 candidate](host-v2/container/README.md) adds parsed
+spec and reference fixtures, a reusable Worker Binding suite, and the native
+Host qualification matrix. It is unpublished and separate from the retained
+v1 corpus below. Local runner self-tests do not establish backend support.
+
 This directory is the checked-in conformance corpus for the provider-neutral
 Form source. The active corpus is `takoform-v1/families/`: one fixture set for
 the current Edge-first versionless Form family and all 17 current Forms.

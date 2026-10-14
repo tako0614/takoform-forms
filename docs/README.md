@@ -69,6 +69,11 @@ condition; all publishers use the same API v1 contracts.
 
 ## Local forward candidates
 
+- [Container Host API v2 candidate](proposals/container-host-v2.md): restores
+  main's source-only ContainerService lifecycle as Container, with the
+  container.http Interface, module-worker.container Binding and forward
+  WorkerVersion/Deployment specifications. Naming agreement and real Host
+  conformance are pending; the frozen publication inventory is unchanged.
 - [Workflow execution candidate](proposals/workflow-execution-contract.md):
   plain-JavaScript class, retry and replay semantics with a separate exact
   Form/Interface/Binding closure. This is not published or advertised as Host
