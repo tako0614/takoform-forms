@@ -1,5 +1,25 @@
-import assert from "node:assert/strict";
 import { BODY_LIMIT } from "./contract.mjs";
+
+// Plain-JavaScript assertions let this suite run under the closed Worker ABI.
+// Failure text deliberately does not serialize backend/caller payloads.
+function ensure(condition, message = "Container conformance assertion failed") {
+  if (!condition) throw new Error(message);
+}
+
+const assert = {
+  equal: (actual, expected) => ensure(Object.is(actual, expected)),
+  notEqual: (actual, expected) => ensure(!Object.is(actual, expected)),
+  ok: ensure,
+  async rejects(promise, matches) {
+    try {
+      await promise;
+    } catch (error) {
+      ensure(matches(error));
+      return;
+    }
+    throw new Error("Expected Container error was not raised");
+  },
+};
 
 export const BINDING_CASES = [
   "logical-route",

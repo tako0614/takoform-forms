@@ -236,6 +236,16 @@ describe("Container HTTP head checks", () => {
 });
 
 describe("reusable Binding suite acceptance and refusal", () => {
+  test("runtime suite uses only closed local JavaScript imports", () => {
+    const scanner = new Bun.Transpiler({ loader: "js" });
+    for (const file of ["binding-suite.mjs", "contract.mjs"]) {
+      const imports = scanner.scanImports(
+        readFileSync(path.join(corpus, file), "utf8"),
+      );
+      for (const entry of imports)
+        expect(entry.path).toMatch(/^\.\/[a-z-]+\.mjs$/u);
+    }
+  });
   test("exercises all named scenarios with instrumented test fixtures", async () => {
     const report = await runContainerBindingSuite(fixtureAdapter());
     expect(report.passed).toEqual(BINDING_CASES);
