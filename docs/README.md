@@ -1,107 +1,83 @@
 # Documentation map
 
-This repository is the provider-neutral source and package publisher for the
-Edge Form family.
+Use the reader guides to choose and use a Form. Use the maintainer documents
+for source, verification and publication work.
 
-- [Host API v2 Form guide](../spec/guides/index.md): choose a resource and read
-  its full human specification. Authoring source is `spec/forms/`, independent
-  of the v1 package generator; each new Form has its own exact HTTPS URL.
-- [Use a Host](../spec/guides/use-host.md): support, Offering selection,
-  create/read/update/delete and uncertain responses.
-- [Terraform/OpenTofu](../spec/guides/providers.md): the Provider's scope,
-  version checks and composition with other Providers.
-- [Migration](../spec/guides/migration.md): v1 identities and state remain
-  distinct from the new URL-identified Forms.
+## Reader guides
 
-## Retained v1 reference and publisher maintenance
+| Start here | What it covers |
+| --- | --- |
+| [Form guide](../spec/guides/index.md) | Choose a resource and follow its exact Host API v2 specification. |
+| [Use a Host](../spec/guides/use-host.md) | Support, Offering selection, operations and uncertain responses. |
+| [Terraform and OpenTofu](../spec/guides/providers.md) | Provider scope, exact version checks and composition. |
+| [Migration](../spec/guides/migration.md) | Existing v1 identities and state versus new URL-identified Forms. |
+| [Form inventory](../forms/README.md) | Individual v2 source documents, selected v1 packages and retained history. |
 
-- [Read the Edge Form reference](https://edge.forms.takoform.com/): choose a
-  contract, inspect fields and exact examples, and follow related Forms.
-- [Site and reader guide](site.md): the resource model, examples versus runnable
-  deployments, current/retained history, quality checks and publication.
+The public reference is [edge.forms.takoform.com](https://edge.forms.takoform.com/).
+The repository's frozen sources, a successful local build and a Host's support
+are distinct facts; consult the Host's actual support and resource observations
+before using a contract.
 
-- [Root README](../README.md): what the project is, its four building blocks,
-  commands, and scope.
-- [Form inventory](../forms/README.md): the complete Edge Form list, the two
-  version axes, and package publication flow.
-- [Conformance corpus](../conformance/README.md): desired-state and negative
-  fixtures used by the validators.
-- [Revocation advancement runbook](revocation-advancement.md): append-only
-  source, signing, installation, immutable publication, settlement, and safe
-  partial-install recovery.
-- [Publisher continuation source note](publisher-continuation.md): the
-  unpublished no-revocation successor preparation path and its release boundary.
+## Maintainer documents
+
+- [Site maintenance](site.md): reader routes, source and signed build modes,
+  local/browser checks, URL publication and public readback.
+- [Package publication](publishing.md): v1 generation, signing, create-only
+  installation, publication and forward repair.
+- [Publisher trust evidence](../forms/trust/README.md): pinned authority,
+  signature subjects and installed evidence.
+- [Revocation advancement](revocation-advancement.md): append-only revocation,
+  immutable publication, settlement and partial-install recovery.
+- [Publisher continuation](publisher-continuation.md): source support for a
+  successor signed roster without a new revocation.
+- [Conformance corpus](../conformance/README.md): historical fixtures, selected
+  candidate checks and executable-input evidence boundaries.
 
 ## Source and generated files
 
-For new Host API v2 Form specifications, `spec/forms/<Kind>/<version>/index.md`
-is the Japanese normative source. `spec/guides/` is explanatory, not another
-contract version. The English site can expose this original with an explicit
-Japanese-language notice; that is not an English translation or a Host support
-claim. Published meaning must never be edited under the same Form URL.
+| Source or output | Role |
+| --- | --- |
+| `spec/forms/<Kind>/<version>/index.md` | Japanese normative source for each Host API v2 Form. The exact bytes are anchored by `spec/forms.freeze.json`; do not edit a frozen identity. |
+| `spec/guides/` | Explanatory reader guides. These may change without allocating another Form version. |
+| `internal/` and `cmd/current-form-source` | Go authoring and selection of v1 Form, Interface and Binding candidates. |
+| `forms/candidates/`, `interfaces/candidates/`, `bindings/candidates/` | Generated selected v1 candidate output, checked by `check:generation`. |
+| `forms/source-candidates/` | Generated additional Container source packages, outside the selected publication roster. |
+| `forms/releases/` | Content-addressed v1 byte closures, including immutable historical and evidence-only roots. |
+| `site/`, `scripts/edge-form-pages*.mjs` | Site configuration and rendering from verified packages and authored specifications. Builds use temporary directories. |
 
-For retained v1 packages, Go catalogs under `internal/` are the authoring source. The JSON trees under
-`forms/candidates/`, `interfaces/candidates/`, and `bindings/candidates/` are
-generated candidate output. `forms/releases/` contains content-addressed
-copies checked against those candidates before publication.
+The v1 generator selects one version per Interface/Binding name. It refuses
+versions that would share an output path. Retrieve an older exact contract
+from its immutable Git source rather than replacing it with the selected version.
 
-The current composition selects one version per Interface/Binding name. The
-generator refuses two versions that would share its name-based output path;
-an old exact contract is acquired from its immutable Git source, not replaced
-by whichever version is current.
+`check:integrity` checks the extraction baseline and compares published
+Definitions against signed source `e7f8a39311dd011b8467e97e7f300cabb9a6b06c`.
+`check:generation` checks selected candidate bytes independently.
+`check:edge-form-freeze` verifies the v2 first-add anchors and append-only
+history. These checks require Git 2.45 or newer, complete history and the
+pinned objects locally; missing history fails without an automatic fetch.
+See [local setup](../README.md#work-locally).
 
-`check:integrity` preserves the extraction baseline against published source
-`e7f8a39311dd011b8467e97e7f300cabb9a6b06c` and refuses changed bytes for a
-published definition's same version, including the retained Form identities.
-`check:generation` separately verifies exact current candidate bytes. Checks
-need Git with `--no-lazy-fetch` support (2.45 or newer) and that exact source's
-objects locally; missing history is an error, with no automatic fetch or fallback.
-CI already checks out full history. The fixed legacy corpus and retained
-inventory still require their existing byte guards until their forward writer
-and append-only proof are implemented. Before later releases are edited, their
-published identities must also enter the historical protection set; the initial
-snapshot alone is not a complete future-publication policy.
+## Candidate and design notes
 
-Form Packages and publisher trust evidence are verified with the pinned public
-Core v1.1.0. The root and inventory pages describe the Core-derived locator,
-external OIDC signing handoff, create-only trust set, and publication
-condition; all publishers use the same API v1 contracts.
+These describe development work, not additional released Forms or Host support.
+Host API v2 specifications are linked above; v1 proposals do not amend them.
 
-## Local forward candidates
+| Note | Status |
+| --- | --- |
+| [Actor and Workflow selection](proposals/actor-workflow-source-candidate.md) | The selected unpublished v1 successor closure; generated candidates and release copies exist. |
+| [Workflow execution](proposals/workflow-execution-contract.md) | Semantic source used by that selected closure; independent Host execution remains unqualified here. |
+| [Actor execution](proposals/actor-execution-contract.md) | Concrete proposal with a facade mapping adopted only in selected source; remaining semantics need independent qualification. |
+| [Actor gap analysis](proposals/actor-runtime.md) | Historical analysis pinned to the earlier signed contracts. |
+| [Container source readiness](proposals/container-form-source-readiness.md) | Two generated additional source packages, excluded from signing and release planning. |
+| [Container Host API v2 candidate](proposals/container-host-v2.md) | Restores the source-only ContainerService lifecycle as Container, with container.http / module-worker.container and forward WorkerVersion/Deployment. Naming agreement and native Host conformance are pending; the frozen inventory is unchanged. |
+| [VectorIndex proposal](proposals/vector-index-contract.md) | Development renderer and proposed profile, outside the selected roster. |
+| [Aggregate runtime experiment](proposals/runtime-candidate.md) | Actor, Workflow and Vector closure printed by `cmd/runtime-candidate`; no publication input. |
 
-- [Container Host API v2 candidate](proposals/container-host-v2.md): restores
-  main's source-only ContainerService lifecycle as Container, with the
-  container.http Interface, module-worker.container Binding and forward
-  WorkerVersion/Deployment specifications. Naming agreement and real Host
-  conformance are pending; the frozen publication inventory is unchanged.
-- [Workflow execution candidate](proposals/workflow-execution-contract.md):
-  plain-JavaScript class, retry and replay semantics with a separate exact
-  Form/Interface/Binding closure. This is not published or advertised as Host
-  support; current package definitions remain unchanged.
-- [Aggregate runtime candidate](proposals/runtime-candidate.md): one JSON
-  closure that exercises the Actor, Workflow and VectorIndex proposals
-  together (`go run ./cmd/runtime-candidate`). This is not published or
-  advertised as Host support.
-
-## Unaccepted proposals
-
-- [Portable actor execution](proposals/actor-runtime.md): the missing class
-  execution and WebSocket contract, with decisions needed before a forward
-  definition can be authored. This is not a published specification, package,
-  version allocation, or claim of Host support.
-- [Concrete actor contract proposal](proposals/actor-execution-contract.md):
-  class/SQL/alarm/socket signatures, event and transport lifetime, and the
-  exact forward-reference graph. Error vocabulary and candidate limits remain
-  adoption work; the current published contracts remain unchanged.
-- [VectorIndex contract proposal](proposals/vector-index-contract.md): one
-  selected candidate profile for vector index declarations, dated
-  2026-09-09. It allocates no API version, catalog member, or package bytes.
-
-## Useful checks
+Run the complete read-only repository gate before handing off a final candidate:
 
 ```console
-bun run check:generation
-bun run check:publication
-bun run check:trust
 bun run check
 ```
+
+See the owning [AGENTS.md](../AGENTS.md) for workflow and policy; this map does
+not redefine those rules.

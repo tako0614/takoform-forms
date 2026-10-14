@@ -1,10 +1,11 @@
 # Actor and Workflow executable input — source only
 
-This is the first **unpublished input slice**, not an executed conformance
-result. `manifest.json` pins the nine selected FormRefs, three Interface
-Definitions and two Binding Definitions from `cmd/current-form-source`, plus
-the exact bytes of `bundle.mjs` and `cases.json`. These local fixture format
-labels do not create a Takoform Specification or release version.
+This is an **unpublished source input**, not an executed conformance result.
+`manifest.json` pins nine selected successor FormRefs, three Interface
+Definitions, and two Binding Definitions emitted by
+`cmd/current-form-source`, plus the exact bytes of `bundle.mjs` and
+`cases.json`. These source identities remain unpublished. The local fixture
+format labels do not create a Takoform Specification or release version.
 
 The bundle exports ordinary named Actor and Workflow classes and a plain-object
 default Worker handler. `OrdinaryActor` supplies all five required prototype
@@ -26,9 +27,9 @@ against independent self-host and Workers for Platforms adapters. Adapter
 absence is **NOT QUALIFIED**, never a skipped pass or synthetic green result.
 Local managed-runtime simulation cannot qualify the actual WfP service.
 
-The one focused publisher test below checks fixture integrity against the
-owning selected Definition renderers and hashes. It does not execute tenant
-classes or prove Host support:
+The focused publisher test below checks that the fixture manifest matches the
+selected Definition renderers and that the bundle and cases match their
+pinned hashes. It does not execute tenant classes or prove Host support:
 
 ```console
 GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off go test ./internal/edgeformcatalog -run '^TestActorWorkflowExecutableInputPinsSelectedDefinitionsAndBundle$' -count=1

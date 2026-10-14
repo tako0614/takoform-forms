@@ -570,11 +570,11 @@ does not itself claim a fresh remote readback or authorize a publication.
 
 The original `integrity/source-baseline.json` stays byte-identical and is now
 verified against that historical Git snapshot. Same-version reidentification
-is refused; exact current generation is a separate check. The unused legacy
-corpus copies have been removed from the current checkout, not replaced with
-another generator: no executable check consumed their scenario expectations.
-Their bytes remain protected in exact Git history; active fixtures remain
-beside each Form. Retained Form inventory advancement still needs append-only
+is refused; exact current generation is a separate check. The historical
+conformance corpus remains in this checkout under its fixed integrity baseline;
+it is separate from the selected candidate fixtures beside each Form. Neither
+corpus is an executed Host qualification result. Retained Form inventory
+advancement still needs append-only
 verification before new candidates can be published. Preserve all
 old package roots and reference closures, including the nine current Forms
 that would leave current selection. The next published source must also be

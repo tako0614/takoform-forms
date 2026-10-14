@@ -7,9 +7,10 @@ The joint renderer wraps those semantics as `worker.workflow@3.0.0` against
 `worker.runtime@2.0.0` and emits one shared WorkerVersion/WorkerDeployment with
 Actor; see [the joint Actor proposal](actor-execution-contract.md). The
 standalone `worker.workflow@2.0.0` renderer remains a local draft, not a
-separately selected or publishable closure. Nothing here registers a current
-Form, publishes a package, activates a Host implementation, or allocates a
-release identity.
+separately selected or publishable closure. The selected successor is projected into generated v1 candidates and release
+copies; see [the source selection](actor-workflow-source-candidate.md).
+That projection does not sign or publish a package, activate a Host
+implementation, or amend the separate Host API v2 Form specifications.
 
 This specifies the exact JavaScript application ABI that remains underspecified
 by the high-level class/`run(event, step)` description in existing

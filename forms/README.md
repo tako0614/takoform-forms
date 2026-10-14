@@ -1,9 +1,38 @@
 # Form inventory
 
-This page lists every Form in the current `edge.forms.takoform.com` family for
-JavaScript edge runtimes.
-For the model, package format, and repository commands, start with the
-[root README](../README.md).
+The Host API v2 specifications and the selected v1 packages have separate
+identities. Use the [reader guide](../spec/guides/index.md) to choose a Form;
+use the tables below to inspect its exact source. Repository setup is in the
+[root README](../README.md#work-locally).
+
+## Host API v2 specifications
+
+These 17 Japanese normative documents are anchored in
+[`spec/forms.freeze.json`](../spec/forms.freeze.json). Frozen source is
+eligible for version-fixed URL publication; it does not prove public
+availability, Provider compatibility or Host support. The trailing slash in
+`https://edge.forms.takoform.com/forms/<Kind>/<version>/` is part of the
+identity. V1 packages below are not aliases for these URLs.
+
+| Kind | Version | Normative source |
+| --- | --- | --- |
+| ActorNamespace | `0.3.0` | [Specification](../spec/forms/ActorNamespace/0.3.0/index.md) |
+| AtLeastOnceQueue | `0.2.0` | [Specification](../spec/forms/AtLeastOnceQueue/0.2.0/index.md) |
+| DurableWorkflow | `0.3.0` | [Specification](../spec/forms/DurableWorkflow/0.3.0/index.md) |
+| EdgeKVNamespace | `0.2.0` | [Specification](../spec/forms/EdgeKVNamespace/0.2.0/index.md) |
+| ModuleWorker | `0.3.0` | [Specification](../spec/forms/ModuleWorker/0.3.0/index.md) |
+| ObjectBucket | `0.2.0` | [Specification](../spec/forms/ObjectBucket/0.2.0/index.md) |
+| QueueConsumer | `0.3.0` | [Specification](../spec/forms/QueueConsumer/0.3.0/index.md) |
+| SQLiteDatabase | `0.2.0` | [Specification](../spec/forms/SQLiteDatabase/0.2.0/index.md) |
+| SQLiteMigrationApplication | `0.2.0` | [Specification](../spec/forms/SQLiteMigrationApplication/0.2.0/index.md) |
+| SQLiteMigrationSet | `0.2.0` | [Specification](../spec/forms/SQLiteMigrationSet/0.2.0/index.md) |
+| StaticAssetBundle | `0.2.0` | [Specification](../spec/forms/StaticAssetBundle/0.2.0/index.md) |
+| WorkerBundle | `0.2.0` | [Specification](../spec/forms/WorkerBundle/0.2.0/index.md) |
+| WorkerCronTrigger | `0.3.0` | [Specification](../spec/forms/WorkerCronTrigger/0.3.0/index.md) |
+| WorkerCustomDomain | `0.3.0` | [Specification](../spec/forms/WorkerCustomDomain/0.3.0/index.md) |
+| WorkerDeployment | `0.4.0` | [Specification](../spec/forms/WorkerDeployment/0.4.0/index.md) |
+| WorkerEndpoint | `0.3.0` | [Specification](../spec/forms/WorkerEndpoint/0.3.0/index.md) |
+| WorkerVersion | `0.5.0` | [Specification](../spec/forms/WorkerVersion/0.5.0/index.md) |
 
 ## Independent version tracks
 
@@ -11,8 +40,8 @@ These versions answer different questions and do not move in lockstep:
 
 | Track | What it versions |
 | --- | --- |
-| Host API protocol | The shared request/response contract and its `/v1` wire lane. See the [Host API reference](https://takoform.com/en/host-api/). |
-| Form definition | Each Form has its own `definitionVersion`; a semantic change creates a new Form identity. |
+| Host API protocol | The shared request/response contract: v2 for the URL-identified specifications above, and the retained `/v1` lane for packages below. See the [Host API v2 reference](https://takoform.com/spec/host-api/v2/http). |
+| Form definition | Each Form has its own version: a version-fixed URL in v2, or `definitionVersion` in v1. A semantic change requires a new identity. |
 | Go client library | The `github.com/tako0614/takoform` module release, published separately from the API protocol and individual Forms. |
 | Terraform/OpenTofu Provider | The provider's own release stream for its Form mappings. |
 
@@ -25,7 +54,13 @@ See the [Core Form Package spec](https://github.com/tako0614/takoform/blob/v1.1.
 and [Core versioning spec](https://github.com/tako0614/takoform/blob/v1.1.0/spec/versioning.md)
 for the shared rules.
 
-## Edge Forms
+## Selected v1 source packages
+
+The generator selects 17 Forms, 8 Interfaces and 7 Bindings. Nine Form
+successors, three Interface successors and two Binding successors remain
+unsigned and unpublished. This source selection is not the earlier signed
+17-package roster used by the site build. The table lists the selected
+candidate Definitions, not Host API v2 specifications or installed Host resources.
 
 | Kind (definition)                                                                                             | Package index                                                                                            | Role       | `definitionVersion` | Intent                                                                           |
 | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------- | ------------------- | -------------------------------------------------------------------------------- |
@@ -47,37 +82,35 @@ for the shared rules.
 | [DurableWorkflow](candidates/edge.forms.takoform.com/durable-workflow/definition.json)                        | [package-index.json](candidates/edge.forms.takoform.com/durable-workflow/package-index.json)             | identity   | `0.2.0`             | Durable replayed workflow class.                                                 |
 | [ActorNamespace](candidates/edge.forms.takoform.com/actor-namespace/definition.json)                          | [package-index.json](candidates/edge.forms.takoform.com/actor-namespace/package-index.json)              | identity   | `0.2.0`             | Addressable actor class and ID space.                                            |
 
-## Package identity
+## V1 package history
 
-For a verified `package-index.json`, Core v1.1.0's `PublicationLocatorFor`
-derives `releaseId` from the FormRef group and kind and `artifactId` from
-`packageDigest` (`sha256:` becomes `sha256-`), then combines them into the
-content-addressed path and tag:
+[`scripts/form-publication.mjs`](../scripts/form-publication.mjs) derives the
+complete local `forms/releases/` closure from the selected candidates,
+verified signed sets and pinned history inventories:
+
+| Roots | Source | Publication boundary |
+| --- | --- | --- |
+| 17 selected | Current family index and candidate packages | Eight match the signed roster; nine are unsigned Actor/Workflow successors. |
+| 11 retained | Signed history plus [`retained-packages.json`](retained-packages.json) | Preserve exact bytes and package tags. The explicit inventory contains two roots. |
+| 3 abandoned | [`abandoned-prepublication.json`](trust/abandoned-prepublication.json) | Evidence-only; neither their package tags nor the abandoned set tag may be published. |
+| 9 prior-source | [`source-history.json`](source-history.json) | Unsigned source history, checked against commit `85b2f755a0cf104caf1ae8cb3738e475d55fe988`; excluded from signing and package tags. |
+| **40 total** | Complete checked-in release tree | This total is not a signed set, release version or Host support count. |
+
+The earlier signed roster and the two explicitly retained roots account for
+19 package identities. A signed successor for this selected source would add
+nine new package tags, for 28 publishable roots. The abandoned and prior-source
+roots remain excluded. Confirm public availability through anonymous readback
+rather than inferring it from the local tree.
+
+For v1, Core v1.1.0's `PublicationLocatorFor` maps the FormRef and package digest
+to immutable paths and tags:
 
 ```text
 forms/releases/<releaseId>/sha256-<digest>/
 forms/<releaseId>/sha256-<digest>
 ```
 
-The selected 17-package source roster is **unpublished**. Its complete local
-`forms/releases` closure has 40 roots: 17 current roots (eight unchanged and
-nine new unsigned successors), 11 roots retained by signed history or the
-explicit [`retained-packages.json`](retained-packages.json) inventory, three
-old roots in the one-time
-[`abandoned-prepublication.json`](trust/abandoned-prepublication.json)
-recovery manifest, and nine exact prior-source roots in
-[`source-history.json`](source-history.json). The latter are checked against
-the pinned predecessor Git tree at `85b2f755a0cf104caf1ae8cb3738e475d55fe988`
-and Core's package locator. They are included only in source/release-tree and
-anonymous full-tree readback checks; they are not signed history, publishable
-packages, package tags, or trust authority. Existing package tags cover the
-previous signed 17 plus two explicitly retained roots (19 tags). A properly
-signed and published successor would add nine current package tags, for 28
-publishable roots; the three abandoned roots remain evidence-only and never
-receive tags. Every historical root is immutable.
-
-See the [root README](../README.md#preparing-and-publishing-packages) for
-generation, signing, verification, and publication commands. Package tags are
-immutable content identities; the create-only signed publisher set carries
-the exact Sigstore and revocation evidence. Packages from this publisher and
-other publishers use the same Core API v1 bytes and verification semantics.
+See [package publication](../docs/publishing.md) for generation, signing,
+installation, publication and repair. Each publisher uses the same Core API
+v1 verification rules. Package publication is separate from Host trust,
+installation, support and activation.

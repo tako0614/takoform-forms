@@ -1,63 +1,39 @@
 # Append-only Form Package revocations
 
-Each `<statementVersion>.json` is one immutable, consecutively sequenced
-security revocation for an exact `(FormRef, packageDigest)`. It must satisfy
-the released public Core's embedded `form-package-revocation.schema.json` and
-is delivered by the matching `forms/revocations/v<statementVersion>` tag. Each
-matching
-`checkpoints/<statementVersion>.json` is a cumulative index of every statement
-from sequence 1 through the current sequence and includes the previous
-checkpoint's canonical SHA-256 digest.
+This directory holds source statements and cumulative checkpoints for Core API
+v1 package revocation. See the [publisher overview](../../docs/publishing.md)
+for package identities and the
+[advancement runbook](../../docs/revocation-advancement.md) for the maintainer
+procedure.
 
-The source layout is:
+Each `<statementVersion>.json` revokes one exact `(FormRef, packageDigest)`.
+It must satisfy the released Core schema and is delivered by the matching
+immutable `forms/revocations/v<statementVersion>` tag. Its matching
+`checkpoints/<statementVersion>.json` extends the prior checkpoint with the
+complete ordered statement history and the prior checkpoint's canonical
+SHA-256 digest. The statement and checkpoint are the only source files added
+for an advancement:
 
 ```text
 forms/revocations/<statementVersion>.json
 forms/revocations/checkpoints/<statementVersion>.json
 ```
 
-An installed set retains every canonical statement at
-`revocations/statements/`, every older signed checkpoint and bundle at
-`revocations/history/checkpoints/`, and the new signed head at
-`revocations/checkpoint.json` plus `revocations/checkpoint.sigstore.json`.
-The signed checkpoint entry contains the exact statement digest, sequence,
-version, package digest, and FormRef. A second statement signature format is
-not invented.
+The signed set retains every statement, prior signed checkpoint and bundle,
+and the new signed checkpoint and bundle. The checkpoint signature binds the
+canonical statement digest, sequence, version, package digest, and FormRef;
+there is no separate statement-signature format. Never edit, rename, delete,
+reuse, or supersede an existing statement or checkpoint. A correction is a
+new statement and cumulative checkpoint. Hosts pin the checkpoint sequence,
+digest, and cumulative entries digest before accepting its successor.
 
-Only new statement and checkpoint files may be added. Never edit, rename,
-delete, supersede in place, or reuse a version or sequence. A corrected
-decision is a new statement plus cumulative checkpoint. The workflow signs the
-checkpoint, and hosts retain its `(sequence, checkpoint digest, cumulative
-entries digest)` pin before accepting the next checkpoint. Revocation blocks new create/update and activation but retains the
-referenced bytes for observe/delete and operator evacuation. Ordinary
-deprecation belongs in the Form Definition status instead.
+Revocation blocks new create/update and activation while retaining referenced
+bytes for observe/delete and operator evacuation. Ordinary deprecation belongs
+in the Form Definition status. `statementVersion` orders trust-log evidence;
+it is not a third Takoform version axis and does not change API/Core SemVer or
+the Form's `definitionVersion`.
 
-The first publisher set uses the exact Core API v1 genesis checkpoint:
-
-```json
-{
-  "apiVersion": "trust.forms.takoform.com/v1",
-  "checkpointVersion": "0.0.0",
-  "entries": [],
-  "kind": "FormPackageRevocationCheckpoint",
-  "previousCheckpointDigest": null,
-  "sequence": 0
-}
-```
-
-`bun run prepare:trust` derives these canonical bytes from Core v1.1.0. The
-publisher workflow signs them as `revocations/checkpoint.sigstore.json`; the
-candidate verifier requires that bundle, the repository-pinned publisher
-policy and trusted root, and `CheckNotRevoked` for every package before a set
-can be installed. A serialized verification report is not evidence.
-
-For sequence 1 and later, follow the exact
-[revocation advancement runbook](../../docs/revocation-advancement.md). Each
-successful advancement creates one new set tag and one
-`forms/revocations/v<statementVersion>` tag in one atomic non-force push while
-preserving the 17 current package tags and the two retained immutable package
-tags (19 release roots in total). `statementVersion` orders trust-log evidence;
-it is pinned metadata, not a third version axis. It never changes the two
-Takoform axes: API/Core SemVer and the referenced Form's `definitionVersion`.
-
-No revocation statement or signed publisher set has been published yet.
+The checkout currently contains the sequence-zero genesis checkpoint in its
+signed-set evidence and no revocation statement source files. That describes
+the checked-in tree only; remote publication status must be established by
+anonymous readback.
