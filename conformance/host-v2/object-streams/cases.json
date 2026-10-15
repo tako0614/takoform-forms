@@ -1,0 +1,1653 @@
+{
+  "format": "object-stream-contract-cases@1",
+  "classification": "source-only-unexecuted",
+  "cases": [
+    {
+      "id": "unknown-put-without-options",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97,
+                98
+              ]
+            },
+            {
+              "bytes": [
+                99
+              ]
+            }
+          ],
+          "end": "eof"
+        }
+      },
+      "expected": {
+        "promise": "resolve",
+        "publication": "committed",
+        "size": 3,
+        "byteExactReadback": true,
+        "strongMetadataMatches": true
+      }
+    },
+    {
+      "id": "unknown-put-with-empty-options",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            },
+            {
+              "bytes": [
+                98,
+                99
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "options": {}
+      },
+      "expected": {
+        "promise": "resolve",
+        "publication": "committed",
+        "size": 3,
+        "byteExactReadback": true,
+        "strongMetadataMatches": true
+      }
+    },
+    {
+      "id": "unknown-put-empty-eof",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [],
+          "end": "eof"
+        }
+      },
+      "expected": {
+        "promise": "resolve",
+        "publication": "committed",
+        "size": 0,
+        "byteExactReadback": true,
+        "strongMetadataMatches": true
+      }
+    },
+    {
+      "id": "known-put-exact",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            },
+            {
+              "bytes": [
+                98,
+                99
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "options": {
+          "contentLength": 3
+        }
+      },
+      "expected": {
+        "promise": "resolve",
+        "publication": "committed",
+        "size": 3,
+        "byteExactReadback": true,
+        "strongMetadataMatches": true
+      }
+    },
+    {
+      "id": "known-put-empty-eof",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [],
+          "end": "eof"
+        },
+        "options": {
+          "contentLength": 0
+        }
+      },
+      "expected": {
+        "promise": "resolve",
+        "publication": "committed",
+        "size": 0,
+        "byteExactReadback": true,
+        "strongMetadataMatches": true
+      }
+    },
+    {
+      "id": "utf8-string-intrinsic-size",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "string",
+          "value": "あ"
+        }
+      },
+      "expected": {
+        "promise": "resolve",
+        "publication": "committed",
+        "size": 3,
+        "byteExactReadback": true,
+        "strongMetadataMatches": true
+      }
+    },
+    {
+      "id": "array-buffer-intrinsic-size",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "array-buffer",
+          "bytes": [
+            97,
+            98,
+            99
+          ]
+        }
+      },
+      "expected": {
+        "promise": "resolve",
+        "publication": "committed",
+        "size": 3,
+        "byteExactReadback": true,
+        "strongMetadataMatches": true
+      }
+    },
+    {
+      "id": "string-declared-size-mismatch",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "string",
+          "value": "あ"
+        },
+        "options": {
+          "contentLength": 1
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "invalid_body",
+        "publication": "none",
+        "oldObjectPreserved": true,
+        "producerPulls": 0
+      }
+    },
+    {
+      "id": "array-buffer-declared-size-mismatch",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "array-buffer",
+          "bytes": [
+            97,
+            98,
+            99
+          ]
+        },
+        "options": {
+          "contentLength": 2
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "invalid_body",
+        "publication": "none",
+        "oldObjectPreserved": true,
+        "producerPulls": 0
+      }
+    },
+    {
+      "id": "known-put-short",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97,
+                98
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "options": {
+          "contentLength": 3
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "invalid_body",
+        "publication": "none",
+        "oldObjectPreserved": true
+      }
+    },
+    {
+      "id": "known-put-long",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97,
+                98,
+                99,
+                100
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "options": {
+          "contentLength": 3
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "invalid_body",
+        "publication": "none",
+        "oldObjectPreserved": true
+      }
+    },
+    {
+      "id": "declared-zero-is-not-unknown",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "options": {
+          "contentLength": 0
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "invalid_body",
+        "publication": "none",
+        "oldObjectPreserved": true
+      }
+    },
+    {
+      "id": "declared-null",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "options": {
+          "contentLength": null
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "TypeError",
+        "publication": "none",
+        "oldObjectPreserved": true,
+        "producerPulls": 0
+      }
+    },
+    {
+      "id": "declared-string",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "options": {
+          "contentLength": "3"
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "TypeError",
+        "publication": "none",
+        "oldObjectPreserved": true,
+        "producerPulls": 0
+      }
+    },
+    {
+      "id": "declared-negative",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "options": {
+          "contentLength": -1
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "invalid_body",
+        "publication": "none",
+        "oldObjectPreserved": true,
+        "producerPulls": 0
+      }
+    },
+    {
+      "id": "declared-fractional",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "options": {
+          "contentLength": 1.5
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "invalid_body",
+        "publication": "none",
+        "oldObjectPreserved": true,
+        "producerPulls": 0
+      }
+    },
+    {
+      "id": "declared-above-object-limit",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "options": {
+          "contentLength": 5368709121
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "invalid_body",
+        "publication": "none",
+        "oldObjectPreserved": true,
+        "producerPulls": 0
+      }
+    },
+    {
+      "id": "declared-undefined",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "specialOptions": {
+          "contentLength": "undefined"
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "TypeError",
+        "publication": "none",
+        "oldObjectPreserved": true,
+        "producerPulls": 0
+      }
+    },
+    {
+      "id": "declared-NaN",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "specialOptions": {
+          "contentLength": "NaN"
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "invalid_body",
+        "publication": "none",
+        "oldObjectPreserved": true,
+        "producerPulls": 0
+      }
+    },
+    {
+      "id": "declared-positive-infinity",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "specialOptions": {
+          "contentLength": "positive-infinity"
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "invalid_body",
+        "publication": "none",
+        "oldObjectPreserved": true,
+        "producerPulls": 0
+      }
+    },
+    {
+      "id": "declared-unsafe-integer",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "specialOptions": {
+          "contentLength": "unsafe-integer"
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "invalid_body",
+        "publication": "none",
+        "oldObjectPreserved": true,
+        "producerPulls": 0
+      }
+    },
+    {
+      "id": "unknown-option-refused",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "options": {
+          "unknownOption": true
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "TypeError",
+        "publication": "none",
+        "oldObjectPreserved": true,
+        "producerPulls": 0
+      }
+    },
+    {
+      "id": "typed-array-is-not-array-buffer",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "array-buffer-view",
+          "bytes": [
+            97
+          ]
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "TypeError",
+        "publication": "none",
+        "oldObjectPreserved": true,
+        "producerPulls": 0
+      }
+    },
+    {
+      "id": "non-byte-stream-chunk",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "nonByte": "text"
+            }
+          ],
+          "end": "eof"
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "invalid_body",
+        "publication": "none",
+        "oldObjectPreserved": true
+      }
+    },
+    {
+      "id": "producer-error-before-eof",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "producer-error"
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "backend_unavailable",
+        "publication": "none",
+        "oldObjectPreserved": true
+      }
+    },
+    {
+      "id": "known-producer-error-after-promised-bytes",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "producer-error"
+        },
+        "options": {
+          "contentLength": 1
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "backend_unavailable",
+        "publication": "none",
+        "oldObjectPreserved": true
+      }
+    },
+    {
+      "id": "known-zero-waits-for-normal-eof",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [],
+          "end": "eof"
+        },
+        "options": {
+          "contentLength": 0
+        },
+        "control": {
+          "pause": "before-producer-eof"
+        }
+      },
+      "expected": {
+        "promise": "resolve",
+        "publication": "committed",
+        "size": 0,
+        "byteExactReadback": true,
+        "strongMetadataMatches": true,
+        "oldObjectVisibleWhilePaused": true,
+        "promisePendingWhilePaused": true
+      }
+    },
+    {
+      "id": "unknown-waits-for-normal-eof",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "control": {
+          "pause": "before-producer-eof"
+        }
+      },
+      "expected": {
+        "promise": "resolve",
+        "publication": "committed",
+        "size": 1,
+        "byteExactReadback": true,
+        "strongMetadataMatches": true,
+        "oldObjectVisibleWhilePaused": true,
+        "promisePendingWhilePaused": true
+      }
+    },
+    {
+      "id": "backpressure-before-next-pull",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            },
+            {
+              "bytes": [
+                98
+              ]
+            },
+            {
+              "bytes": [
+                99
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "control": {
+          "pause": "first-stage-write"
+        }
+      },
+      "expected": {
+        "promise": "resolve",
+        "publication": "committed",
+        "size": 3,
+        "byteExactReadback": true,
+        "strongMetadataMatches": true,
+        "maximumConcurrentConsumers": 1,
+        "bufferedBytesRemainBounded": true,
+        "backpressurePropagates": true
+      }
+    },
+    {
+      "id": "unknown-cancel-before-eof",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "control": {
+          "cancel": "before-producer-eof"
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "backend_unavailable",
+        "publication": "none",
+        "oldObjectPreserved": true,
+        "producerCancellationRequested": true
+      }
+    },
+    {
+      "id": "cancellation-promise-never-settles",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "control": {
+          "cancel": "before-producer-eof",
+          "producerCancelPromise": "never-settles"
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "backend_unavailable",
+        "publication": "none",
+        "oldObjectPreserved": true,
+        "failureReportWaitsForCancelPromise": false,
+        "ownedIoStopBounded": true
+      }
+    },
+    {
+      "id": "transport-eof-without-producer-eof",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "control": {
+          "terminateTransport": "before-producer-eof"
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "backend_unavailable",
+        "publication": "none",
+        "oldObjectPreserved": true
+      }
+    },
+    {
+      "id": "known-put-above-single-limit",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [],
+          "end": "eof"
+        },
+        "options": {
+          "contentLength": 314572801
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "value_too_large",
+        "publication": "none",
+        "oldObjectPreserved": true,
+        "producerPulls": 0
+      }
+    },
+    {
+      "id": "unknown-put-at-single-limit",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "repeatByte": 97,
+              "count": 314572800
+            }
+          ],
+          "end": "eof"
+        }
+      },
+      "expected": {
+        "promise": "resolve",
+        "publication": "committed",
+        "size": 314572800,
+        "byteExactReadback": true,
+        "strongMetadataMatches": true
+      }
+    },
+    {
+      "id": "unknown-put-above-single-limit",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "repeatByte": 97,
+              "count": 314572801
+            }
+          ],
+          "end": "eof"
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "value_too_large",
+        "publication": "none",
+        "oldObjectPreserved": true
+      }
+    },
+    {
+      "id": "unknown-part-eof",
+      "operation": "uploadPart",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            },
+            {
+              "bytes": [
+                98,
+                99
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "uploadId": "fixture-upload",
+        "partNumber": 1
+      },
+      "expected": {
+        "promise": "resolve",
+        "publication": "committed",
+        "partNumber": 1,
+        "byteExactPartReadback": true
+      }
+    },
+    {
+      "id": "unknown-part-empty-eof",
+      "operation": "uploadPart",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [],
+          "end": "eof"
+        },
+        "uploadId": "fixture-upload",
+        "partNumber": 1
+      },
+      "expected": {
+        "promise": "resolve",
+        "publication": "committed",
+        "partNumber": 1,
+        "byteExactPartReadback": true
+      }
+    },
+    {
+      "id": "known-part-short-preserves-old",
+      "operation": "uploadPart",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "options": {
+          "contentLength": 2
+        },
+        "uploadId": "fixture-upload",
+        "partNumber": 1
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "invalid_body",
+        "publication": "none",
+        "oldPartPreserved": true
+      }
+    },
+    {
+      "id": "unknown-part-at-object-limit",
+      "operation": "uploadPart",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "repeatByte": 97,
+              "count": 5368709120
+            }
+          ],
+          "end": "eof"
+        },
+        "uploadId": "fixture-upload",
+        "partNumber": 1
+      },
+      "expected": {
+        "promise": "resolve",
+        "publication": "committed",
+        "partNumber": 1,
+        "byteExactPartReadback": true
+      }
+    },
+    {
+      "id": "unknown-part-above-object-limit",
+      "operation": "uploadPart",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "repeatByte": 97,
+              "count": 5368709121
+            }
+          ],
+          "end": "eof"
+        },
+        "uploadId": "fixture-upload",
+        "partNumber": 1
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "invalid_body",
+        "publication": "none",
+        "oldPartPreserved": true
+      }
+    },
+    {
+      "id": "part-cancel-preserves-old",
+      "operation": "uploadPart",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "uploadId": "fixture-upload",
+        "partNumber": 1,
+        "control": {
+          "cancel": "before-producer-eof"
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "backend_unavailable",
+        "publication": "none",
+        "oldPartPreserved": true
+      }
+    },
+    {
+      "id": "fixed-options-before-first-await",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97,
+                98,
+                99
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "options": {
+          "contentLength": 3,
+          "contentType": "text/plain",
+          "ifMatch": "original-etag"
+        },
+        "mutationAfterCall": {
+          "options": {
+            "contentLength": 0,
+            "contentType": "application/octet-stream",
+            "ifMatch": "different-etag"
+          },
+          "key": "different-key"
+        }
+      },
+      "expected": {
+        "promise": "resolve",
+        "publication": "committed",
+        "size": 3,
+        "byteExactReadback": true,
+        "strongMetadataMatches": true,
+        "publishedKey": "original-key",
+        "contentType": "text/plain",
+        "conditionApplied": "original-etag"
+      }
+    },
+    {
+      "id": "fixed-array-buffer-before-first-await",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "array-buffer",
+          "bytes": [
+            97,
+            98,
+            99
+          ]
+        },
+        "mutationAfterCall": {
+          "bufferBytes": [
+            120,
+            121,
+            122
+          ]
+        }
+      },
+      "expected": {
+        "promise": "resolve",
+        "publication": "committed",
+        "size": 3,
+        "byteExactReadback": true,
+        "strongMetadataMatches": true,
+        "publishedBytes": [
+          97,
+          98,
+          99
+        ]
+      }
+    },
+    {
+      "id": "if-match-race-at-final-publication",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "options": {
+          "ifMatch": "original-etag"
+        },
+        "control": {
+          "destinationChange": "after-stage-before-publication",
+          "concurrentWinner": {
+            "bytes": [
+              119,
+              105,
+              110,
+              45,
+              109
+            ],
+            "etag": "concurrent-if-match-etag",
+            "contentType": "application/octet-stream"
+          }
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "precondition_failed",
+        "publication": "none",
+        "concurrentWinnerPreserved": true,
+        "destinationAfter": {
+          "bytes": [
+            119,
+            105,
+            110,
+            45,
+            109
+          ],
+          "etag": "concurrent-if-match-etag",
+          "contentType": "application/octet-stream"
+        }
+      }
+    },
+    {
+      "id": "if-none-match-race-at-final-publication",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "options": {
+          "ifNoneMatch": "*"
+        },
+        "control": {
+          "destinationCreated": "after-stage-before-publication",
+          "concurrentWinner": {
+            "bytes": [
+              119,
+              105,
+              110,
+              45,
+              110
+            ],
+            "etag": "concurrent-if-none-match-etag",
+            "contentType": "text/plain"
+          }
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "precondition_failed",
+        "publication": "none",
+        "concurrentWinnerPreserved": true,
+        "destinationAfter": {
+          "bytes": [
+            119,
+            105,
+            110,
+            45,
+            110
+          ],
+          "etag": "concurrent-if-none-match-etag",
+          "contentType": "text/plain"
+        }
+      }
+    },
+    {
+      "id": "lost-final-ack-is-not-absence",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "control": {
+          "loseAcknowledgement": "after-authorized-final-commit"
+        }
+      },
+      "expected": {
+        "promise": "unobservable",
+        "publication": "unknown",
+        "originalCustodyHeld": true,
+        "automaticReplay": 0,
+        "headThenReplacement": 0,
+        "retirementAllowed": false
+      }
+    },
+    {
+      "id": "part-lost-final-ack-holds-custody",
+      "operation": "uploadPart",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "uploadId": "fixture-upload",
+        "partNumber": 1,
+        "control": {
+          "loseAcknowledgement": "after-authorized-final-commit"
+        }
+      },
+      "expected": {
+        "promise": "unobservable",
+        "publication": "unknown",
+        "originalCustodyHeld": true,
+        "automaticReplay": 0,
+        "retirementAllowed": false
+      }
+    },
+    {
+      "id": "legacy-stream-still-needs-count",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.2.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "invalid_body",
+        "publication": "none",
+        "oldObjectPreserved": true,
+        "producerPulls": 0
+      }
+    },
+    {
+      "id": "legacy-known-stream-unchanged",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.2.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "options": {
+          "contentLength": 1
+        }
+      },
+      "expected": {
+        "promise": "resolve",
+        "publication": "committed",
+        "size": 1,
+        "byteExactReadback": true,
+        "strongMetadataMatches": true
+      }
+    },
+    {
+      "id": "multipart-equal-nonfinal-parts",
+      "operation": "completeMultipartUpload",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "parts": [
+          {
+            "partNumber": 1,
+            "etag": "part-a",
+            "size": 5242880
+          },
+          {
+            "partNumber": 2,
+            "etag": "part-b",
+            "size": 5242880
+          },
+          {
+            "partNumber": 3,
+            "etag": "part-c",
+            "size": 1
+          }
+        ]
+      },
+      "expected": {
+        "promise": "resolve",
+        "publication": "committed",
+        "size": 10485761,
+        "byteExactReadback": true,
+        "strongMetadataMatches": true
+      }
+    },
+    {
+      "id": "multipart-unequal-nonfinal-parts-refused",
+      "operation": "completeMultipartUpload",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "parts": [
+          {
+            "partNumber": 1,
+            "etag": "part-a",
+            "size": 5242880
+          },
+          {
+            "partNumber": 2,
+            "etag": "part-b",
+            "size": 6291456
+          },
+          {
+            "partNumber": 3,
+            "etag": "part-c",
+            "size": 1
+          }
+        ]
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "invalid_part",
+        "publication": "none",
+        "oldObjectPreserved": true
+      }
+    },
+    {
+      "id": "multipart-undersized-nonfinal-refused",
+      "operation": "completeMultipartUpload",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "parts": [
+          {
+            "partNumber": 1,
+            "etag": "part-a",
+            "size": 5242879
+          },
+          {
+            "partNumber": 2,
+            "etag": "part-b",
+            "size": 1
+          }
+        ]
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "invalid_part",
+        "publication": "none",
+        "oldObjectPreserved": true
+      }
+    },
+    {
+      "id": "multipart-aggregate-above-object-limit",
+      "operation": "completeMultipartUpload",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "parts": [
+          {
+            "partNumber": 1,
+            "etag": "part-a",
+            "size": 5368709120
+          },
+          {
+            "partNumber": 2,
+            "etag": "part-b",
+            "size": 1
+          }
+        ]
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "value_too_large",
+        "publication": "none",
+        "oldObjectPreserved": true
+      }
+    },
+    {
+      "id": "part-number-above-limit",
+      "operation": "uploadPart",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "uploadId": "fixture-upload",
+        "partNumber": 10001
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "TypeError",
+        "publication": "none",
+        "oldPartPreserved": true,
+        "producerPulls": 0
+      }
+    },
+    {
+      "id": "version-seven-mixed-buckets",
+      "operation": "selectBindings",
+      "targetForm": "https://edge.forms.takoform.com/forms/WorkerVersion/0.7.0/",
+      "input": {
+        "bindings": [
+          {
+            "name": "OLD",
+            "resourceUid": "old-bucket",
+            "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.2.0/"
+          },
+          {
+            "name": "NEW",
+            "resourceUid": "new-bucket",
+            "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/"
+          }
+        ]
+      },
+      "expected": {
+        "accepted": true,
+        "facades": {
+          "OLD": "exact-length",
+          "NEW": "validated-eof-optional-count"
+        },
+        "selectionSource": "sealed-target-form"
+      }
+    },
+    {
+      "id": "version-0.5.0-rejects-forward-bucket",
+      "operation": "selectBindings",
+      "targetForm": "https://edge.forms.takoform.com/forms/WorkerVersion/0.5.0/",
+      "input": {
+        "bindings": [
+          {
+            "name": "NEW",
+            "resourceUid": "new-bucket",
+            "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/"
+          }
+        ]
+      },
+      "expected": {
+        "accepted": false,
+        "effects": 0
+      }
+    },
+    {
+      "id": "version-0.6.0-rejects-forward-bucket",
+      "operation": "selectBindings",
+      "targetForm": "https://edge.forms.takoform.com/forms/WorkerVersion/0.6.0/",
+      "input": {
+        "bindings": [
+          {
+            "name": "NEW",
+            "resourceUid": "new-bucket",
+            "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/"
+          }
+        ]
+      },
+      "expected": {
+        "accepted": false,
+        "effects": 0
+      }
+    },
+    {
+      "id": "caller-cannot-upgrade-old-bucket",
+      "operation": "put",
+      "targetForm": "https://edge.forms.takoform.com/forms/ObjectBucket/0.2.0/",
+      "input": {
+        "body": {
+          "kind": "stream",
+          "chunks": [
+            {
+              "bytes": [
+                97
+              ]
+            }
+          ],
+          "end": "eof"
+        },
+        "options": {
+          "unknownLength": true
+        }
+      },
+      "expected": {
+        "promise": "reject",
+        "error": "TypeError",
+        "publication": "none",
+        "oldObjectPreserved": true,
+        "producerPulls": 0
+      }
+    },
+    {
+      "id": "deployment-six-enumerates-three-versions",
+      "operation": "selectDeployment",
+      "targetForm": "https://edge.forms.takoform.com/forms/WorkerDeployment/0.6.0/",
+      "input": {
+        "versionForms": [
+          "https://edge.forms.takoform.com/forms/WorkerVersion/0.5.0/",
+          "https://edge.forms.takoform.com/forms/WorkerVersion/0.6.0/",
+          "https://edge.forms.takoform.com/forms/WorkerVersion/0.7.0/"
+        ]
+      },
+      "expected": {
+        "accepted": true,
+        "oldClosureBytesPreserved": true,
+        "forwardClosureHasNewIdentity": true
+      }
+    },
+    {
+      "id": "deployment-six-rejects-unlisted-version",
+      "operation": "selectDeployment",
+      "targetForm": "https://edge.forms.takoform.com/forms/WorkerDeployment/0.6.0/",
+      "input": {
+        "versionForms": [
+          "https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/"
+        ]
+      },
+      "expected": {
+        "accepted": false,
+        "effects": 0
+      }
+    }
+  ]
+}

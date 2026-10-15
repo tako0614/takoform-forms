@@ -75,6 +75,7 @@ Host API v2 specifications are linked above; v1 proposals do not amend them.
 | [Actor execution](proposals/actor-execution-contract.md) | Concrete proposal with a facade mapping adopted only in selected source; remaining semantics need independent qualification. |
 | [Actor gap analysis](proposals/actor-runtime.md) | Historical analysis pinned to the earlier signed contracts. |
 | [Container source readiness](proposals/container-form-source-readiness.md) | Two generated additional source packages, excluded from signing and release planning. |
+| [Container Host API v2 candidate](proposals/container-host-v2.md) | Restores the source-only ContainerService lifecycle as Container, with container.http / module-worker.container and forward WorkerVersion/Deployment. Naming agreement and native Host conformance are pending; the frozen inventory is unchanged. |
 | [VectorIndex proposal](proposals/vector-index-contract.md) | Development renderer and proposed profile, outside the selected roster. |
 | [Aggregate runtime experiment](proposals/runtime-candidate.md) | Actor, Workflow and Vector closure printed by `cmd/runtime-candidate`; no publication input. |
 
