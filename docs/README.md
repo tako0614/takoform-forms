@@ -35,6 +35,9 @@ before using a contract.
 - [SQLite migration PRAGMA corpus](../conformance/host-v2/sqlite-migration/README.md):
   source-only 0.3.0 admission cases and in-memory SQLite observations; Host
   implementation and hosted E2E recovery remain unverified here.
+- [SQLite migration introspection](sqlite-migration-introspection.md):
+  source-only 0.4.0 read-only metadata scope, ledger protection and shareable
+  conformance vectors for downstream Host adapters.
 
 ## Source and generated files
 

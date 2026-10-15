@@ -7,7 +7,7 @@ use the tables below to inspect its exact source. Repository setup is in the
 
 ## Host API v2 specifications
 
-These 19 Japanese normative documents cover 17 resource kinds and are anchored in
+These 21 Japanese normative documents cover 17 resource kinds and are anchored in
 [`spec/forms.freeze.json`](../spec/forms.freeze.json). Frozen source is
 eligible for version-fixed URL publication; it does not prove public
 availability, Provider compatibility or Host support. The trailing slash in
@@ -52,6 +52,31 @@ Set 0.3.0 retains bytes and references that execution contract; it does not
 validate or execute SQL. See the [source conformance corpus](../conformance/host-v2/sqlite-migration/README.md)
 for accepted and rejected inputs and the limits of local verification. Host
 adoption and hosted E2E recovery require separate implementation evidence.
+
+### SQLite migration 0.4.0 source successors
+
+These source-only identities preserve the 0.3.0 `defer_foreign_keys`
+assignment and add read-only schema introspection. The 0.2.0 and 0.3.0
+specifications retain their original bytes and behavior.
+
+| Kind | Version | Normative source |
+| --- | --- | --- |
+| SQLiteMigrationApplication | `0.4.0` | [Specification](../spec/forms/SQLiteMigrationApplication/0.4.0/index.md) |
+| SQLiteMigrationSet | `0.4.0` | [Specification](../spec/forms/SQLiteMigrationSet/0.4.0/index.md) |
+
+Application 0.4.0 allows `table_info`, `foreign_key_list`, `index_list` and
+`index_info` as read-only PRAGMA statements and their `pragma_*` table-valued
+forms, plus reads of `main.sqlite_master`/`main.sqlite_schema`. Dynamic object
+arguments and correlated queries are supported. Other PRAGMAs and their
+table-valued forms, configuration writes, direct catalog writes and Host
+ledger access remain denied. Ordinary authorized DDL still updates its
+catalog through SQLite. Set continues to own byte custody; SQLiteDatabase
+0.2.0's Worker Binding restrictions are unchanged.
+
+The [introspection guide](../docs/sqlite-migration-introspection.md) explains
+main-only scope, shareable vectors and the local verification boundary.
+Source changes do not publish either Form or prove Host implementation or
+hosted E2E recovery.
 
 ## Independent version tracks
 

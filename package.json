@@ -28,7 +28,7 @@
     "fmt": "set -eu; gofmt -w $(find . -name '*.go' -type f -not -path './.git/*'); node_modules/.bin/prettier --write $(git ls-files -- '*.js' '*.mjs' '*.mts')",
     "lint": "go mod verify && go vet ./...",
     "typecheck": "go test -run '^$' ./...",
-    "test:portable": "bun test scripts/*.test.mjs && go test ./...",
+    "test:portable": "node --test scripts/sqlite-migration-readonly.node-test.mjs && bun test scripts/*.test.mjs && go test ./...",
     "build:portable": "set -eu; build_dir=\"$(mktemp -d)\"; trap 'rm -rf \"$build_dir\"' EXIT; go build -o \"$build_dir/\" ./...",
     "build:edge-form-pages": "bun scripts/edge-form-pages.mjs",
     "deploy": "bun scripts/deploy.mjs"

@@ -34,7 +34,12 @@ The source-only [Host API v2 SQLite migration PRAGMA corpus](host-v2/sqlite-migr
 covers the SQLiteMigrationApplication and SQLiteMigrationSet 0.3.0 successors.
 It checks a narrow single-statement reference predicate and observes accepted
 inputs using in-memory SQLite. These are local source tests, not executed
-Host admission or hosted E2E evidence. The historical v1 corpus remains fixed.
+Host admission or hosted E2E evidence. The [0.4.0 introspection vectors](host-v2/sqlite-migration/v0.4.0/cases.json)
+and [SQL fixture manifest](host-v2/sqlite-migration/v0.4.0/fixtures/manifest.json)
+add shareable inputs for read-only metadata, catalog/ledger protection and
+complete migration-file checks. See the [introspection guide](../docs/sqlite-migration-introspection.md)
+for their scope and downstream adapter requirements. The historical v1 corpus
+remains fixed.
 
 The corpus deliberately has no live endpoint, account, credential, provider,
 Host persistence, reconcile, activation, deployment, release, or publication
