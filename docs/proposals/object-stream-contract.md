@@ -93,10 +93,16 @@ explicitly and qualify its real runtime separately. Source-only checks do not
 prove that such an implementation exists or passes native or staging E2E.
 
 The three raw normative sources append to spec/forms.freeze.json using the
-existing publisher-local freeze procedure. Existing entries, first-add anchors,
-source bytes, packages and tags retain their original identities. The inherited
-Container, WorkerVersion 0.6.0 and WorkerDeployment 0.5.0 documents keep their
-existing pending-source status; this candidate does not freeze them implicitly.
+existing publisher-local freeze procedure. This source candidate in
+[PR #20](https://github.com/tako0614/takoform-forms/pull/20) also owns its complete
+freeze closure: it explicitly appends the unchanged Container 0.1.0,
+WorkerVersion 0.6.0 and WorkerDeployment 0.5.0 source inherited from exact
+PR #17 commit `55811b390dbae8bd0c67a65e471d68d3ffb72006`. Their source bytes remain
+unchanged; this adds eligibility anchors without changing PR #17 or merging it
+into main. All 24 preceding freeze entries and all normative source bytes remain
+unchanged when these three prerequisite anchors are appended. There are then
+27 authored and 27 frozen Form documents, without pending source dependencies.
+Existing first-add anchors, packages and tags retain their original identities.
 
 Actual publication remains the publisher's separate owning deployment surface
 and readback procedure in [site maintenance](../site.md). This proposal adds no
