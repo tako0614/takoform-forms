@@ -105,6 +105,21 @@
       "url": "https://edge.forms.takoform.com/forms/SQLiteMigrationSet/0.4.0/",
       "path": "spec/forms/SQLiteMigrationSet/0.4.0/index.md",
       "sha256": "sha256:3b1fffd104707afba72352af79d6cbe8082ce33284c490f8afeedf53ed3011d7"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/",
+      "path": "spec/forms/ObjectBucket/0.3.0/index.md",
+      "sha256": "sha256:c2ee5f8c5f5eb0cb39e843fd137789d05568d2c0b1991433971a26f31ebe7ea6"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/WorkerDeployment/0.6.0/",
+      "path": "spec/forms/WorkerDeployment/0.6.0/index.md",
+      "sha256": "sha256:418d073c2f173112af473382aa9dc134e020290db4daa866b369a9ff4ed1b47e"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/WorkerVersion/0.7.0/",
+      "path": "spec/forms/WorkerVersion/0.7.0/index.md",
+      "sha256": "sha256:b368403014888e28d1dd74a69def849dc3d5077337b73c9d14a0056981019b84"
     }
   ]
 }

@@ -7,7 +7,8 @@ use the tables below to inspect its exact source. Repository setup is in the
 
 ## Host API v2 specifications
 
-These 21 Japanese normative documents cover 17 resource kinds and are anchored in
+The 21 previously anchored Japanese normative documents cover 17 resource kinds;
+the three object-stream successors below add three anchors in
 [`spec/forms.freeze.json`](../spec/forms.freeze.json). Frozen source is
 eligible for version-fixed URL publication; it does not prove public
 availability, Provider compatibility or Host support. The trailing slash in
@@ -77,6 +78,29 @@ The [introspection guide](../docs/sqlite-migration-introspection.md) explains
 main-only scope, shareable vectors and the local verification boundary.
 Source changes do not publish either Form or prove Host implementation or
 hosted E2E recovery.
+
+### Object stream source successors
+
+These three new identities are source-only. They preserve all previous Form
+definitions and do not publish URLs or establish Host support.
+
+| Kind | Version | Normative source |
+| --- | --- | --- |
+| ObjectBucket | `0.3.0` | [Specification](../spec/forms/ObjectBucket/0.3.0/index.md) |
+| WorkerVersion | `0.7.0` | [Specification](../spec/forms/WorkerVersion/0.7.0/index.md) |
+| WorkerDeployment | `0.6.0` | [Specification](../spec/forms/WorkerDeployment/0.6.0/index.md) |
+
+ObjectBucket 0.3.0 accepts byte streams with an omitted count, validates normal
+producer EOF before publication and preserves the existing limits and equal-size
+nonfinal multipart rule. WorkerVersion 0.7.0 selects exact ObjectBucket 0.2.0 or 0.3.0
+semantics per accepted target and retains the Container 0.1.0 source contract from
+the inherited WorkerVersion 0.6.0. WorkerDeployment 0.6.0 enumerates Version
+0.5.0/0.6.0/0.7.0. The inherited Container, Version 0.6.0 and Deployment 0.5.0 sources
+remain pending and are not added to the freeze by this candidate. ModuleWorker
+0.3.0's ABI, the old v2 source and v1 package/Interface digests stay unchanged.
+See the [proposal](../docs/proposals/object-stream-contract.md) and
+[data-only corpus](../conformance/host-v2/object-streams/README.md). Static source
+checks are not SDK, native runtime, Host support or staging E2E evidence.
 
 ## Independent version tracks
 
