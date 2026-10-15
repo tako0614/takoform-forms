@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import {
   BINDING_NAME,
@@ -14,7 +15,7 @@ import {
   BINDING_CASES,
   runContainerBindingSuite,
 } from "../conformance/host-v2/container/binding-suite.mjs";
-import { loadEdgeV2Docs } from "./edge-v2-docs.mjs";
+import { loadEdgeV2Docs, writeEdgeV2Docs } from "./edge-v2-docs.mjs";
 import { verifyEdgeFormFreeze } from "./edge-form-freeze.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -267,21 +268,81 @@ describe("reusable Binding suite acceptance and refusal", () => {
 });
 
 describe("candidate source and native qualification boundaries", () => {
-  test("candidate routes appear in preview and remain outside frozen publication", () => {
+  test("preview and frozen candidate selection follow the exact source anchors", () => {
     const docs = loadEdgeV2Docs(root);
-    for (const route of [
-      "/forms/Container/0.1.0/",
-      "/forms/WorkerVersion/0.6.0/",
-      "/forms/WorkerDeployment/0.5.0/",
-    ])
-      expect(docs.some((entry) => entry.route === route)).toBe(true);
     const freeze = verifyEdgeFormFreeze(root, {
       mode: "check",
       requireFrozen: true,
     });
     expect(freeze.status).toBe("FROZEN");
-    expect(freeze.frozen).toHaveLength(17);
-    expect(freeze.pending.map((entry) => entry.url)).toContain(CONTAINER_URL);
+    const manifest = JSON.parse(
+      readFileSync(path.join(root, "spec/forms.freeze.json"), "utf8"),
+    );
+    expect(freeze.frozen).toEqual(manifest.forms);
+    const frozenUrls = freeze.frozen.map((entry) => entry.url);
+    for (const route of [
+      "/forms/Container/0.1.0/",
+      "/forms/WorkerVersion/0.6.0/",
+      "/forms/WorkerDeployment/0.5.0/",
+    ]) {
+      expect(docs.some((entry) => entry.route === route)).toBe(true);
+      expect(frozenUrls).toContain(`https://edge.forms.takoform.com${route}`);
+    }
+    const temporary = mkdtempSync(
+      path.join(tmpdir(), "container-source-selection-"),
+    );
+    try {
+      const preview = writeEdgeV2Docs({
+        root,
+        docsRoot: path.join(temporary, "preview"),
+        sourcePreview: true,
+      });
+      expect(preview.routes).toEqual(
+        docs.flatMap((entry) => [entry.route, `/ja${entry.route}`]),
+      );
+      const frozen = writeEdgeV2Docs({
+        root,
+        docsRoot: path.join(temporary, "frozen"),
+        selectedForms: freeze.frozen,
+        sourcePreview: false,
+      });
+      expect(
+        frozen.routes
+          .filter((route) => /^\/(?:ja\/)?forms\//u.test(route))
+          .sort(),
+      ).toEqual(
+        frozenUrls
+          .flatMap((url) => {
+            const route = new URL(url).pathname;
+            return [route, `/ja${route}`];
+          })
+          .sort(),
+      );
+      expect(
+        readFileSync(
+          path.join(temporary, "preview/forms/Container/0.1.0/index.md"),
+          "utf8",
+        ),
+      ).toContain("not a formally published Form release");
+      expect(
+        readFileSync(
+          path.join(temporary, "frozen/forms/Container/0.1.0/index.md"),
+          "utf8",
+        ),
+      ).toContain("Publication does not imply Host or provider support");
+      // An empty supplied publication inventory stays empty with frozen sources.
+      // This local selection fixture does not observe the public site.
+      const unselected = writeEdgeV2Docs({
+        root,
+        docsRoot: path.join(temporary, "unselected"),
+        selectedForms: [],
+        sourcePreview: false,
+      });
+      expect(unselected.entries).toEqual([]);
+      expect(unselected.routes).toEqual([]);
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
   });
   test("native matrix requires all three execution profiles and real process restart", () => {
     const matrix = JSON.parse(
