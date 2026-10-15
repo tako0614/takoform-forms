@@ -39,3 +39,20 @@ that any Host implements these new Forms, that hosted E2E has recovered, or
 that the Form URLs are publicly available. Host-specific admission and E2E
 must be verified by the owning implementation. No publication or deployment
 is performed by this corpus or its tests.
+
+## 0.4.0 read-only introspection vectors
+
+The immutable 0.3.0 behavior above remains the scope of `cases.json` and
+`allowed-pragma.mjs`. The [0.4.0 cases](v0.4.0/cases.json) and
+[fixture manifest](v0.4.0/fixtures/manifest.json) are separate data-only
+inputs for SQLiteMigrationApplication/Set 0.4.0. They cover four read-only
+metadata PRAGMAs and their table-valued forms, main catalog reads, denied
+configuration/catalog/ledger mutations and complete migration SQL. These
+cases require a real SQLite parser/authorizer in the consuming adapter;
+the 0.3.0 single-statement predicate does not validate them.
+
+Read the [introspection guide](../../../docs/sqlite-migration-introspection.md)
+for dynamic object arguments, database scope, the distinction between direct
+catalog writes and legitimate DDL, and the boundary between local source
+checks and actual Host conformance. These additions do not change the Worker
+SQLiteDatabase 0.2.0 Binding or establish public Form availability.

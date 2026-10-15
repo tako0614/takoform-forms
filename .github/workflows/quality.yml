@@ -39,6 +39,11 @@ jobs:
           cache: true
           cache-dependency-path: go.sum
 
+      - name: Setup Node for SQLite authorizer conformance
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # pinned: v4.4.0
+        with:
+          node-version: "26.1.0"
+
       - name: Install pinned workspace tools
         run: bun install --frozen-lockfile
 

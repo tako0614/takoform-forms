@@ -34,7 +34,7 @@ original with a language notice; it is not a translated specification.
 
 | Material | Status and use |
 | --- | --- |
-| Host API v2 Form specifications | 19 version-fixed Markdown documents for 17 resource kinds, with immutable anchors in [`spec/forms.freeze.json`](spec/forms.freeze.json). The SQLite migration 0.3.0 successors are source-only. Freezing makes exact bytes eligible for URL publication; it does not establish public availability or Host support. |
+| Host API v2 Form specifications | 21 version-fixed Markdown documents for 17 resource kinds, with immutable anchors in [`spec/forms.freeze.json`](spec/forms.freeze.json). The SQLite migration 0.3.0 and 0.4.0 successors are source-only. Freezing makes exact bytes eligible for URL publication; it does not establish public availability or Host support. |
 | Selected v1 source | 17 Forms, 8 Interfaces and 7 Bindings. The Actor/Workflow successors are unsigned and unpublished. |
 | Installed v1 publisher evidence | The signed set [`e7f8a39311dd011b8467e97e7f300cabb9a6b06c`](forms/trust/sets/e7f8a39311dd011b8467e97e7f300cabb9a6b06c/) pins its earlier 17-package roster. The signed site build uses that roster, not the newer source selection. |
 | Additional candidates | Container source packages and Vector/runtime experiments remain outside the selected publisher roster. See the [documentation map](docs/README.md#candidate-and-design-notes). |
@@ -75,8 +75,9 @@ identities.
 ## Work locally
 
 Use the tool versions in [`package.json`](package.json), [`go.mod`](go.mod) and
-the [quality workflow](.github/workflows/quality.yml): Bun 1.3.14 and Go 1.25.8.
-Node.js and Git 2.45 or newer must also be on `PATH`. Keep complete Git history;
+the [quality workflow](.github/workflows/quality.yml): Bun 1.3.14, Go 1.25.8 and
+Node.js 26.1.0. Node.js must provide `node:sqlite` with `setAuthorizer`
+(24.10 or newer); Git 2.45 or newer must also be on `PATH`. Keep complete Git history;
 the integrity and freeze checks need the pinned historical objects locally.
 
 ```console
