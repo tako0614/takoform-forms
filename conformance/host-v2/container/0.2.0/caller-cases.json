@@ -1,0 +1,1082 @@
+{
+  "form": "https://edge.forms.takoform.com/forms/Container/0.2.0/",
+  "callers": {
+    "workerVersion": "https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/",
+    "workerDeployment": "https://edge.forms.takoform.com/forms/WorkerDeployment/0.7.0/"
+  },
+  "bindingCases": [
+    {
+      "name": "wv08-binds-0.1.0",
+      "source": {
+        "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/",
+        "host": "host.example",
+        "space": "default"
+      },
+      "bindings": [
+        {
+          "name": "APP",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "uid": "c1",
+          "form": "https://edge.forms.takoform.com/forms/Container/0.1.0/",
+          "host": "host.example",
+          "space": "default",
+          "authorized": true
+        }
+      ],
+      "expect": {
+        "sealed": [
+          {
+            "name": "APP",
+            "resourceUid": "c1",
+            "form": "https://edge.forms.takoform.com/forms/Container/0.1.0/"
+          }
+        ]
+      }
+    },
+    {
+      "name": "wv08-binds-0.2.0",
+      "source": {
+        "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/",
+        "host": "host.example",
+        "space": "default"
+      },
+      "bindings": [
+        {
+          "name": "APP",
+          "resource": {
+            "resourceUid": "c2"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "uid": "c2",
+          "form": "https://edge.forms.takoform.com/forms/Container/0.2.0/",
+          "host": "host.example",
+          "space": "default",
+          "authorized": true
+        }
+      ],
+      "expect": {
+        "sealed": [
+          {
+            "name": "APP",
+            "resourceUid": "c2",
+            "form": "https://edge.forms.takoform.com/forms/Container/0.2.0/"
+          }
+        ]
+      }
+    },
+    {
+      "name": "wv08-binds-both-under-separate-names",
+      "source": {
+        "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/",
+        "host": "host.example",
+        "space": "default"
+      },
+      "bindings": [
+        {
+          "name": "OLD",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "NEW",
+          "resource": {
+            "resourceUid": "c2"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "uid": "c1",
+          "form": "https://edge.forms.takoform.com/forms/Container/0.1.0/",
+          "host": "host.example",
+          "space": "default",
+          "authorized": true
+        },
+        {
+          "uid": "c2",
+          "form": "https://edge.forms.takoform.com/forms/Container/0.2.0/",
+          "host": "host.example",
+          "space": "default",
+          "authorized": true
+        }
+      ],
+      "expect": {
+        "sealed": [
+          {
+            "name": "OLD",
+            "resourceUid": "c1",
+            "form": "https://edge.forms.takoform.com/forms/Container/0.1.0/"
+          },
+          {
+            "name": "NEW",
+            "resourceUid": "c2",
+            "form": "https://edge.forms.takoform.com/forms/Container/0.2.0/"
+          }
+        ]
+      }
+    },
+    {
+      "name": "wv07-cannot-bind-0.2.0",
+      "source": {
+        "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.7.0/",
+        "host": "host.example",
+        "space": "default"
+      },
+      "bindings": [
+        {
+          "name": "APP",
+          "resource": {
+            "resourceUid": "c2"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "uid": "c2",
+          "form": "https://edge.forms.takoform.com/forms/Container/0.2.0/",
+          "host": "host.example",
+          "space": "default",
+          "authorized": true
+        }
+      ],
+      "expect": {
+        "error": "dependency_conflict"
+      }
+    },
+    {
+      "name": "wv06-cannot-bind-0.2.0",
+      "source": {
+        "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.6.0/",
+        "host": "host.example",
+        "space": "default"
+      },
+      "bindings": [
+        {
+          "name": "APP",
+          "resource": {
+            "resourceUid": "c2"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "uid": "c2",
+          "form": "https://edge.forms.takoform.com/forms/Container/0.2.0/",
+          "host": "host.example",
+          "space": "default",
+          "authorized": true
+        }
+      ],
+      "expect": {
+        "error": "dependency_conflict"
+      }
+    },
+    {
+      "name": "wv07-still-binds-0.1.0",
+      "source": {
+        "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.7.0/",
+        "host": "host.example",
+        "space": "default"
+      },
+      "bindings": [
+        {
+          "name": "APP",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "uid": "c1",
+          "form": "https://edge.forms.takoform.com/forms/Container/0.1.0/",
+          "host": "host.example",
+          "space": "default",
+          "authorized": true
+        }
+      ],
+      "expect": {
+        "sealed": [
+          {
+            "name": "APP",
+            "resourceUid": "c1",
+            "form": "https://edge.forms.takoform.com/forms/Container/0.1.0/"
+          }
+        ]
+      }
+    },
+    {
+      "name": "wv08-refuses-other-kind",
+      "source": {
+        "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/",
+        "host": "host.example",
+        "space": "default"
+      },
+      "bindings": [
+        {
+          "name": "APP",
+          "resource": {
+            "resourceUid": "w1"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "uid": "w1",
+          "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/",
+          "host": "host.example",
+          "space": "default",
+          "authorized": true
+        }
+      ],
+      "expect": {
+        "error": "dependency_conflict"
+      }
+    },
+    {
+      "name": "wv08-refuses-foreign-space",
+      "source": {
+        "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/",
+        "host": "host.example",
+        "space": "default"
+      },
+      "bindings": [
+        {
+          "name": "APP",
+          "resource": {
+            "resourceUid": "c2"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "uid": "c2",
+          "form": "https://edge.forms.takoform.com/forms/Container/0.2.0/",
+          "host": "host.example",
+          "space": "other",
+          "authorized": true
+        }
+      ],
+      "expect": {
+        "error": "dependency_conflict"
+      }
+    },
+    {
+      "name": "wv08-refuses-unauthorized",
+      "source": {
+        "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/",
+        "host": "host.example",
+        "space": "default"
+      },
+      "bindings": [
+        {
+          "name": "APP",
+          "resource": {
+            "resourceUid": "c2"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "uid": "c2",
+          "form": "https://edge.forms.takoform.com/forms/Container/0.2.0/",
+          "host": "host.example",
+          "space": "default",
+          "authorized": false
+        }
+      ],
+      "expect": {
+        "error": "dependency_conflict"
+      }
+    },
+    {
+      "name": "wv08-refuses-deleting-target",
+      "source": {
+        "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/",
+        "host": "host.example",
+        "space": "default"
+      },
+      "bindings": [
+        {
+          "name": "APP",
+          "resource": {
+            "resourceUid": "c2"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "uid": "c2",
+          "form": "https://edge.forms.takoform.com/forms/Container/0.2.0/",
+          "host": "host.example",
+          "space": "default",
+          "authorized": true,
+          "deleting": true
+        }
+      ],
+      "expect": {
+        "error": "dependency_conflict"
+      }
+    },
+    {
+      "name": "wv08-duplicate-name",
+      "source": {
+        "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/",
+        "host": "host.example",
+        "space": "default"
+      },
+      "bindings": [
+        {
+          "name": "APP",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "APP",
+          "resource": {
+            "resourceUid": "c2"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "uid": "c1",
+          "form": "https://edge.forms.takoform.com/forms/Container/0.1.0/",
+          "host": "host.example",
+          "space": "default",
+          "authorized": true
+        },
+        {
+          "uid": "c2",
+          "form": "https://edge.forms.takoform.com/forms/Container/0.2.0/",
+          "host": "host.example",
+          "space": "default",
+          "authorized": true
+        }
+      ],
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "wv05-has-no-container-bindings",
+      "source": {
+        "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.5.0/",
+        "host": "host.example",
+        "space": "default"
+      },
+      "bindings": [
+        {
+          "name": "APP",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "uid": "c1",
+          "form": "https://edge.forms.takoform.com/forms/Container/0.1.0/",
+          "host": "host.example",
+          "space": "default",
+          "authorized": true
+        }
+      ],
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "wv08-refuses-foreign-host",
+      "source": {
+        "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/",
+        "host": "host.example",
+        "space": "default"
+      },
+      "bindings": [
+        {
+          "name": "APP",
+          "resource": {
+            "resourceUid": "c2"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "uid": "c2",
+          "form": "https://edge.forms.takoform.com/forms/Container/0.2.0/",
+          "host": "other.example",
+          "space": "default",
+          "authorized": true
+        }
+      ],
+      "expect": {
+        "error": "dependency_conflict"
+      }
+    },
+    {
+      "name": "wv08-refuses-uid-mismatch",
+      "source": {
+        "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/",
+        "host": "host.example",
+        "space": "default"
+      },
+      "bindings": [
+        {
+          "name": "APP",
+          "resource": {
+            "resourceUid": "c2"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "uid": "c9",
+          "form": "https://edge.forms.takoform.com/forms/Container/0.2.0/",
+          "host": "host.example",
+          "space": "default",
+          "authorized": true,
+          "for": "c2"
+        }
+      ],
+      "expect": {
+        "error": "dependency_conflict"
+      }
+    },
+    {
+      "name": "wv08-over-binding-limit",
+      "source": {
+        "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/",
+        "host": "host.example",
+        "space": "default"
+      },
+      "bindings": [
+        {
+          "name": "B0",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B1",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B2",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B3",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B4",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B5",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B6",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B7",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B8",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B9",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B10",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B11",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B12",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B13",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B14",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B15",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B16",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B17",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B18",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B19",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B20",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B21",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B22",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B23",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B24",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B25",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B26",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B27",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B28",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B29",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B30",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B31",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B32",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B33",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B34",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B35",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B36",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B37",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B38",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B39",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B40",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B41",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B42",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B43",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B44",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B45",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B46",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B47",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B48",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B49",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B50",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B51",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B52",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B53",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B54",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B55",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B56",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B57",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B58",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B59",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B60",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B61",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B62",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B63",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        },
+        {
+          "name": "B64",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "uid": "c1",
+          "form": "https://edge.forms.takoform.com/forms/Container/0.1.0/",
+          "host": "host.example",
+          "space": "default",
+          "authorized": true
+        }
+      ],
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "wv08-invalid-binding-name",
+      "source": {
+        "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/",
+        "host": "host.example",
+        "space": "default"
+      },
+      "bindings": [
+        {
+          "name": "1APP",
+          "resource": {
+            "resourceUid": "c1"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "uid": "c1",
+          "form": "https://edge.forms.takoform.com/forms/Container/0.1.0/",
+          "host": "host.example",
+          "space": "default",
+          "authorized": true
+        }
+      ],
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "wv08-extra-entry-key",
+      "source": {
+        "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/",
+        "host": "host.example",
+        "space": "default"
+      },
+      "bindings": [
+        {
+          "name": "APP",
+          "resource": {
+            "resourceUid": "c1"
+          },
+          "form": "https://edge.forms.takoform.com/forms/Container/0.1.0/"
+        }
+      ],
+      "targets": [
+        {
+          "uid": "c1",
+          "form": "https://edge.forms.takoform.com/forms/Container/0.1.0/",
+          "host": "host.example",
+          "space": "default",
+          "authorized": true
+        }
+      ],
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "wv08-extra-resource-key",
+      "source": {
+        "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/",
+        "host": "host.example",
+        "space": "default"
+      },
+      "bindings": [
+        {
+          "name": "APP",
+          "resource": {
+            "resourceUid": "c1",
+            "form": "https://edge.forms.takoform.com/forms/Container/0.1.0/"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "uid": "c1",
+          "form": "https://edge.forms.takoform.com/forms/Container/0.1.0/",
+          "host": "host.example",
+          "space": "default",
+          "authorized": true
+        }
+      ],
+      "expect": {
+        "error": "invalid_spec"
+      }
+    }
+  ],
+  "deploymentVersionCases": [
+    {
+      "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.5.0/",
+      "expect": {
+        "accepted": true
+      }
+    },
+    {
+      "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.6.0/",
+      "expect": {
+        "accepted": true
+      }
+    },
+    {
+      "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.7.0/",
+      "expect": {
+        "accepted": true
+      }
+    },
+    {
+      "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/",
+      "expect": {
+        "accepted": true
+      }
+    },
+    {
+      "form": "https://edge.forms.takoform.com/forms/WorkerVersion/0.4.0/",
+      "expect": {
+        "accepted": false
+      }
+    },
+    {
+      "form": "https://edge.forms.takoform.com/forms/Container/0.2.0/",
+      "expect": {
+        "accepted": false
+      }
+    }
+  ],
+  "deploymentFenceCases": [
+    {
+      "name": "no-active-deployment",
+      "worker": "w1",
+      "active": [],
+      "expect": {
+        "allowed": true
+      }
+    },
+    {
+      "name": "active-0.4.0-blocks",
+      "worker": "w1",
+      "active": [
+        {
+          "worker": "w1",
+          "form": "https://edge.forms.takoform.com/forms/WorkerDeployment/0.4.0/"
+        }
+      ],
+      "expect": {
+        "allowed": false
+      }
+    },
+    {
+      "name": "active-0.6.0-blocks",
+      "worker": "w1",
+      "active": [
+        {
+          "worker": "w1",
+          "form": "https://edge.forms.takoform.com/forms/WorkerDeployment/0.6.0/"
+        }
+      ],
+      "expect": {
+        "allowed": false
+      }
+    },
+    {
+      "name": "active-0.7.0-blocks",
+      "worker": "w1",
+      "active": [
+        {
+          "worker": "w1",
+          "form": "https://edge.forms.takoform.com/forms/WorkerDeployment/0.7.0/"
+        }
+      ],
+      "expect": {
+        "allowed": false
+      }
+    },
+    {
+      "name": "other-worker-does-not-block",
+      "worker": "w1",
+      "active": [
+        {
+          "worker": "w2",
+          "form": "https://edge.forms.takoform.com/forms/WorkerDeployment/0.6.0/"
+        }
+      ],
+      "expect": {
+        "allowed": true
+      }
+    },
+    {
+      "name": "active-0.5.0-blocks",
+      "worker": "w1",
+      "active": [
+        {
+          "worker": "w1",
+          "form": "https://edge.forms.takoform.com/forms/WorkerDeployment/0.5.0/"
+        }
+      ],
+      "expect": {
+        "allowed": false
+      }
+    },
+    {
+      "name": "non-deployment-form-does-not-block",
+      "worker": "w1",
+      "active": [
+        {
+          "worker": "w1",
+          "form": "https://edge.forms.takoform.com/forms/ModuleWorker/0.3.0/"
+        }
+      ],
+      "expect": {
+        "allowed": true
+      }
+    }
+  ]
+}

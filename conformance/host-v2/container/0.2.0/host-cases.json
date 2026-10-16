@@ -1,0 +1,217 @@
+{
+  "form": "https://edge.forms.takoform.com/forms/Container/0.2.0/",
+  "binding": "module-worker.container",
+  "inherits": "The ../host-cases.json cases apply with Container 0.2.0 as the target and WorkerVersion 0.8.0 / WorkerDeployment 0.7.0 as the caller, except: image-integrity-and-retention is replaced by index-pin-selection and image-retention, and deployment-version-fence is replaced by deployment-version-fence-0.7.0. Cases that name WorkerVersion 0.5.0/0.6.0 or WorkerDeployment 0.4.0/0.5.0 keep those exact URLs for 0.1.0 only.",
+  "profiles": [
+    "cloudflare-containers",
+    "docker",
+    "linux-systemd-docker"
+  ],
+  "cases": [
+    {
+      "id": "secret-delivery",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "declared values reach only the native process startup environment under their declared names",
+        "no value or value-derived comparison material appears in spec, Resource, Operation, observed, output, diagnostics, errors, logs or health probes",
+        "WorkerVersion secrets and vars never reach the target Container"
+      ]
+    },
+    {
+      "id": "secret-rotation-cutover",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "a PUT with a complete map starts a new generation with the new values",
+        "routes switch only after the new generation passes health",
+        "old calls keep the old generation and its values until retirement within 30000ms",
+        "old values are destroyed only after physical retirement is confirmed"
+      ]
+    },
+    {
+      "id": "secret-rotation-failed-health",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "an unhealthy rotated generation never serves",
+        "the old serving generation and its values remain selected",
+        "observedGeneration does not advance to the failed generation"
+      ]
+    },
+    {
+      "id": "secret-failed-rotation-then-omitted-put",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "after a rotation generation fails health, its values remain the configured secret map while the old generation keeps serving with its own values",
+        "a following PUT that omits privateInputs starts a generation with the failed rotation's values, never the serving generation's",
+        "the failed generation's execution is retired without destroying the configured values"
+      ]
+    },
+    {
+      "id": "secret-omission-and-removal",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "a PUT omitting privateInputs with the same names keeps the values without a new value set",
+        "dropping names from requiredSensitiveVars stops delivering those values to the new generation",
+        "adding a name without a complete map is rejected before effects"
+      ]
+    },
+    {
+      "id": "secret-lost-ack-and-replenish",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "replaying the identical request with the same key returns the original Operation; a different map yields idempotency_conflict",
+        "expired temporary material for an unsent step yields waiting_input and accepts only the entire original map",
+        "replenishment never starts a second execution"
+      ]
+    },
+    {
+      "id": "secret-custody-loss",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "after the Host loses a generation's retained values it never starts that generation with missing or empty values",
+        "a restart that cannot recover the values reports ready:false and backend_unavailable calls",
+        "an Operation that cannot restore needed values before the route switch, with waiting_input unavailable, fails with secret_unavailable and effect none or partial",
+        "a loss after the route switch leaves the completed Operation unchanged and surfaces only as ready:false and backend_unavailable once a restart is needed",
+        "a PUT with the complete map repairs the same UID"
+      ]
+    },
+    {
+      "id": "secret-delete",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "a DELETE generation never replaces the configured secret map",
+        "after a failed DELETE, a PUT that omits privateInputs inherits the configured values",
+        "a successful DELETE destroys the configured map and every generation's values only after retirement and cleanup are confirmed"
+      ]
+    },
+    {
+      "id": "secret-free-support",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "a Host without privateInputs capability may report the Form supported with privateInputs:false only if all other required behavior passes",
+        "requests declaring secrets on that Host return capability_required"
+      ]
+    },
+    {
+      "id": "index-pin-selection",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "an index pin selects exactly one linux/amd64 manifest and rejects zero, several or nested matches",
+        "observed.imageDigest reports the executable digest while spec keeps the source digest",
+        "replay, restart, drain and recovery reuse the recorded executable digest without reselecting"
+      ]
+    },
+    {
+      "id": "image-retention",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "the source index, selected manifest, config and layers stay retained while a generation serves, drains or may recover",
+        "registry credentials are Host-owned and never accepted from spec or privateInputs"
+      ]
+    },
+    {
+      "id": "image-size-limit",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "the Host publishes its selected image byte limit before effects",
+        "selected image bytes count config and layers of the selected manifest only",
+        "an over-limit image fails with image_too_large without replacing the serving generation"
+      ]
+    },
+    {
+      "id": "egress-all-protocols",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "with true, the Host or node loopback, private, link-local and metadata destinations (including their IPv4-mapped IPv6 notation), private paths to management planes, and other tenants' executions and their private paths are refused on every protocol and port",
+        "with true, other tenants' public services and public APIs stay reachable as ordinary destinations",
+        "with false, no outbound connection starts, including DNS queries to the Host resolver",
+        "with true, only DNS queries to the Host's designated resolver are exempt; other traffic to that address is refused",
+        "loopback traffic that ends inside the execution's own namespace works under both values; in-namespace forwarding to the Host resolver or services (embedded DNS, DNAT) is not exempt",
+        "refusal applies to each connection's effective destination, so IP literals, IPv4-mapped notation, changed or re-resolved DNS answers, redirects, proxies and route translation cannot reach a refused destination",
+        "HTTP(S)-only filtering that lets other traffic through, and an HTTP(S)-only relay that refuses everything else, do not count as true",
+        "policy does not require images to change their entrypoint or to trust a Host certificate authority",
+        "policy refusal and kill switch appear to the application as network errors and leave desired state unchanged"
+      ]
+    },
+    {
+      "id": "early-response-upload",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "binding-cases.json early-complete-response, early-bodyless-response, early-response-nonsettling-upload and upload-error-before-completion pass across the real broker and native transport",
+        "uploadSourceCancelled is recorded only from the caller ReadableStream's own cancel callback",
+        "positive cases show the native upload pump's physical end and a following ordinary call",
+        "without that physical end the Host keeps the call unknown/pending for drain and retirement; a 200/204 or a source cancel is not that acknowledgement",
+        "duplex-stream still passes"
+      ]
+    },
+    {
+      "id": "deployment-version-fence-0.7.0",
+      "requiredProfiles": [
+        "cloudflare-containers",
+        "docker",
+        "linux-systemd-docker"
+      ],
+      "assertions": [
+        "WorkerDeployment 0.4.0, 0.5.0, 0.6.0 and 0.7.0 share one single-active fence per Worker",
+        "WorkerDeployment 0.7.0 accepts exact WorkerVersion 0.5.0/0.6.0/0.7.0/0.8.0 only",
+        "WorkerVersion 0.8.0 binds Container 0.1.0 or 0.2.0 by the sealed exact URL and never reinterprets a 0.1.0 reference with 0.2.0 rules",
+        "Container 30s drain is not extended to the Worker context's 15-minute deadline"
+      ]
+    }
+  ]
+}

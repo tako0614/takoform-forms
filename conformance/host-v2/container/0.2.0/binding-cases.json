@@ -1,0 +1,87 @@
+{
+  "form": "https://edge.forms.takoform.com/forms/Container/0.2.0/",
+  "binding": "module-worker.container",
+  "inherits": "Every BINDING_CASES scenario in ../binding-suite.mjs keeps its 0.1.0 expectation when the caller is WorkerVersion 0.8.0 and the target is this URL.",
+  "cases": [
+    {
+      "name": "duplex-stream",
+      "change": "none",
+      "rule": "A response head does not end the upload; the backend is still reading, so the second chunk is delivered and echoed."
+    },
+    {
+      "name": "early-complete-response",
+      "fixture": "The backend reads the first upload chunk 'one', sends 200 with body 'done', completes the response and stops reading the request.",
+      "steps": [
+        "Send POST with a ReadableStream body (highWaterMark 0) that enqueues 'one'; its own cancel callback records uploadSourceCancelled. No AbortController, response EOF or adapter bookkeeping may stand in for that callback.",
+        "Await the response and read the body to completion.",
+        "Await the source cancel callback.",
+        "Await fixture.waitFor(\"uploadPumpClosed\"), the backend's own record that its native upload read ended.",
+        "Send an ordinary GET through the same binding."
+      ],
+      "expect": {
+        "status": 200,
+        "body": "done",
+        "responseError": null,
+        "uploadSourceCancelled": true,
+        "backendReceivedBytes": "one",
+        "uploadPumpClosed": true,
+        "nextCallStatus": 200,
+        "applicationAttempts": 2
+      }
+    },
+    {
+      "name": "early-bodyless-response",
+      "fixture": "The backend reads the first upload chunk, sends 204 without a body and stops reading the request.",
+      "steps": [
+        "Send POST with a ReadableStream body (highWaterMark 0) that enqueues 'one'; its own cancel callback records uploadSourceCancelled. No AbortController, response EOF or adapter bookkeeping may stand in for that callback.",
+        "Await the response.",
+        "Await the source cancel callback and fixture.waitFor(\"uploadPumpClosed\").",
+        "Send an ordinary GET through the same binding."
+      ],
+      "expect": {
+        "status": 204,
+        "body": null,
+        "responseError": null,
+        "uploadSourceCancelled": true,
+        "backendReceivedBytes": "one",
+        "uploadPumpClosed": true,
+        "nextCallStatus": 200,
+        "applicationAttempts": 2
+      }
+    },
+    {
+      "name": "early-response-nonsettling-upload",
+      "fixture": "The backend completes a 200 response with body 'done' but never ends its native upload read; the fixture withholds uploadPumpClosed.",
+      "steps": [
+        "Send POST with a ReadableStream body (highWaterMark 0) that enqueues 'one'; its own cancel callback records uploadSourceCancelled. No AbortController, response EOF or adapter bookkeeping may stand in for that callback.",
+        "Read the response body to completion and await the source cancel callback.",
+        "Inspect the Host's drain or retirement record for this call."
+      ],
+      "expect": {
+        "status": 200,
+        "body": "done",
+        "responseError": null,
+        "uploadSourceCancelled": true,
+        "uploadPumpClosed": false,
+        "hostCountsCallComplete": false,
+        "note": "The source cancel and the delivered response are not evidence that the native upload ended; the Host keeps the call unknown/pending for drain and retirement until it confirms the end or cancels it."
+      }
+    },
+    {
+      "name": "upload-error-before-completion",
+      "fixture": "The backend sends a 200 head, echoes 'one', and keeps the response open; the caller's source then errors before the Host observes the response end.",
+      "steps": [
+        "Send POST with a ReadableStream body that enqueues 'one' and keeps the stream open.",
+        "Await the 200 head and read the echoed 'one' from the response body.",
+        "Only then error the source, before the Host observes the response end.",
+        "Read the response body until it settles."
+      ],
+      "expect": {
+        "status": 200,
+        "responseError": "request_aborted",
+        "applicationAttempts": 1
+      },
+      "note": "An error before the head would instead reject the Promise with request_aborted. A later response completion does not turn the observed upload failure into a clean response."
+    }
+  ]
+}

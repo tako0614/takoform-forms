@@ -1,0 +1,835 @@
+{
+  "form": "https://edge.forms.takoform.com/forms/Container/0.2.0/",
+  "privateInputCases": [
+    {
+      "name": "secret-free-omitted",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1"
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "secrets": "none",
+        "names": [],
+        "removed": [],
+        "valuesChange": false
+      }
+    },
+    {
+      "name": "secret-free-empty-map",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": []
+      },
+      "privateInputs": {},
+      "hostPrivateInputs": true,
+      "expect": {
+        "secrets": "none",
+        "names": [],
+        "removed": [],
+        "valuesChange": false
+      }
+    },
+    {
+      "name": "secret-free-host-without-capability",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": []
+      },
+      "hostPrivateInputs": false,
+      "expect": {
+        "secrets": "none",
+        "names": [],
+        "removed": [],
+        "valuesChange": false
+      }
+    },
+    {
+      "name": "empty-map-host-without-capability",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": []
+      },
+      "privateInputs": {},
+      "hostPrivateInputs": false,
+      "expect": {
+        "error": "capability_required"
+      }
+    },
+    {
+      "name": "declared-complete-map",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN",
+          "DB_PASSWORD"
+        ]
+      },
+      "privateInputs": {
+        "API_TOKEN": "test-only-value",
+        "DB_PASSWORD": "test-only-value"
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "secrets": "set",
+        "names": [
+          "API_TOKEN",
+          "DB_PASSWORD"
+        ],
+        "removed": [],
+        "valuesChange": true
+      }
+    },
+    {
+      "name": "declared-order-is-a-set",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "DB_PASSWORD",
+          "API_TOKEN"
+        ]
+      },
+      "privateInputs": {
+        "DB_PASSWORD": "test-only-value",
+        "API_TOKEN": "test-only-value"
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "secrets": "set",
+        "names": [
+          "API_TOKEN",
+          "DB_PASSWORD"
+        ],
+        "removed": [],
+        "valuesChange": true
+      }
+    },
+    {
+      "name": "declared-without-map",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN"
+        ]
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "declared-missing-value",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN",
+          "DB_PASSWORD"
+        ]
+      },
+      "privateInputs": {
+        "API_TOKEN": "test-only-value"
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "undeclared-extra-value",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN"
+        ]
+      },
+      "privateInputs": {
+        "API_TOKEN": "test-only-value",
+        "OTHER": "test-only-value"
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "map-without-declaration",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1"
+      },
+      "privateInputs": {
+        "API_TOKEN": "test-only-value"
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "empty-string-value",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN"
+        ]
+      },
+      "privateInputs": {
+        "API_TOKEN": ""
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "nul-value",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN"
+        ]
+      },
+      "privateInputs": {
+        "API_TOKEN": "a\u0000b"
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "non-string-value",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN"
+        ]
+      },
+      "privateInputs": {
+        "API_TOKEN": 1
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "error": "invalid_request"
+      }
+    },
+    {
+      "name": "null-private-inputs",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN"
+        ]
+      },
+      "privateInputs": null,
+      "hostPrivateInputs": true,
+      "expect": {
+        "error": "invalid_request"
+      }
+    },
+    {
+      "name": "declared-host-without-capability",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN"
+        ]
+      },
+      "hostPrivateInputs": false,
+      "expect": {
+        "error": "capability_required"
+      }
+    },
+    {
+      "name": "duplicate-name",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN",
+          "API_TOKEN"
+        ]
+      },
+      "privateInputs": {
+        "API_TOKEN": "test-only-value"
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "environment-collision",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "APP_MODE"
+        ],
+        "environment": {
+          "APP_MODE": "production"
+        }
+      },
+      "privateInputs": {
+        "APP_MODE": "test-only-value"
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "reserved-name",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "TAKOFORM_KEY"
+        ]
+      },
+      "privateInputs": {
+        "TAKOFORM_KEY": "test-only-value"
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "lowercase-name",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "api_token"
+        ]
+      },
+      "privateInputs": {
+        "api_token": "test-only-value"
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "null-declaration",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": null
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "value-in-declaration",
+      "operation": "create",
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          {
+            "API_TOKEN": "test-only-value"
+          }
+        ]
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "same-set-omitted",
+      "operation": "update",
+      "previousNames": [
+        "API_TOKEN",
+        "DB_PASSWORD"
+      ],
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN",
+          "DB_PASSWORD"
+        ]
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "secrets": "inherit",
+        "names": [
+          "API_TOKEN",
+          "DB_PASSWORD"
+        ],
+        "removed": [],
+        "valuesChange": false
+      }
+    },
+    {
+      "name": "same-set-reordered-omitted",
+      "operation": "update",
+      "previousNames": [
+        "API_TOKEN",
+        "DB_PASSWORD"
+      ],
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "DB_PASSWORD",
+          "API_TOKEN"
+        ]
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "secrets": "inherit",
+        "names": [
+          "API_TOKEN",
+          "DB_PASSWORD"
+        ],
+        "removed": [],
+        "valuesChange": false
+      }
+    },
+    {
+      "name": "subset-omitted",
+      "operation": "update",
+      "previousNames": [
+        "API_TOKEN",
+        "DB_PASSWORD"
+      ],
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN"
+        ]
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "secrets": "inherit-subset",
+        "names": [
+          "API_TOKEN"
+        ],
+        "removed": [
+          "DB_PASSWORD"
+        ],
+        "valuesChange": true
+      }
+    },
+    {
+      "name": "remove-all-omitted",
+      "operation": "update",
+      "previousNames": [
+        "API_TOKEN",
+        "DB_PASSWORD"
+      ],
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1"
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "secrets": "inherit-subset",
+        "names": [],
+        "removed": [
+          "API_TOKEN",
+          "DB_PASSWORD"
+        ],
+        "valuesChange": true
+      }
+    },
+    {
+      "name": "add-name-omitted",
+      "operation": "update",
+      "previousNames": [
+        "API_TOKEN"
+      ],
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN",
+          "DB_PASSWORD"
+        ]
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "rotate-complete-map",
+      "operation": "update",
+      "previousNames": [
+        "API_TOKEN",
+        "DB_PASSWORD"
+      ],
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN",
+          "DB_PASSWORD"
+        ]
+      },
+      "privateInputs": {
+        "API_TOKEN": "rotated-value",
+        "DB_PASSWORD": "rotated-value"
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "secrets": "replace",
+        "names": [
+          "API_TOKEN",
+          "DB_PASSWORD"
+        ],
+        "removed": [],
+        "valuesChange": true
+      }
+    },
+    {
+      "name": "resend-same-values-is-replacement",
+      "operation": "update",
+      "previousNames": [
+        "API_TOKEN",
+        "DB_PASSWORD"
+      ],
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN",
+          "DB_PASSWORD"
+        ]
+      },
+      "privateInputs": {
+        "API_TOKEN": "test-only-value",
+        "DB_PASSWORD": "test-only-value"
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "secrets": "replace",
+        "names": [
+          "API_TOKEN",
+          "DB_PASSWORD"
+        ],
+        "removed": [],
+        "valuesChange": true
+      }
+    },
+    {
+      "name": "partial-map",
+      "operation": "update",
+      "previousNames": [
+        "API_TOKEN",
+        "DB_PASSWORD"
+      ],
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN",
+          "DB_PASSWORD"
+        ]
+      },
+      "privateInputs": {
+        "API_TOKEN": "rotated-value"
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "extra-name-in-map",
+      "operation": "update",
+      "previousNames": [
+        "API_TOKEN"
+      ],
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN"
+        ]
+      },
+      "privateInputs": {
+        "API_TOKEN": "test-only-value",
+        "DB_PASSWORD": "test-only-value"
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "add-name-with-complete-map",
+      "operation": "update",
+      "previousNames": [
+        "API_TOKEN"
+      ],
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN",
+          "DB_PASSWORD"
+        ]
+      },
+      "privateInputs": {
+        "API_TOKEN": "test-only-value",
+        "DB_PASSWORD": "test-only-value"
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "secrets": "replace",
+        "names": [
+          "API_TOKEN",
+          "DB_PASSWORD"
+        ],
+        "removed": [],
+        "valuesChange": true
+      }
+    },
+    {
+      "name": "rename-with-complete-map",
+      "operation": "update",
+      "previousNames": [
+        "API_TOKEN"
+      ],
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "SERVICE_TOKEN"
+        ]
+      },
+      "privateInputs": {
+        "SERVICE_TOKEN": "test-only-value"
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "secrets": "replace",
+        "names": [
+          "SERVICE_TOKEN"
+        ],
+        "removed": [
+          "API_TOKEN"
+        ],
+        "valuesChange": true
+      }
+    },
+    {
+      "name": "empty-to-empty-with-empty-map",
+      "operation": "update",
+      "previousNames": [],
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1"
+      },
+      "privateInputs": {},
+      "hostPrivateInputs": true,
+      "expect": {
+        "secrets": "replace",
+        "names": [],
+        "removed": [],
+        "valuesChange": false
+      }
+    },
+    {
+      "name": "map-on-host-without-capability",
+      "operation": "update",
+      "previousNames": [],
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1"
+      },
+      "privateInputs": {},
+      "hostPrivateInputs": false,
+      "expect": {
+        "error": "capability_required"
+      }
+    },
+    {
+      "name": "after-failed-rotation-omitted",
+      "note": "gen1 {API_TOKEN,DB_PASSWORD} serves; gen2 rotated both values and failed health; gen3 omits the map and inherits gen2's configured values, not gen1's.",
+      "operation": "update",
+      "previousNames": [
+        "API_TOKEN",
+        "DB_PASSWORD"
+      ],
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN",
+          "DB_PASSWORD"
+        ]
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "secrets": "inherit",
+        "names": [
+          "API_TOKEN",
+          "DB_PASSWORD"
+        ],
+        "removed": [],
+        "valuesChange": false
+      }
+    },
+    {
+      "name": "after-failed-removal-readd-omitted",
+      "note": "gen1 {API_TOKEN,DB_PASSWORD} serves; gen2 dropped DB_PASSWORD and failed; the configured map is gen2's, so re-adding DB_PASSWORD without a map is an addition.",
+      "operation": "update",
+      "previousNames": [
+        "API_TOKEN"
+      ],
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN",
+          "DB_PASSWORD"
+        ]
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "error": "invalid_spec"
+      }
+    },
+    {
+      "name": "after-failed-delete-omitted",
+      "note": "gen1 {API_TOKEN} serves; a DELETE (gen2) fails; a repair PUT (gen3) omits the map and inherits gen1's configured values because a DELETE generation never replaces the configured map.",
+      "operation": "update",
+      "previousNames": [
+        "API_TOKEN"
+      ],
+      "spec": {
+        "image": "ghcr.io/example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "httpPort": 8080,
+        "healthPath": "/health",
+        "workloadRevision": "revision-1",
+        "requiredSensitiveVars": [
+          "API_TOKEN"
+        ]
+      },
+      "hostPrivateInputs": true,
+      "expect": {
+        "secrets": "inherit",
+        "names": [
+          "API_TOKEN"
+        ],
+        "removed": [],
+        "valuesChange": false
+      }
+    }
+  ]
+}
