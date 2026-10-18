@@ -7,10 +7,10 @@ use the tables below to inspect its exact source. Repository setup is in the
 
 ## Host API v2 specifications
 
-The source inventory anchors 27 Japanese normative documents across 18 resource
+The source inventory anchors 30 Japanese normative documents across 18 resource
 kinds in [`spec/forms.freeze.json`](../spec/forms.freeze.json). This includes the
-21 earlier anchors, three object-stream successors and their three exact
-Container source prerequisites. Frozen source is
+21 earlier anchors, three object-stream successors, their three exact
+Container source prerequisites, and three Container successors. Frozen source is
 eligible for version-fixed URL publication; it does not prove public
 availability, Provider compatibility or Host support. The trailing slash in
 `https://edge.forms.takoform.com/forms/<Kind>/<version>/` is part of the
@@ -107,6 +107,25 @@ bytes and v1 package/Interface digests stay unchanged.
 See the [proposal](../docs/proposals/object-stream-contract.md) and
 [data-only corpus](../conformance/host-v2/object-streams/README.md). Static source
 checks are not SDK, native runtime, Host support or staging E2E evidence.
+
+### Container 0.2.0 source successors
+
+These three frozen identities are source-only. They keep Container 0.1.0 and
+the earlier WorkerVersion and WorkerDeployment definitions unchanged; no URL
+publication or Host support follows from the freeze.
+
+| Kind | Version | Normative source |
+| --- | --- | --- |
+| Container | `0.2.0` | [Specification](../spec/forms/Container/0.2.0/index.md) |
+| WorkerVersion | `0.8.0` | [Specification](../spec/forms/WorkerVersion/0.8.0/index.md) |
+| WorkerDeployment | `0.7.0` | [Specification](../spec/forms/WorkerDeployment/0.7.0/index.md) |
+
+Container 0.2.0 specifies complete-map secret inputs, OCI index selection,
+all-protocol egress restrictions and early HTTP response handling. WorkerVersion
+0.8.0 accepts its exact Binding target URL while preserving ObjectBucket 0.3.0;
+WorkerDeployment 0.7.0 accepts that Version under the same single-active fence.
+See the [source decision](../docs/proposals/container-successor-f2.md) and
+[source corpus](../conformance/host-v2/container/0.2.0/README.md).
 
 ## Independent version tracks
 

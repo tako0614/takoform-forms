@@ -1,0 +1,90 @@
+{
+  "form": "https://edge.forms.takoform.com/forms/Container/0.2.0/",
+  "note": "Every difference between each frozen predecessor and its proposed successor. Applying the changes to the predecessor must give the successor byte for byte.",
+  "successors": [
+    {
+      "predecessor": "spec/forms/WorkerVersion/0.7.0/index.md",
+      "successor": "spec/forms/WorkerVersion/0.8.0/index.md",
+      "changes": [
+        {
+          "predecessor": "title: WorkerVersion 0.7.0",
+          "successor": "title: WorkerVersion 0.8.0"
+        },
+        {
+          "predecessor": "formUrl: https://edge.forms.takoform.com/forms/WorkerVersion/0.7.0/",
+          "successor": "formUrl: https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/"
+        },
+        {
+          "predecessor": "# WorkerVersion 0.7.0",
+          "successor": "# WorkerVersion 0.8.0"
+        },
+        {
+          "predecessor": "[WorkerDeployment 0.6.0](../../WorkerDeployment/0.6.0/)が別に決める。",
+          "successor": "[WorkerDeployment 0.7.0](../../WorkerDeployment/0.7.0/)が別に決める。"
+        },
+        {
+          "predecessor": "この版は0.6.0の実行ABI・asset・containerBindingsを含む既存Bindingを維持し、\n長さ未申告streamを扱うObjectBucket 0.3.0へのbucketBindingsを追加する。\nObjectBucket 0.2.0も正確な参照先として許すが、その既知長Bindingの規定は変えない。\nWorkerVersion 0.5.0と0.6.0のURL、受理済み参照、実行snapshotを本版へ読み替えない。",
+          "successor": "この版は0.7.0の実行ABI・asset・ObjectBucket 0.2.0/0.3.0を含む既存Bindingを維持し、\ncontainerBindingsの参照先にContainer 0.2.0を追加する。Container 0.1.0も正確な参照先として\n許すが、そのBindingの規定は変えない。WorkerVersion 0.5.0、0.6.0、0.7.0のURL、受理済み参照、\n実行snapshotを本版へ読み替えない。"
+        },
+        {
+          "predecessor": "[Container 0.1.0](../../Container/0.1.0/)である。",
+          "successor": "[Container 0.1.0](../../Container/0.1.0/)または[Container 0.2.0](../../Container/0.2.0/)である。"
+        },
+        {
+          "predecessor": "- **`containerBindings`** — [Container 0.1.0のmodule-worker.container Binding](../../Container/0.1.0/#worker-binding)。`fetch(Request):Promise<Response>`のみ。",
+          "successor": "- **`containerBindings`** — [Container 0.1.0](../../Container/0.1.0/#worker-binding)または[0.2.0](../../Container/0.2.0/#worker-binding)のmodule-worker.container Binding。`fetch(Request):Promise<Response>`のみ。各参照先の正確なForm URLが、早期responseとuploadの関係を含むBindingの挙動を決める。"
+        },
+        {
+          "predecessor": "Promise拒否だけで解放または退役済みとせず、参照先ObjectBucketの確定規則に従う。\n",
+          "successor": "Promise拒否だけで解放または退役済みとせず、参照先ObjectBucketの確定規則に従う。\n\n## Containerの版選択と保持\n\ncontainerBindingsの参照先として許すForm URLはContainer 0.1.0と0.2.0だけである。\n同じVersion内で両方のResourceを別のBinding名へ参照してよい。Hostは受理時のUID・Space・\n認可・正確なForm URLを封じ、実行時も同じResourceとの一致を検証する。0.1.0の参照には\n0.1.0のBinding、0.2.0の参照には0.2.0のBindingを投影し、Kindや呼出元のoptionで選択しない。\nどちらの参照先にも、このVersionのvars、秘密値、Binding、credentialを渡さない。\n旧Versionを読取・再照合・復元するときは、元に封じたContainer Form URLとBinding挙動だけを使う。\n"
+        }
+      ]
+    },
+    {
+      "predecessor": "spec/forms/WorkerDeployment/0.6.0/index.md",
+      "successor": "spec/forms/WorkerDeployment/0.7.0/index.md",
+      "changes": [
+        {
+          "predecessor": "title: WorkerDeployment 0.6.0",
+          "successor": "title: WorkerDeployment 0.7.0"
+        },
+        {
+          "predecessor": "formUrl: https://edge.forms.takoform.com/forms/WorkerDeployment/0.6.0/",
+          "successor": "formUrl: https://edge.forms.takoform.com/forms/WorkerDeployment/0.7.0/"
+        },
+        {
+          "predecessor": "# WorkerDeployment 0.6.0",
+          "successor": "# WorkerDeployment 0.7.0"
+        },
+        {
+          "predecessor": "[WorkerVersion 0.7.0](../../WorkerVersion/0.7.0/)の集合を選ぶ。",
+          "successor": "[WorkerVersion 0.7.0](../../WorkerVersion/0.7.0/)または\n[WorkerVersion 0.8.0](../../WorkerVersion/0.8.0/)の集合を選ぶ。"
+        },
+        {
+          "predecessor": "Versionは0.5.0、0.6.0、0.7.0の上記exact URLだけを許し、",
+          "successor": "Versionは0.5.0、0.6.0、0.7.0、0.8.0の上記exact URLだけを許し、"
+        },
+        {
+          "predecessor": "このWorkerDeployment 0.6.0と旧WorkerDeployment 0.4.0、0.5.0を跨いで",
+          "successor": "このWorkerDeployment 0.7.0と旧WorkerDeployment 0.4.0、0.5.0、0.6.0を跨いで"
+        },
+        {
+          "predecessor": "WorkerVersion 0.6.0と0.7.0のcontainerBindingsは",
+          "successor": "WorkerVersion 0.6.0、0.7.0、0.8.0のcontainerBindingsは"
+        },
+        {
+          "predecessor": "本版が受理するVersionのForm URLは、上記の0.5.0、0.6.0、0.7.0の三つだけである。",
+          "successor": "本版が受理するVersionのForm URLは、上記の0.5.0、0.6.0、0.7.0、0.8.0の四つだけである。"
+        },
+        {
+          "predecessor": "WorkerVersion 0.7.0のbucketBindingsは\n封じた参照先ObjectBucket 0.2.0または0.3.0に従い、",
+          "successor": "WorkerVersion 0.7.0と0.8.0のbucketBindingsは\n封じた参照先ObjectBucket 0.2.0または0.3.0に従い、"
+        },
+        {
+          "predecessor": "Deployment 0.4.0と0.5.0の定義、既存のOperationと選択済み実行内容は変更しない。",
+          "successor": "WorkerVersion 0.8.0のcontainerBindingsは封じた参照先Container 0.1.0または0.2.0に従い、\n0.1.0の参照を0.2.0の秘密・image index・早期response規則へ読み替えない。\nDeployment 0.4.0、0.5.0、0.6.0の定義、既存のOperationと選択済み実行内容は変更しない。"
+        }
+      ]
+    }
+  ]
+}

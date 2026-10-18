@@ -1,0 +1,422 @@
+{
+  "form": "https://edge.forms.takoform.com/forms/Container/0.2.0/",
+  "defaultSelectedImageByteLimit": 2000000000,
+  "selectionCases": [
+    {
+      "name": "single-manifest",
+      "sourceDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "source": {
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "document": {
+          "schemaVersion": 2,
+          "mediaType": "application/vnd.oci.image.manifest.v1+json"
+        }
+      },
+      "selectedConfigPlatform": {
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      "expect": {
+        "executableDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "name": "single-manifest-other-platform",
+      "sourceDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "source": {
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "document": {
+          "schemaVersion": 2,
+          "mediaType": "application/vnd.oci.image.manifest.v1+json"
+        }
+      },
+      "selectedConfigPlatform": {
+        "os": "linux",
+        "architecture": "arm64"
+      },
+      "expect": {
+        "error": "image_invalid"
+      }
+    },
+    {
+      "name": "index-selects-linux-amd64",
+      "sourceDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "source": {
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "document": {
+          "schemaVersion": 2,
+          "mediaType": "application/vnd.oci.image.index.v1+json",
+          "manifests": [
+            {
+              "mediaType": "application/vnd.oci.image.manifest.v1+json",
+              "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "size": 1000,
+              "platform": {
+                "os": "linux",
+                "architecture": "arm64"
+              }
+            },
+            {
+              "mediaType": "application/vnd.oci.image.manifest.v1+json",
+              "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+              "size": 1000,
+              "platform": {
+                "os": "linux",
+                "architecture": "amd64"
+              }
+            },
+            {
+              "mediaType": "application/vnd.oci.image.manifest.v1+json",
+              "digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+              "size": 1000,
+              "platform": {
+                "os": "unknown",
+                "architecture": "unknown"
+              }
+            }
+          ]
+        }
+      },
+      "selectedConfigPlatform": {
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      "expect": {
+        "executableDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "name": "docker-manifest-list",
+      "sourceDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "source": {
+        "mediaType": "application/vnd.docker.distribution.manifest.list.v2+json",
+        "document": {
+          "schemaVersion": 2,
+          "mediaType": "application/vnd.docker.distribution.manifest.list.v2+json",
+          "manifests": [
+            {
+              "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+              "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+              "size": 1000,
+              "platform": {
+                "os": "linux",
+                "architecture": "amd64"
+              }
+            },
+            {
+              "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+              "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+              "size": 1000,
+              "platform": {
+                "os": "linux",
+                "architecture": "arm64"
+              }
+            }
+          ]
+        }
+      },
+      "selectedConfigPlatform": {
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      "expect": {
+        "executableDigest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "name": "index-without-linux-amd64",
+      "sourceDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "source": {
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "document": {
+          "schemaVersion": 2,
+          "mediaType": "application/vnd.oci.image.index.v1+json",
+          "manifests": [
+            {
+              "mediaType": "application/vnd.oci.image.manifest.v1+json",
+              "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "size": 1000,
+              "platform": {
+                "os": "linux",
+                "architecture": "arm64"
+              }
+            }
+          ]
+        }
+      },
+      "selectedConfigPlatform": {
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      "expect": {
+        "error": "image_invalid"
+      }
+    },
+    {
+      "name": "index-with-two-linux-amd64",
+      "sourceDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "source": {
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "document": {
+          "schemaVersion": 2,
+          "mediaType": "application/vnd.oci.image.index.v1+json",
+          "manifests": [
+            {
+              "mediaType": "application/vnd.oci.image.manifest.v1+json",
+              "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+              "size": 1000,
+              "platform": {
+                "os": "linux",
+                "architecture": "amd64",
+                "variant": "v2"
+              }
+            },
+            {
+              "mediaType": "application/vnd.oci.image.manifest.v1+json",
+              "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+              "size": 1000,
+              "platform": {
+                "os": "linux",
+                "architecture": "amd64",
+                "variant": "v3"
+              }
+            }
+          ]
+        }
+      },
+      "selectedConfigPlatform": {
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      "expect": {
+        "error": "image_invalid"
+      }
+    },
+    {
+      "name": "nested-index",
+      "sourceDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "source": {
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "document": {
+          "schemaVersion": 2,
+          "mediaType": "application/vnd.oci.image.index.v1+json",
+          "manifests": [
+            {
+              "mediaType": "application/vnd.oci.image.index.v1+json",
+              "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+              "size": 1000,
+              "platform": {
+                "os": "linux",
+                "architecture": "amd64"
+              }
+            }
+          ]
+        }
+      },
+      "selectedConfigPlatform": {
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      "expect": {
+        "error": "image_invalid"
+      }
+    },
+    {
+      "name": "uppercase-descriptor-digest",
+      "sourceDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "source": {
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "document": {
+          "schemaVersion": 2,
+          "mediaType": "application/vnd.oci.image.index.v1+json",
+          "manifests": [
+            {
+              "mediaType": "application/vnd.oci.image.manifest.v1+json",
+              "digest": "sha256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "size": 1000,
+              "platform": {
+                "os": "linux",
+                "architecture": "amd64"
+              }
+            }
+          ]
+        }
+      },
+      "selectedConfigPlatform": {
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      "expect": {
+        "error": "image_invalid"
+      }
+    },
+    {
+      "name": "non-sha256-descriptor",
+      "sourceDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "source": {
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "document": {
+          "schemaVersion": 2,
+          "mediaType": "application/vnd.oci.image.index.v1+json",
+          "manifests": [
+            {
+              "mediaType": "application/vnd.oci.image.manifest.v1+json",
+              "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+              "size": 1000,
+              "platform": {
+                "os": "linux",
+                "architecture": "amd64"
+              }
+            },
+            {
+              "mediaType": "application/vnd.oci.image.manifest.v1+json",
+              "digest": "sha512:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "size": 1000,
+              "platform": {
+                "os": "linux",
+                "architecture": "arm64"
+              }
+            }
+          ]
+        }
+      },
+      "selectedConfigPlatform": {
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      "expect": {
+        "error": "image_invalid"
+      }
+    },
+    {
+      "name": "descriptor-and-config-platform-disagree",
+      "sourceDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "source": {
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "document": {
+          "schemaVersion": 2,
+          "mediaType": "application/vnd.oci.image.index.v1+json",
+          "manifests": [
+            {
+              "mediaType": "application/vnd.oci.image.manifest.v1+json",
+              "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+              "size": 1000,
+              "platform": {
+                "os": "linux",
+                "architecture": "amd64"
+              }
+            }
+          ]
+        }
+      },
+      "selectedConfigPlatform": {
+        "os": "linux",
+        "architecture": "arm64"
+      },
+      "expect": {
+        "error": "image_invalid"
+      }
+    },
+    {
+      "name": "unknown-media-type",
+      "sourceDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "source": {
+        "mediaType": "application/json",
+        "document": {}
+      },
+      "selectedConfigPlatform": {
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      "expect": {
+        "error": "image_invalid"
+      }
+    }
+  ],
+  "sizeCases": [
+    {
+      "name": "selected-bytes-at-limit",
+      "limit": 2000000000,
+      "manifest": {
+        "config": {
+          "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+          "size": 1000
+        },
+        "layers": [
+          {
+            "digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+            "size": 1999998000
+          },
+          {
+            "digest": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+            "size": 1000
+          }
+        ]
+      },
+      "expect": {
+        "selectedImageBytes": 2000000000
+      }
+    },
+    {
+      "name": "selected-bytes-over-limit",
+      "limit": 2000000000,
+      "manifest": {
+        "config": {
+          "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+          "size": 1001
+        },
+        "layers": [
+          {
+            "digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+            "size": 1999998000
+          },
+          {
+            "digest": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+            "size": 1000
+          }
+        ]
+      },
+      "expect": {
+        "error": "image_too_large"
+      }
+    },
+    {
+      "name": "negative-descriptor-size",
+      "limit": 2000000000,
+      "manifest": {
+        "config": {
+          "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+          "size": 1000
+        },
+        "layers": [
+          {
+            "digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+            "size": -1
+          }
+        ]
+      },
+      "expect": {
+        "error": "image_invalid"
+      }
+    },
+    {
+      "name": "non-canonical-layer-digest",
+      "limit": 2000000000,
+      "manifest": {
+        "config": {
+          "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+          "size": 1000
+        },
+        "layers": [
+          {
+            "digest": "sha256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+            "size": 1000
+          }
+        ]
+      },
+      "expect": {
+        "error": "image_invalid"
+      }
+    }
+  ]
+}
