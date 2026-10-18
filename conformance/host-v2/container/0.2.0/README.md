@@ -1,11 +1,11 @@
-# Container 0.2.0 source proposal corpus
+# Container 0.2.0 source corpus
 
 Normative source: Container/0.2.0, WorkerVersion/0.8.0 and
-WorkerDeployment/0.7.0 under spec/forms. They are unfrozen source proposals
-that answer the five open questions from PR #17 against the common Host API
-v2. Nothing here is accepted, published, adopted by a Host or
-qualified. Container/0.1.0 and its corpus in the parent directory are
-unchanged.
+WorkerDeployment/0.7.0 under spec/forms. These source identities are frozen
+in `spec/forms.freeze.json` after answering the five open questions from PR
+#17 against the common Host API v2. Freezing does not publish them or establish
+Host adoption, support, or runtime qualification. Container/0.1.0 and its
+corpus in the parent directory are unchanged.
 
 `contract.mjs` is an optional authoring aid like `../contract.mjs`, which it
 reuses for every key 0.1.0 already defines:
@@ -53,7 +53,7 @@ seals each target's exact URL. WorkerDeployment 0.7.0 selects WorkerVersion
 to 0.6.0. `caller-cases.json` lists its cases.
 
 `successor-deltas.json` records every difference between the frozen
-WorkerVersion 0.7.0 and WorkerDeployment 0.6.0 texts and their proposed
+WorkerVersion 0.7.0 and WorkerDeployment 0.6.0 texts and their frozen
 successors. The node test checks each predecessor against its freeze hash,
 applies the recorded changes in both directions and requires byte equality,
 and reads the target lists, version lists, fence and Container limits back from

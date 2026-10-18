@@ -1,6 +1,6 @@
-# Container 0.2.0 successor source proposal
+# Container 0.2.0 successor source decision
 
-This proposal answers the five open questions on
+This source decision answers the five open questions on
 [PR #17](https://github.com/tako0614/takoform-forms/pull/17) with concrete
 successor texts and fixture expectations:
 
@@ -11,11 +11,10 @@ successor texts and fixture expectations:
   0.8.0 under the existing single-active fence
 - `conformance/host-v2/container/0.2.0/`
 
-It is a source proposal only. It is not an accepted publisher contract, a
-publication, Host support or runtime qualification. Accepting it is the
-repository owner's decision. Container 0.1.0, its 422 refusal and every frozen
-identity are unchanged. The three new URLs stay pending in
-`spec/forms.freeze.json` until that decision.
+The three new source identities are frozen in `spec/forms.freeze.json`.
+This is source adoption, not publication, Host support, or runtime
+qualification. Container 0.1.0, its 422 refusal, and every predecessor
+identity are unchanged.
 
 ## Common API rules this text relies on
 
@@ -35,7 +34,7 @@ Form must add:
 - **Support:** support is per exact Form URL. A Host may report
   `privateInputs:false` when the Form has valid secret-free uses.
 
-## Decisions proposed
+## Adopted source decisions
 
 **A. Identity.** The successor is `https://edge.forms.takoform.com/forms/Container/0.2.0/`. It keeps:
 
@@ -48,9 +47,9 @@ It adds no public field, alias, wrapper or Binding method. WorkerVersion
 WorkerVersion 0.8.0 copies 0.7.0 and also accepts Container 0.2.0, sealing each
 reference's exact URL. WorkerDeployment 0.7.0 copies 0.6.0, also accepts
 WorkerVersion 0.8.0, and extends the single-active fence to 0.4.0–0.7.0. This
-answers question 5's identity part for staging. The version numbers must be
-coordinated with the WfP lane, which authored WorkerVersion 0.7.0 and
-WorkerDeployment 0.6.0, and with the F1 caller work.
+answers question 5's identity part for staging. The WfP lane confirmed that
+the recorded changes replay exactly onto its WorkerVersion 0.7.0 and
+WorkerDeployment 0.6.0 source. F1 caller adoption remains separate.
 
 **B. Secrets.**
 
@@ -185,13 +184,17 @@ WorkerVersion may bind (WorkerVersion 0.6.0 and 0.7.0 cannot bind 0.2.0) and
 what WorkerDeployment 0.7.0 accepts and fences, and the test reads the same
 lists back from the texts.
 
-## Parameters the publisher must confirm
+## Source review record and remaining qualification
+
+The publisher adopted the three exact URLs and the source values below. The
+0.1.0 interpretation remains a separate qualification issue; Host behavior
+and public availability require their own evidence.
 
 - the Container 0.2.0, WorkerVersion 0.8.0 and WorkerDeployment 0.7.0 URLs
 - the limits 64 names, 16384 scalar values, 65536 bytes and 4194304-byte
   image documents
 - the new error codes `secret_unavailable` and `image_too_large`
-- whether index pins are eligible, and refusing multi-variant amd64 indexes
+- index pins are eligible; multi-variant amd64 indexes are refused
 - the reading of 0.1.0's early-response rule for 0.1.0 qualification
 - that removal is expressed only through `requiredSensitiveVars`
 - that port policy is an abuse control, so an HTTP(S)-only relay does not
@@ -206,6 +209,5 @@ lists back from the texts.
 
 ## Not in this change
 
-- the freeze inventory entries
 - runner support for `binding-cases.json` in `binding-suite.mjs`
 - Host implementation, publication, support and staging qualification

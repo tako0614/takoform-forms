@@ -1,4 +1,4 @@
-// Publisher-local parsed-value checks for the Container 0.2.0 source proposal.
+// Publisher-local parsed-value checks for the Container 0.2.0 source.
 // Raw JSON, replay comparison, capability transport, registry access and Host
 // custody remain the common API / implementing Host's responsibility.
 import {

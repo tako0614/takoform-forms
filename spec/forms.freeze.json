@@ -135,6 +135,21 @@
       "url": "https://edge.forms.takoform.com/forms/WorkerDeployment/0.5.0/",
       "path": "spec/forms/WorkerDeployment/0.5.0/index.md",
       "sha256": "sha256:9d203258b934a2337bc3d8788af1e7f200cd1aa2db9f3979b65ce09744217dce"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/Container/0.2.0/",
+      "path": "spec/forms/Container/0.2.0/index.md",
+      "sha256": "sha256:26dff9194e27ccd11fefe7988ea551b00285865df3dfea672babe76079af0dba"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/",
+      "path": "spec/forms/WorkerVersion/0.8.0/index.md",
+      "sha256": "sha256:c8dccd9f0a37064a7f20870300607fae7f1b281b6eb55ba4f5092cd03d231161"
+    },
+    {
+      "url": "https://edge.forms.takoform.com/forms/WorkerDeployment/0.7.0/",
+      "path": "spec/forms/WorkerDeployment/0.7.0/index.md",
+      "sha256": "sha256:eae414630af0f87fb45c6bb820d0c8c6aef159bf4b1b1f9352802fb5646c8814"
     }
   ]
 }
