@@ -240,6 +240,32 @@ describe("Container 0.2.0 source proposal", () => {
       );
   });
 
+  test("container binding names must be strings before syntax validation", () => {
+    const source = {
+      form: "https://edge.forms.takoform.com/forms/WorkerVersion/0.8.0/",
+      host: "host.example",
+      space: "default",
+    };
+    const target = {
+      uid: "c2",
+      form: CONTAINER_URL,
+      host: source.host,
+      space: source.space,
+      authorized: true,
+    };
+    for (const name of [null, true, false, 0])
+      assert.deepEqual(
+        outcome(() =>
+          sealContainerBindings(
+            [{ name, resource: { resourceUid: target.uid } }],
+            { source, resolve: () => target },
+          ),
+        ),
+        { error: "invalid_spec" },
+        String(name),
+      );
+  });
+
   test("the spec texts name exactly the checker's caller rules and limits", () => {
     // Each WorkerVersion's Binding target list, the frozen ones included.
     for (const [form, targets] of Object.entries(CONTAINER_TARGETS)) {

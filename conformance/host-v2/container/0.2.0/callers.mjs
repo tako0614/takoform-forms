@@ -49,7 +49,11 @@ export function sealContainerBindings(bindings, { source, resolve }) {
   const names = new Set();
   return bindings.map((entry) => {
     requireThat(closed(entry, ["name", "resource"]));
-    requireThat(bindingName.test(entry.name) && !names.has(entry.name));
+    requireThat(
+      typeof entry.name === "string" &&
+        bindingName.test(entry.name) &&
+        !names.has(entry.name),
+    );
     names.add(entry.name);
     requireThat(closed(entry.resource, ["resourceUid"]));
     const uid = entry.resource.resourceUid;
