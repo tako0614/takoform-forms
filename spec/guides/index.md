@@ -22,7 +22,7 @@ Edge Formsは、Workerアプリケーション、データ保存、イベント�
 - **稼働する版を切り替える** — [WorkerDeployment](/forms/WorkerDeployment/0.4.0/)がWorkerVersionへのトラフィック配分を選びます。
 - **HTTPSで公開する** — Hostが割り当てる[WorkerEndpoint](/forms/WorkerEndpoint/0.3.0/)、または所有する名前の[WorkerCustomDomain](/forms/WorkerCustomDomain/0.3.0/)を使います。
 - **key/valueを保存する** — [EdgeKVNamespace](/forms/EdgeKVNamespace/0.2.0/)は結果整合のバイト列ストアです。即時に同じ値が読める保証とは異なります。
-- **ファイルを保存する** — [ObjectBucket](/forms/ObjectBucket/0.2.0/)はストリーミングとmultipart操作を持つオブジェクトストアです。
+- **ファイルを保存する** — [ObjectBucket 0.2.0](/forms/ObjectBucket/0.2.0/)はstreamの正確なbyte長を要求します。[0.3.0](/forms/ObjectBucket/0.3.0/)は長さ未申告のstreamも受け付けます。[版とBindingの選び方](/v2/use-host/#長さが分からないobject-streamを保存する)を確認してください。
 - **SQLでデータを扱う** — [SQLiteDatabase](/forms/SQLiteDatabase/0.2.0/)がデータベース、[SQLiteMigrationSet](/forms/SQLiteMigrationSet/0.2.0/)が変更履歴、[SQLiteMigrationApplication](/forms/SQLiteMigrationApplication/0.2.0/)がその適用です。
 - **非同期にメッセージを処理する** — [AtLeastOnceQueue](/forms/AtLeastOnceQueue/0.2.0/)へ送り、[QueueConsumer](/forms/QueueConsumer/0.3.0/)でWorkerへ届けます。重複配信を前提にします。
 - **定期処理を実行する** — [WorkerCronTrigger](/forms/WorkerCronTrigger/0.3.0/)がUTCのスケジュールでWorkerを呼び出します。

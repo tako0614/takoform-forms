@@ -100,6 +100,52 @@ Formの仕様URLとは別の、アプリの実データです。Hostはmanifest�
 運用者が接続を許可した非公開の配布元も使えます。利用者がURLを書くだけで内部ネットワークへの接続や
 他の利用者のファイルへのアクセスが許可されるわけではありません。事前アップロード等の補助機能を提供するかはHostの選択です。
 
+## 長さが分からないobject streamを保存する
+
+[ObjectBucket 0.2.0](https://edge.forms.takoform.com/forms/ObjectBucket/0.2.0/)のWorker Bindingでは、
+`ReadableStream<Uint8Array>`を渡すとき正確な`contentLength`が必要です。
+[ObjectBucket 0.3.0](https://edge.forms.takoform.com/forms/ObjectBucket/0.3.0/)では、長さを事前に
+知らないstreamを`put`または`uploadPart`へ渡せます。`contentLength`を明示する場合は実byte数と
+一致させます。省略と`contentLength: 0`、`undefined`、`null`は同じ意味ではありません。
+
+先に0.3.0のBucket Resourceを作り、対応するHostで
+[WorkerVersion 0.7.0](https://edge.forms.takoform.com/forms/WorkerVersion/0.7.0/)の
+`bucketBindings`にそのUIDを指定します。例えば次は、既存のWorkerとbundleを使うVersionの
+`spec`です。UIDとBinding名は説明用です。
+
+```json
+{
+  "worker": { "resourceUid": "worker-uid" },
+  "bundle": { "resourceUid": "bundle-uid" },
+  "handlers": ["fetch"],
+  "bucketBindings": [
+    { "name": "OBJECTS", "resource": { "resourceUid": "bucket-uid" } }
+  ]
+}
+```
+
+[WorkerDeployment 0.6.0](https://edge.forms.takoform.com/forms/WorkerDeployment/0.6.0/)でこのVersionを
+選びます。WorkerVersion 0.7.0は0.2.0のBucketも参照できますが、そのBindingは従来どおり
+長さ必須です。HostはBinding先の**正確なForm URL**で挙動を選びます。既存BucketやVersionを
+新しい版へ暗黙に移行しません。利用前に三つのFormそれぞれのHost supportとOperation結果を
+確認してください。Form URLの公開だけではHostの実行対応を示しません。
+
+Workerの`fetch` handler内で`request`、アプリケーションが決めた`key`、上のBindingを使う場合の
+呼出し例です。`request.body`がない要求は、アプリケーション側で先に処理します。
+
+```js
+const { etag, size } = await env.OBJECTS.put(key, request.body, {
+  ifNoneMatch: "*"
+});
+```
+
+成功時の`etag`と`size`は保存したobjectの結果です。正常EOFや上限の検証に失敗した場合、
+0.3.0は旧objectを保持します。`put`は非冪等で、確定後に応答だけを失った場合は保存済みか
+不明です。Promise拒否や切断を未保存の証拠にせず、本文を自動再送しません。
+`ifNoneMatch: "*"`は既存objectの上書きを防ぎますが、失われた応答の結果を証明しません。
+アプリケーションの記録と元の書込みの確定証拠を照合してから次の操作を決めます。
+この本文操作にはHost APIの管理Operation IDや`Idempotency-Key`はありません。
+
 ## 静的ファイルだけを公開する場合
 
 対応するHostでは、[StaticAssetBundle 0.2.0](https://edge.forms.takoform.com/forms/StaticAssetBundle/0.2.0/)を先に作成・検証し、
