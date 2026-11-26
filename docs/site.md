@@ -55,16 +55,22 @@ required distribution formats. The canonical Form URL itself remains the
 direct-200 HTML reading view; its presentation can change without changing the
 normative Markdown source.
 
-The SQLiteMigrationSet and SQLiteMigrationApplication 0.3.0 and 0.4.0 sources
-add four version-fixed documents, for 21 documents across the same 17 resource
-kinds. They remain source-only. Application 0.3.0 adds the narrow
-`defer_foreign_keys` assignment exception; 0.4.0 preserves it and adds four
-read-only metadata PRAGMAs and their table-valued forms, plus main schema
-catalog reads. Set continues to own byte custody. The [inventory](../forms/README.md#sqlite-migration-040-source-successors)
-and [introspection guide](sqlite-migration-introspection.md)
-describe these changes without changing the published guides' exact 0.2.0
-links. Freezing and local tests do not establish Host support or hosted E2E
-recovery; publication and production deployment are separate actions.
+`spec/forms.freeze.json` currently anchors 30 version-fixed documents across 18
+resource kinds: the 17 initial anchors, four SQLite migration 0.3.0 and 0.4.0
+successors, three object-stream successors, three Container 0.1.0 source
+prerequisites and three Container 0.2.0 successors. When authored on 2026-10-14
+and 2026-10-15, the SQLiteMigrationSet and SQLiteMigrationApplication 0.3.0 and
+0.4.0 successors were introduced as source-only additions (Application 0.3.0
+adds the narrow `defer_foreign_keys` assignment exception; 0.4.0 preserves it
+and adds four read-only metadata PRAGMAs, their table-valued forms and main
+schema catalog reads; Set continues to own byte custody); see the
+[inventory](../forms/README.md#sqlite-migration-040-source-successors) and
+[introspection guide](sqlite-migration-introspection.md). Public availability
+of any frozen URL is confirmed separately via anonymous readback of
+`_edge-forms-publication.json` and the canonical URLs rather than from source
+prose alone. Freezing, publication and local tests do not establish Provider
+compatibility, Host support or hosted E2E recovery; publication and production
+deployment are separate actions.
 
 When a build includes the authored v2 Form pages, `/` and `/ja/` introduce
 them. The v1 overview remains at `/v1/` and `/ja/v1/`; all existing versioned
