@@ -33,11 +33,13 @@ before using a contract.
 - [Conformance corpus](../conformance/README.md): historical fixtures, selected
   candidate checks and executable-input evidence boundaries.
 - [SQLite migration PRAGMA corpus](../conformance/host-v2/sqlite-migration/README.md):
-  source-only 0.3.0 admission cases and in-memory SQLite observations; Host
-  implementation and hosted E2E recovery remain unverified here.
+  0.3.0 admission cases and in-memory SQLite observations (authored 2026-10-14
+  as source-level verification); Host implementation and hosted E2E recovery
+  remain unverified here.
 - [SQLite migration introspection](sqlite-migration-introspection.md):
-  source-only 0.4.0 read-only metadata scope, ledger protection and shareable
-  conformance vectors for downstream Host adapters.
+  0.4.0 read-only metadata scope, ledger protection and shareable conformance
+  vectors for downstream Host adapters (authored 2026-10-15 as a source-level
+  design note).
 
 ## Source and generated files
 
@@ -47,7 +49,7 @@ before using a contract.
 | `spec/guides/` | Explanatory reader guides. These may change without allocating another Form version. |
 | `internal/` and `cmd/current-form-source` | Go authoring and selection of v1 Form, Interface and Binding candidates. |
 | `forms/candidates/`, `interfaces/candidates/`, `bindings/candidates/` | Generated selected v1 candidate output, checked by `check:generation`. |
-| `forms/source-candidates/` | Generated additional Container source packages, outside the selected publication roster. |
+| `forms/source-candidates/` | Generated additional v1 Container source packages, outside the selected v1 publication roster. |
 | `forms/releases/` | Content-addressed v1 byte closures, including immutable historical and evidence-only roots. |
 | `site/`, `scripts/edge-form-pages*.mjs` | Site configuration and rendering from verified packages and authored specifications. Builds use temporary directories. |
 
@@ -74,8 +76,8 @@ Host API v2 specifications are linked above; v1 proposals do not amend them.
 | [Workflow execution](proposals/workflow-execution-contract.md) | Semantic source used by that selected closure; independent Host execution remains unqualified here. |
 | [Actor execution](proposals/actor-execution-contract.md) | Concrete proposal with a facade mapping adopted only in selected source; remaining semantics need independent qualification. |
 | [Actor gap analysis](proposals/actor-runtime.md) | Historical analysis pinned to the earlier signed contracts. |
-| [Container source readiness](proposals/container-form-source-readiness.md) | Two generated additional source packages, excluded from signing and release planning. |
-| [Container Host API v2 candidate](proposals/container-host-v2.md) | Restores the source-only ContainerService lifecycle as Container, with container.http / module-worker.container and forward WorkerVersion/Deployment. Naming agreement and native Host conformance are pending; the frozen inventory is unchanged. |
+| [Container source readiness](proposals/container-form-source-readiness.md) | Two generated additional v1 source packages, excluded from v1 signing and release planning. |
+| [Container Host API v2 candidate](proposals/container-host-v2.md) | Historical 2026-10-14 design note proposing the Container lifecycle, `container.http` / `module-worker.container` and forward `WorkerVersion`/`WorkerDeployment` before they were frozen. `Container` `0.1.0`/`0.2.0` and successor `WorkerVersion` (`0.6.0`/`0.8.0`) and `WorkerDeployment` (`0.5.0`/`0.7.0`) identities have since been anchored in `spec/forms.freeze.json` (30 documents across 18 kinds); native Host conformance and runtime support remain separate. |
 | [VectorIndex proposal](proposals/vector-index-contract.md) | Development renderer and proposed profile, outside the selected roster. |
 | [Aggregate runtime experiment](proposals/runtime-candidate.md) | Actor, Workflow and Vector closure printed by `cmd/runtime-candidate`; no publication input. |
 
