@@ -34,10 +34,10 @@ original with a language notice; it is not a translated specification.
 
 | Material | Status and use |
 | --- | --- |
-| Host API v2 Form specifications | 21 version-fixed Markdown documents for 17 resource kinds, with immutable anchors in [`spec/forms.freeze.json`](spec/forms.freeze.json). The SQLite migration 0.3.0 and 0.4.0 successors are source-only. Freezing makes exact bytes eligible for URL publication; it does not establish public availability or Host support. |
+| Host API v2 Form specifications | 30 version-fixed Markdown documents for 18 resource kinds, with immutable anchors in [`spec/forms.freeze.json`](spec/forms.freeze.json). Freezing makes exact bytes eligible for URL publication via `edge-v2-forms`; it does not establish public availability, Provider compatibility or Host support. |
 | Selected v1 source | 17 Forms, 8 Interfaces and 7 Bindings. The Actor/Workflow successors are unsigned and unpublished. |
 | Installed v1 publisher evidence | The signed set [`e7f8a39311dd011b8467e97e7f300cabb9a6b06c`](forms/trust/sets/e7f8a39311dd011b8467e97e7f300cabb9a6b06c/) pins its earlier 17-package roster. The signed site build uses that roster, not the newer source selection. |
-| Additional candidates | Container source packages and Vector/runtime experiments remain outside the selected publisher roster. See the [documentation map](docs/README.md#candidate-and-design-notes). |
+| Additional v1 candidates | Container v1 source packages and Vector/runtime experiments remain outside the selected v1 publisher roster. See the [documentation map](docs/README.md#candidate-and-design-notes). |
 
 The [inventory](forms/README.md#v1-package-history) explains the retained release
 roots and evidence-only material. Local verification checks bytes and identities.
